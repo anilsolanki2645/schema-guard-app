@@ -20,6 +20,11 @@ class StartupMiddleware:
                 StartupMiddleware._initialized = True
                 logger.info("Running application startup checks...")
                 try:
+                    # Run database migrations automatically
+                    from django.core.management import call_command
+                    logger.info("Applying database migrations programmatically...")
+                    call_command('migrate', interactive=False)
+
                     db_impl.init_db()
                     # Only start scheduler if in main thread/reloader main or in production
                     import os
