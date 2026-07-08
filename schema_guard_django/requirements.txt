@@ -1,0 +1,11 @@
+Django>=4.2,<6.1
+gunicorn>=21.2
+whitenoise>=6.6
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+passlib>=1.7.4
+pyyaml>=6.0
+apscheduler>=3.10
+
+# Custom schema-guard library (from PyPI or Git)
+db-schema-guard>=0.1.2

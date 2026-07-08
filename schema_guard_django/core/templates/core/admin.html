@@ -1,0 +1,612 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Super Admin Dashboard{% endblock %}
+
+{% block content %}
+<section id="admin-view" class="view-section active">
+  <h2 class="view-title" style="margin-top: 0; font-size: 1.5rem; font-weight: 800;">⚙️ System Administration & Global Tracking</h2>
+  <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem;">Monitor global system status, manage tenant organizations, and allocate granular pipeline privileges.</p>
+
+  {% if request.session.user.role == 'admin' %}
+  <!-- GLOBAL METRICS & TRACKING DASHBOARD (Super Admin Only) -->
+  <div style="margin-bottom: 2.5rem;">
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+          📊 Global System Metrics Tracker
+      </h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">
+          <!-- Organizations Card -->
+          <div class="glass-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.25rem; border-radius: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+              <div style="font-size: 2rem; background: rgba(59, 130, 246, 0.1); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(59, 130, 246, 0.2);">🏢</div>
+              <div style="display: flex; flex-direction: column;">
+                  <span style="font-size: 1.75rem; font-weight: 800; color: #60a5fa; font-family: var(--font-mono);" id="metric-orgs">0</span>
+                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Total Organizations</span>
+              </div>
+          </div>
+          <!-- Users Card -->
+          <div class="glass-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.25rem; border-radius: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+              <div style="font-size: 2rem; background: rgba(139, 92, 246, 0.1); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(139, 92, 246, 0.2);">👥</div>
+              <div style="display: flex; flex-direction: column;">
+                  <span style="font-size: 1.75rem; font-weight: 800; color: #a78bfa; font-family: var(--font-mono);" id="metric-users">0</span>
+                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Total Active Users</span>
+              </div>
+          </div>
+          <!-- Pipelines Card -->
+          <div class="glass-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.25rem; border-radius: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+              <div style="font-size: 2rem; background: rgba(234, 179, 8, 0.1); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(234, 179, 8, 0.2);">⚡</div>
+              <div style="display: flex; flex-direction: column;">
+                  <span style="font-size: 1.75rem; font-weight: 800; color: #fde047; font-family: var(--font-mono);" id="metric-pipelines">0</span>
+                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Total Pipelines</span>
+              </div>
+          </div>
+          <!-- Health Index Card -->
+          <div class="glass-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.25rem; border-radius: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+              <div style="font-size: 2rem; background: rgba(34, 197, 94, 0.1); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(34, 197, 94, 0.2);">🛡️</div>
+              <div style="display: flex; flex-direction: column;">
+                  <span style="font-size: 1.75rem; font-weight: 800; color: #4ade80; font-family: var(--font-mono);" id="metric-health">100%</span>
+                  <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Global Schema Health</span>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- GLOBAL PIPELINES TRACKER (Super Admin Only) -->
+  <div class="glass-card" style="margin-bottom: 2.5rem; border-color: rgba(139, 92, 246, 0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">
+          <h3 class="card-title" style="margin: 0; border: none; padding: 0;">🌐 Global Data Pipelines Tracker</h3>
+          <span style="font-size: 0.8rem; background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); color: var(--color-primary-hover); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-weight: 600;">System-Wide Scope</span>
+      </div>
+
+      <!-- Filters Controls -->
+      <div style="display: flex; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 180px;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🏢 Filter by Organization</label>
+              <select class="form-select" id="filter-org" onchange="applyGlobalFilters()" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; height: 32px;">
+                  <option value="all">All Organizations</option>
+              </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 150px;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">⚙️ Filter by DB Engine</label>
+              <select class="form-select" id="filter-engine" onchange="applyGlobalFilters()" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; height: 32px;">
+                  <option value="all">All Engines</option>
+                  <option value="postgres">PostgreSQL</option>
+                  <option value="mysql">MySQL</option>
+                  <option value="snowflake">Snowflake</option>
+                  <option value="sqlserver">Microsoft SQL Server</option>
+                  <option value="oracle">Oracle</option>
+                  <option value="databricks">Databricks</option>
+              </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 150px;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🛡️ Filter by Status</label>
+              <select class="form-select" id="filter-status" onchange="applyGlobalFilters()" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; height: 32px;">
+                  <option value="all">All Statuses</option>
+                  <option value="Clean">Passing / Clean</option>
+                  <option value="Drifted">Schema Drift Detected</option>
+                  <option value="Failed">Execution Failed</option>
+              </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.25rem; flex-grow: 1; min-width: 200px;">
+              <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">🔍 Search Pipeline Name</label>
+              <input class="form-input" type="text" id="filter-search" oninput="applyGlobalFilters()" placeholder="Type pipeline name to search..." style="padding: 0.35rem 0.75rem; font-size: 0.8rem; margin: 0; height: 32px; box-sizing: border-box;">
+          </div>
+      </div>
+
+      <div class="admin-table-container" style="overflow-x: auto; margin-top: 1rem;">
+          <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+              <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                      <th style="padding: 0.75rem;">Pipeline Name</th>
+                      <th style="padding: 0.75rem;">Organization Owner</th>
+                      <th style="padding: 0.75rem;">DB Engine</th>
+                      <th style="padding: 0.75rem;">Target Schema/Table</th>
+                      <th style="padding: 0.75rem;">Active Schedule</th>
+                      <th style="padding: 0.75rem;">Compliance Status</th>
+                      <th style="padding: 0.75rem; text-align: right;">Last Checked Time</th>
+                  </tr>
+              </thead>
+              <tbody id="global-pipelines-tbody">
+                  <tr>
+                      <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading global pipelines...</td>
+                  </tr>
+              </tbody>
+          </table>
+      </div>
+  </div>
+
+  <!-- ORGANIZATIONS DIRECTORY (Super Admin Only) -->
+  <div class="glass-card" style="margin-bottom: 2.5rem; border-color: var(--color-warning);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">
+          <h3 class="card-title" style="margin: 0; border: none; padding: 0;">🏢 Registered Tenant Organizations</h3>
+          <button class="btn-primary-sm" onclick="openOrgModal()" style="background: linear-gradient(to right, var(--color-warning), #d97706); border-color: var(--color-warning); color: #020617; font-weight: 700;">➕ Register Organization</button>
+      </div>
+      <div class="admin-table-container" style="overflow-x: auto; margin-top: 1rem;">
+          <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+              <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                      <th style="padding: 0.75rem;">Organization Name</th>
+                      <th style="padding: 0.75rem;">Created Timestamp</th>
+                      <th style="padding: 0.75rem; text-align: right;">Operations</th>
+                  </tr>
+              </thead>
+              <tbody id="orgs-tbody">
+                  <tr>
+                      <td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading organizations directory...</td>
+                  </tr>
+              </tbody>
+          </table>
+      </div>
+  </div>
+  {% endif %}
+
+  <!-- USERS DIRECTORY (Super Admin and Subadmin) -->
+  <div class="glass-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">
+          <h3 class="card-title" style="margin: 0; border: none; padding: 0;">👥 Team Access Permissions Directory</h3>
+          <button class="btn-primary-sm" onclick="openUserModal()">➕ Add Team User</button>
+      </div>
+      <div class="admin-table-container" style="overflow-x: auto; margin-top: 1rem;">
+          <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+              <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                      <th style="padding: 0.75rem;">Username</th>
+                      <th style="padding: 0.75rem;">Email</th>
+                      <th style="padding: 0.75rem;">System Role</th>
+                      <th style="padding: 0.75rem; text-align: center;">See Pipeline</th>
+                      <th style="padding: 0.75rem; text-align: center;">Create Pipeline</th>
+                      <th style="padding: 0.75rem; text-align: center;">Edit Pipeline</th>
+                      <th style="padding: 0.75rem; text-align: center;">Delete Pipeline</th>
+                      <th style="padding: 0.75rem; text-align: right;">Operations</th>
+                  </tr>
+              </thead>
+              <tbody id="users-tbody">
+                  <tr>
+                      <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading users directory...</td>
+                  </tr>
+              </tbody>
+          </table>
+      </div>
+  </div>
+</section>
+
+<!-- CREATE ORGANIZATION MODAL (Super Admin Only) -->
+<div id="org-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+          <h2>🏢 Register Organization</h2>
+          <button class="modal-close" onclick="closeOrgModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+          <form onsubmit="submitOrgForm(event)">
+              <div class="form-group">
+                  <label class="form-label" for="org-name" style="font-weight: 600;">Organization Name</label>
+                  <input class="form-input" type="text" id="org-name" required placeholder="Enter unique organization name">
+              </div>
+              <div style="border-top: 1px solid var(--border-color); margin: 1.5rem 0; padding-top: 1rem;">
+                  <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 1rem; color: var(--color-warning);">👤 Subadmin Credentials</h3>
+                  <div class="form-group">
+                      <label class="form-label" for="org-subadmin-username">Username</label>
+                      <input class="form-input" type="text" id="org-subadmin-username" required placeholder="Enter subadmin username">
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="org-subadmin-email">Email Address</label>
+                      <input class="form-input" type="email" id="org-subadmin-email" required placeholder="Enter subadmin email">
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="org-subadmin-password">Password</label>
+                      <input class="form-input" type="password" id="org-subadmin-password" required placeholder="Enter secure password">
+                  </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                  <button type="button" class="btn-secondary" onclick="closeOrgModal()" style="width: auto;">Cancel</button>
+                  <button type="submit" class="btn-primary" style="width: auto; background: linear-gradient(to right, var(--color-warning), #d97706); border-color: var(--color-warning); color: #020617; font-weight: 700;">Save Organization 🏢</button>
+              </div>
+          </form>
+      </div>
+  </div>
+</div>
+
+<!-- CREATE TEAM USER MODAL -->
+<div id="user-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+          <h2>👥 Create Team User</h2>
+          <button class="modal-close" onclick="closeUserModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+          <form onsubmit="submitUserForm(event)">
+              <div class="form-group">
+                  <label class="form-label" for="user-username" style="font-weight: 600;">Username</label>
+                  <input class="form-input" type="text" id="user-username" required placeholder="Enter username">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="user-email" style="font-weight: 600;">Email Address</label>
+                  <input class="form-input" type="email" id="user-email" required placeholder="Enter email address">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="user-password" style="font-weight: 600;">Temporary Password</label>
+                  <input class="form-input" type="password" id="user-password" required placeholder="Enter secure password">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="user-role" style="font-weight: 600;">System Role</label>
+                  <select class="form-select" id="user-role" onchange="updateModalRolePermissions()">
+                      <option value="operator">Operator (Custom Permissions)</option>
+                      <option value="viewer">Viewer (Read-Only default)</option>
+                  </select>
+              </div>
+              <div style="border-top: 1px solid var(--border-color); margin: 1.5rem 0; padding-top: 1rem;">
+                  <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 1rem;">🛡️ Granular Pipeline Privileges</h3>
+                  <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                      <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                          <input type="checkbox" id="perm-see" checked> See / Inspect Pipelines
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                          <input type="checkbox" id="perm-create"> Create / Register Pipelines
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                          <input type="checkbox" id="perm-edit"> Edit / Configure Pipelines
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                          <input type="checkbox" id="perm-delete"> Delete / Remove Pipelines
+                      </label>
+                  </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                  <button type="button" class="btn-secondary" onclick="closeUserModal()" style="width: auto;">Cancel</button>
+                  <button type="submit" class="btn-primary" style="width: auto;">Save Team User 👥</button>
+              </div>
+          </form>
+      </div>
+  </div>
+</div>
+
+<script>
+let users = [];
+let orgs = [];
+let pipelines = [];
+let csrfToken = '{{ csrf_token }}';
+const currentUserRole = '{{ request.session.user.role }}';
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadUsers();
+    if (currentUserRole === 'admin') {
+        loadOrgs();
+        loadGlobalPipelines();
+    }
+});
+
+function loadUsers() {
+    fetch('/api/auth/users')
+        .then(res => res.json())
+        .then(data => {
+            users = data;
+            renderUsersTable();
+            updateMetrics();
+        });
+}
+
+function loadOrgs() {
+    fetch('/api/auth/organizations')
+        .then(res => res.json())
+        .then(data => {
+            orgs = data;
+            renderOrgsTable();
+            populateOrgFilter();
+            updateMetrics();
+        });
+}
+
+function loadGlobalPipelines() {
+    fetch('/api/pipelines')
+        .then(res => res.json())
+        .then(data => {
+            pipelines = data;
+            renderGlobalPipelinesTableFiltered(pipelines);
+            updateMetrics();
+        });
+}
+
+function populateOrgFilter() {
+    const select = document.getElementById('filter-org');
+    if (!select) return;
+    select.innerHTML = '<option value="all">All Organizations</option>';
+    orgs.forEach(o => {
+        select.innerHTML += `<option value="${o.id}">${o.name}</option>`;
+    });
+}
+
+function applyGlobalFilters() {
+    const orgVal = document.getElementById('filter-org').value;
+    const engineVal = document.getElementById('filter-engine').value;
+    const statusVal = document.getElementById('filter-status').value;
+    const searchVal = document.getElementById('filter-search').value.toLowerCase().trim();
+    
+    let filtered = pipelines;
+    
+    if (orgVal !== 'all') {
+        filtered = filtered.filter(p => p.organization_id.toString() === orgVal);
+    }
+    if (engineVal !== 'all') {
+        filtered = filtered.filter(p => p.dbType === engineVal);
+    }
+    if (statusVal !== 'all') {
+        filtered = filtered.filter(p => p.status === statusVal);
+    }
+    if (searchVal) {
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(searchVal));
+    }
+    
+    renderGlobalPipelinesTableFiltered(filtered);
+}
+
+function updateMetrics() {
+    if (currentUserRole !== 'admin') return;
+    
+    document.getElementById('metric-orgs').innerText = orgs.length;
+    document.getElementById('metric-users').innerText = users.length;
+    document.getElementById('metric-pipelines').innerText = pipelines.length;
+    
+    if (pipelines.length === 0) {
+        document.getElementById('metric-health').innerText = '100%';
+        document.getElementById('metric-health').style.color = '#4ade80';
+    } else {
+        const cleanCount = pipelines.filter(p => p.status === 'Clean').length;
+        const score = Math.round((cleanCount / pipelines.length) * 100);
+        document.getElementById('metric-health').innerText = `${score}%`;
+        if (score >= 90) {
+            document.getElementById('metric-health').style.color = '#4ade80';
+        } else if (score >= 70) {
+            document.getElementById('metric-health').style.color = '#fde047';
+        } else {
+            document.getElementById('metric-health').style.color = '#ef4444';
+        }
+    }
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('users-tbody');
+    tbody.innerHTML = '';
+    
+    if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">No users found. Click "Add Team User" above.</td></tr>`;
+        return;
+    }
+
+    users.forEach(u => {
+        const isAdminUser = u.username === 'admin';
+        const isSelf = u.username === '{{ request.session.user.username }}';
+        
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.75rem;"><strong>${u.username}</strong></td>
+                <td style="padding: 0.75rem;"><code>${u.email}</code></td>
+                <td style="padding: 0.75rem;">
+                    <select class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;" 
+                            ${isAdminUser || isSelf ? 'disabled' : ''} onchange="updateUserRole('${u.username}', this.value)">
+                        <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                        <option value="operator" ${u.role === 'operator' ? 'selected' : ''}>Operator</option>
+                        <option value="subadmin" ${u.role === 'subadmin' ? 'selected' : ''}>Subadmin</option>
+                    </select>
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <input type="checkbox" ${u.permissions.see ? 'checked' : ''} ${isAdminUser || isSelf ? 'disabled' : ''} onchange="updateUserPermission('${u.username}', 'see', this.checked)">
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <input type="checkbox" ${u.permissions.create ? 'checked' : ''} ${isAdminUser || isSelf ? 'disabled' : ''} onchange="updateUserPermission('${u.username}', 'create', this.checked)">
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <input type="checkbox" ${u.permissions.edit ? 'checked' : ''} ${isAdminUser || isSelf ? 'disabled' : ''} onchange="updateUserPermission('${u.username}', 'edit', this.checked)">
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <input type="checkbox" ${u.permissions.delete ? 'checked' : ''} ${isAdminUser || isSelf ? 'disabled' : ''} onchange="updateUserPermission('${u.username}', 'delete', this.checked)">
+                </td>
+                <td style="padding: 0.75rem; text-align: right;">
+                    <button class="btn-secondary" style="color: var(--color-error); border-color: rgba(239, 68, 68, 0.3); padding: 0.25rem 0.5rem; font-size: 0.75rem;"
+                            ${isAdminUser || isSelf ? 'disabled' : ''} onclick="deleteUserAccount('${u.username}')">Delete User</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function renderOrgsTable() {
+    const tbody = document.getElementById('orgs-tbody');
+    tbody.innerHTML = '';
+    
+    if (orgs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">No organizations registered yet.</td></tr>`;
+        return;
+    }
+
+    orgs.forEach(o => {
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.75rem;"><strong>${o.name}</strong></td>
+                <td style="padding: 0.75rem;"><code>${o.created_at}</code></td>
+                <td style="padding: 0.75rem; text-align: right;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Active Tenant</span>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function renderGlobalPipelinesTableFiltered(list) {
+    const tbody = document.getElementById('global-pipelines-tbody');
+    tbody.innerHTML = '';
+    
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No pipelines match the selected filters.</td></tr>`;
+        return;
+    }
+
+    list.forEach(p => {
+        const statusClass = p.status === 'Clean' ? 'status-clean' : (p.status === 'Failed' ? 'status-error' : 'status-drifted');
+        const orgName = p.organization_name || `Personal Space (ID: ${p.organization_id})`;
+        
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.75rem;"><strong>${p.name}</strong></td>
+                <td style="padding: 0.75rem;"><span class="pipe-badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">${orgName}</span></td>
+                <td style="padding: 0.75rem;"><code style="text-transform: uppercase;">${p.dbType}</code></td>
+                <td style="padding: 0.75rem;"><code>${p.schema}.${p.table}</code></td>
+                <td style="padding: 0.75rem;"><code>${p.cron}</code></td>
+                <td style="padding: 0.75rem;">
+                    <span class="pipe-status ${statusClass}" style="font-size: 0.75rem; padding: 0.1rem 0.4rem;">${p.status}</span>
+                </td>
+                <td style="padding: 0.75rem; text-align: right;"><code>${p.lastChecked || 'Never checked'}</code></td>
+            </tr>
+        `;
+    });
+}
+
+function updateUserRole(username, role) {
+    const user = users.find(x => x.username === username);
+    if (!user) return;
+    
+    let newPerms = { ...user.permissions };
+    if (role === 'viewer') {
+        newPerms = { see: true, create: false, edit: false, delete: false };
+    } else if (role === 'subadmin') {
+        newPerms = { see: true, create: true, edit: true, delete: true };
+    }
+    
+    fetch(`/api/auth/users/${username}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ role, permissions: newPerms })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Update role failed.');
+        loadUsers();
+    })
+    .catch(err => {
+        alert(err.message);
+        loadUsers();
+    });
+}
+
+function updateUserPermission(username, perm, value) {
+    const user = users.find(x => x.username === username);
+    if (!user) return;
+    
+    const newPerms = { ...user.permissions };
+    newPerms[perm] = value;
+    
+    fetch(`/api/auth/users/${username}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ role: user.role, permissions: newPerms })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Update permissions failed.');
+        loadUsers();
+    })
+    .catch(err => {
+        alert(err.message);
+        loadUsers();
+    });
+}
+
+function deleteUserAccount(username) {
+    if (!confirm(`Are you sure you want to delete the operator account: ${username}?`)) return;
+    
+    fetch(`/api/auth/users/${username}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Delete user failed.');
+        loadUsers();
+    })
+    .catch(err => {
+        alert(err.message);
+    });
+}
+
+// Modal triggers
+function openOrgModal() {
+    document.getElementById('org-modal').style.display = 'flex';
+}
+function closeOrgModal() {
+    document.getElementById('org-modal').style.display = 'none';
+}
+function openUserModal() {
+    document.getElementById('user-modal').style.display = 'flex';
+}
+function closeUserModal() {
+    document.getElementById('user-modal').style.display = 'none';
+}
+
+function updateModalRolePermissions() {
+    const role = document.getElementById('user-role').value;
+    if (role === 'viewer') {
+        document.getElementById('perm-see').checked = true;
+        document.getElementById('perm-create').checked = false;
+        document.getElementById('perm-edit').checked = false;
+        document.getElementById('perm-delete').checked = false;
+    }
+}
+
+function submitOrgForm(e) {
+    e.preventDefault();
+    const name = document.getElementById('org-name').value.trim ? document.getElementById('org-name').value.trim() : document.getElementById('org-name').value;
+    const subadmin_username = document.getElementById('org-subadmin-username').value;
+    const subadmin_email = document.getElementById('org-subadmin-email').value;
+    const subadmin_password = document.getElementById('org-subadmin-password').value;
+
+    fetch('/api/auth/organizations/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ name, subadmin_username, subadmin_email, subadmin_password })
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => { throw new Error(data.detail || 'Organization creation failed') });
+        }
+        return res.json();
+    })
+    .then(data => {
+        closeOrgModal();
+        loadOrgs();
+        loadUsers();
+    })
+    .catch(err => {
+        alert(err.message);
+    });
+}
+
+function submitUserForm(e) {
+    e.preventDefault();
+    const username = document.getElementById('user-username').value;
+    const email = document.getElementById('user-email').value;
+    const password = document.getElementById('user-password').value;
+    const role = document.getElementById('user-role').value;
+    const permissions = {
+        see: document.getElementById('perm-see').checked,
+        create: document.getElementById('perm-create').checked,
+        edit: document.getElementById('perm-edit').checked,
+        delete: document.getElementById('perm-delete').checked
+    };
+
+    fetch('/api/auth/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ username, email, password, role, permissions })
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => { throw new Error(data.detail || 'User registration failed') });
+        }
+        return res.json();
+    })
+    .then(data => {
+        closeUserModal();
+        loadUsers();
+    })
+    .catch(err => {
+        alert(err.message);
+    });
+}
+</script>
+{% endblock %}

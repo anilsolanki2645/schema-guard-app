@@ -1,0 +1,204 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Contract Builder{% endblock %}
+
+{% block content %}
+<section id="builder-view" class="view-section active">
+  <div class="dashboard-grid" style="display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 1.5rem;">
+      <!-- Columns Editor Form -->
+      <div class="glass-card">
+          <h2 class="card-title" style="margin-top: 0; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">📝 Contract YAML Builder</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1.25rem; margin-bottom: 1.5rem;">
+              <div class="form-group">
+                  <label class="form-label" for="db-type-select">DB Type</label>
+                  <select class="form-select" id="db-type-select" onchange="updateYamlPreview()">
+                      <option value="postgres" selected>PostgreSQL</option>
+                      <option value="mysql">MySQL</option>
+                      <option value="snowflake">Snowflake</option>
+                      <option value="sqlserver">SQL Server</option>
+                      <option value="oracle">Oracle</option>
+                      <option value="databricks">Databricks</option>
+                  </select>
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="db-schema-input">Schema</label>
+                  <input class="form-input" type="text" id="db-schema-input" value="public" oninput="updateYamlPreview()">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="db-table-input">Table Name</label>
+                  <input class="form-input" type="text" id="db-table-input" value="orders" oninput="updateYamlPreview()">
+              </div>
+          </div>
+
+          <h3 style="font-size: 1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 700;">Columns Specification</h3>
+          <div style="overflow-x: auto; margin-bottom: 1.25rem;">
+              <table class="columns-builder-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.75rem;">
+                          <th style="padding: 0.5rem;">Column Name</th>
+                          <th style="padding: 0.5rem;">Data Type</th>
+                          <th style="padding: 0.5rem; text-align: center;">Not Null</th>
+                          <th style="padding: 0.5rem; text-align: center;">Primary Key</th>
+                          <th style="padding: 0.5rem;">Allowed Drift To</th>
+                          <th style="width: 40px; padding: 0.5rem;"></th>
+                      </tr>
+                  </thead>
+                  <tbody id="columns-tbody">
+                      <!-- Column Rows Dynamically Injected -->
+                  </tbody>
+              </table>
+          </div>
+
+          <button class="btn-secondary" onclick="addBuilderColumn()" style="width: 100%; margin-bottom: 1.5rem; justify-content: center;">
+              ➕ Add Column Rule
+          </button>
+          
+          <div style="display: flex; gap: 1rem;">
+              <button class="btn-primary" id="btn-lock-contract" onclick="lockContract()" style="width: auto;">
+                  🔒 Lock Contract Signature
+              </button>
+              <button class="btn-secondary" onclick="downloadYaml()" style="width: auto; justify-content: center;">
+                  📥 Download YAML Contract
+              </button>
+          </div>
+      </div>
+
+      <!-- Code Editor Panel -->
+      <div class="glass-card">
+          <h2 class="card-title" style="margin-top: 0; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">📄 Output YAML Preview</h2>
+          <div class="code-editor" id="yaml-preview" style="white-space: pre; font-family: var(--font-mono); font-size: 0.85rem; padding: 1.25rem; height: 480px; overflow-y: auto; background: #030712; border: 1px solid var(--border-color); border-radius: 0.75rem; color: #e2e8f0; line-height: 1.5;">
+              <!-- YAML Preview Content -->
+          </div>
+      </div>
+  </div>
+</section>
+
+<script>
+let contractColumns = [
+    { name: 'order_id', type: 'integer', notNull: true, pk: true, allowedDrift: '' },
+    { name: 'amount', type: 'numeric(10,2)', notNull: true, pk: false, allowedDrift: '' },
+    { name: 'status', type: 'character varying(20)', notNull: true, pk: false, allowedDrift: '' }
+];
+let contractIsLocked = false;
+let isLockingContract = false;
+let userRole = '{{ request.session.user.role }}';
+let userLockPrivilege = {% if request.session.user.role == 'admin' or request.session.user.permissions.lock %}true{% else %}false{% endif %};
+
+document.addEventListener("DOMContentLoaded", () => {
+    renderColumns();
+});
+
+function renderColumns() {
+    const tbody = document.getElementById('columns-tbody');
+    tbody.innerHTML = '';
+    
+    contractColumns.forEach((col, idx) => {
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.5rem;"><input class="table-input" type="text" value="${col.name}" oninput="updateColumnValue(${idx}, 'name', this.value)"></td>
+                <td style="padding: 0.5rem;"><input class="table-input" type="text" value="${col.type}" oninput="updateColumnValue(${idx}, 'type', this.value)"></td>
+                <td style="padding: 0.5rem; text-align: center;">
+                    <input type="checkbox" ${col.notNull ? 'checked' : ''} onchange="updateColumnValue(${idx}, 'notNull', this.checked)">
+                </td>
+                <td style="padding: 0.5rem; text-align: center;">
+                    <input type="checkbox" ${col.pk ? 'checked' : ''} onchange="updateColumnValue(${idx}, 'pk', this.checked)">
+                </td>
+                <td style="padding: 0.5rem;"><input class="table-input" type="text" value="${col.allowedDrift}" placeholder="Ex: text" oninput="updateColumnValue(${idx}, 'allowedDrift', this.value)"></td>
+                <td style="padding: 0.5rem;">
+                    <button class="col-delete-btn" onclick="deleteBuilderColumn(${idx})">🗑️</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    updateYamlPreview();
+}
+
+function updateColumnValue(idx, field, value) {
+    contractColumns[idx][field] = value;
+    updateYamlPreview();
+}
+
+function addBuilderColumn() {
+    contractColumns.push({
+        name: 'new_column',
+        type: 'varchar(255)',
+        notNull: false,
+        pk: false,
+        allowedDrift: ''
+    });
+    renderColumns();
+}
+
+function deleteBuilderColumn(idx) {
+    contractColumns.splice(idx, 1);
+    renderColumns();
+}
+
+function updateYamlPreview() {
+    const dbType = document.getElementById('db-type-select').value;
+    const schema = document.getElementById('db-schema-input').value;
+    const table = document.getElementById('db-table-input').value;
+    
+    let yaml = `# Schema Guard Data Contract\n# Generated: ${new Date().toISOString().slice(0, 10)}\n`;
+    if (contractIsLocked) {
+        yaml += `# 🔒 locked-signature: 4a8f90c421719b16b9b1836c92aa7d86f78df397a61d8a1c97a8b66e8c89bdf1\n`;
+    }
+
+    yaml += `\nsource:\n  name: ${table}_contract\n  type: ${dbType}\n  connection: "env:DB_CONNECTION_STRING"\n  schema: ${schema}\n  table: ${table}\n\ncolumns:`;
+
+    contractColumns.forEach(col => {
+        yaml += `\n  - name: ${col.name}\n    type: ${col.type}\n    nullable: ${!col.notNull}`;
+        if (col.allowedDrift) {
+            yaml += `\n    allowed_drift:\n      - from: "${col.type}"\n        to: "${col.allowedDrift}"`;
+        }
+    });
+
+    document.getElementById('yaml-preview').textContent = yaml;
+}
+
+function lockContract() {
+    if (!userLockPrivilege) {
+        alert("🔒 Permission Denied: Your account role does not have the 'Modify Locks' privilege.");
+        return;
+    }
+
+    if (isLockingContract) return;
+    isLockingContract = true;
+    
+    const btn = document.getElementById('btn-lock-contract');
+    btn.disabled = true;
+    btn.innerText = '⚙️ Hashing signature...';
+    
+    setTimeout(() => {
+        isLockingContract = false;
+        contractIsLocked = true;
+        updateYamlPreview();
+        
+        btn.disabled = false;
+        btn.innerText = '🔒 Contract Locked!';
+        
+        setTimeout(() => {
+            contractIsLocked = false;
+            updateYamlPreview();
+            btn.innerText = '🔒 Lock Contract Signature';
+        }, 3000);
+    }, 800);
+}
+
+function downloadYaml() {
+    const table = document.getElementById('db-table-input').value;
+    const yaml = document.getElementById('yaml-preview').textContent;
+    
+    const blob = new Blob([yaml], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${table}.yaml`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

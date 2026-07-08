@@ -1,0 +1,97 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Troubleshooting FAQ{% endblock %}
+
+{% block content %}
+<section id="trouble-view" class="view-section active">
+  <div class="glass-card">
+      <h2 class="card-title" style="margin-top: 0; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">🧩 Schema Guard Troubleshooting Guide</h2>
+      <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1.5rem; margin-top: 1rem;">
+          Find details, explanation, and resolution procedures for common pipeline schema-guard failures.
+      </p>
+
+      <div class="trouble-list" style="display: flex; flex-direction: column; gap: 1rem;">
+          <!-- FAQ ITEM 1 -->
+          <div class="trouble-item" id="faq-item-1" style="border: 1px solid var(--border-color); border-radius: 0.75rem; background: rgba(15, 23, 42, 0.3);">
+              <div class="trouble-header" onclick="toggleFaq(1)" style="padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+                  <span>❌ Exit Code 1: Schema Drift Detected Violations</span>
+                  <span class="trouble-arrow" id="faq-arrow-1" style="transition: transform 0.2s;">▼</span>
+              </div>
+              <div class="trouble-content" id="faq-content-1" style="display: none; padding: 0 1.25rem 1.25rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid rgba(51, 65, 85, 0.2); padding-top: 1rem;">
+                  <p style="margin-bottom: 0.75rem;">
+                    <strong>Why it happens:</strong> The database schema has shifted away from the design specifications in the contract baseline. This is usually due to a column deletion, a change in nullability constraint (e.g. adding NOT NULL), or a mismatch in data types.
+                  </p>
+                  <p style="font-weight: 600; color: var(--text-primary);">Resolution Options:</p>
+                  <ol style="margin-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                      <li>Revert the database schema change if the drift was accidental or unauthorized.</li>
+                      <li>If the change was intentional, update the contract file and run <code>schema-guard snap --force</code> to capture the new baseline schema.</li>
+                      <li>If this is an acceptable data type upgrade (e.g. increasing character size), define an <code>allowed_drift</code> rule inside your contract.</li>
+                  </ol>
+              </div>
+          </div>
+
+          <!-- FAQ ITEM 2 -->
+          <div class="trouble-item" id="faq-item-2" style="border: 1px solid var(--border-color); border-radius: 0.75rem; background: rgba(15, 23, 42, 0.3);">
+              <div class="trouble-header" onclick="toggleFaq(2)" style="padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+                  <span>❌ Exit Code 3: Snapshot Integrity Check FAILED</span>
+                  <span class="trouble-arrow" id="faq-arrow-2" style="transition: transform 0.2s;">▼</span>
+              </div>
+              <div class="trouble-content" id="faq-content-2" style="display: none; padding: 0 1.25rem 1.25rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid rgba(51, 65, 85, 0.2); padding-top: 1rem;">
+                  <p style="margin-bottom: 0.75rem;">
+                    <strong>Why it happens:</strong> The baseline snapshot file (e.g., <code>snapshots/orders.json</code>) was modified manually, corrupted, or has an invalid checksum hash.
+                  </p>
+                  <p style="font-weight: 600; color: var(--text-primary);">Resolution Options:</p>
+                  <ol style="margin-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                      <li>Avoid editing snapshots manually. Always use the CLI tool to update snapshots.</li>
+                      <li>To fix a corrupted snapshot, run <code>schema-guard snap --force --contract &lt;contract.yaml&gt;</code> from a trusted database environment to regenerate a fresh integrity-verified baseline.</li>
+                  </ol>
+              </div>
+          </div>
+
+          <!-- FAQ ITEM 3 -->
+          <div class="trouble-item" id="faq-item-3" style="border: 1px solid var(--border-color); border-radius: 0.75rem; background: rgba(15, 23, 42, 0.3);">
+              <div class="trouble-header" onclick="toggleFaq(3)" style="padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+                  <span>❌ Exit Code 4: Contract Signature Lock Failed</span>
+                  <span class="trouble-arrow" id="faq-arrow-3" style="transition: transform 0.2s;">▼</span>
+              </div>
+              <div class="trouble-content" id="faq-content-3" style="display: none; padding: 0 1.25rem 1.25rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid rgba(51, 65, 85, 0.2); padding-top: 1rem;">
+                  <p style="margin-bottom: 0.75rem;">
+                    <strong>Why it happens:</strong> The signature hash of the yaml contract configuration doesn't match the verification key stored in the lock file sidecar (e.g. <code>contracts/orders.yaml.lock</code>). This occurs when someone edits the yaml contract design without rehashing and signature locking it.
+                  </p>
+                  <p style="font-weight: 600; color: var(--text-primary);">Resolution Options:</p>
+                  <ol style="margin-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                      <li>Always lock the design parameters after making changes using <code>schema-guard lock --contract &lt;contract.yaml&gt;</code>.</li>
+                      <li>In the web UI, you can click <strong>Update Contract YAML</strong> under AI resolution panel suggestions to auto-sign the configuration file.</li>
+                      <li>In the YAML Contract Builder tab, you can click <strong>Lock Contract Signature</strong> to rehash the specifications before deployment.</li>
+                  </ol>
+              </div>
+          </div>
+      </div>
+  </div>
+</section>
+
+<script>
+function toggleFaq(num) {
+    const content = document.getElementById(`faq-content-${num}`);
+    const arrow = document.getElementById(`faq-arrow-${num}`);
+    
+    // Close other contents
+    for (let i = 1; i <= 3; i++) {
+        if (i !== num) {
+            document.getElementById(`faq-content-${i}`).style.display = 'none';
+            document.getElementById(`faq-arrow-${i}`).style.transform = 'rotate(0deg)';
+        }
+    }
+    
+    // Toggle active state
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        arrow.style.transform = 'rotate(180deg)';
+    } else {
+        content.style.display = 'none';
+        arrow.style.transform = 'rotate(0deg)';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Get Started{% endblock %}
+
+{% block content %}
+<section id="landing-page" class="view-section active">
+  <div class="hero-section">
+      <span class="hero-badge">🚀 Continuous Data Quality</span>
+      <h1 class="hero-title">Stop Silent Schema Drift<br><span class="highlight-text">Before It Hits Production</span></h1>
+      <p class="hero-subtitle">
+          Schema Guard enforces strict data contracts between your production databases and downstream data pipelines. Automatically detect structural mutations, trigger alerts, and leverage AI diagnostic recommendations.
+      </p>
+      <div class="hero-actions">
+          <button class="btn-primary hero-cta" onclick="openAuthModal(false)">Get Started Free ⚡</button>
+          <a href="#features-anchor" class="btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">Explore Features</a>
+      </div>
+  </div>
+
+  <!-- Features Grid -->
+  <div class="features-grid" id="features-anchor">
+      <div class="feature-card">
+          <span class="feature-icon">🔍</span>
+          <h3>Multi-DB Lazy Extractors</h3>
+          <p>Extract schemas from Postgres, MySQL, Snowflake, SQL Server, Oracle, and Databricks with optimized lazy-loading connection pools.</p>
+      </div>
+      <div class="feature-card">
+          <span class="feature-icon">🔒</span>
+          <h3>Integrity-Signed Contracts</h3>
+          <p>Protect contract declarations from tampering with cryptographic signatures (SHA-256 hashes) checked inside CI/CD gates.</p>
+      </div>
+      <div class="feature-card">
+          <span class="feature-icon">⏱️</span>
+          <h3>Automated Cron Audits</h3>
+          <p>Define automated background check schedules using standard cron tab configurations to catch silent drifts instantly.</p>
+      </div>
+      <div class="feature-card">
+          <span class="feature-icon">🤖</span>
+          <h3>AI Diagnostic Resolution</h3>
+          <p>Leverage integrated AI reasoning to analyze database mismatches, explain downstream consequences, and generate SQL repair scripts.</p>
+      </div>
+  </div>
+</section>
+
+<!-- AUTH MODAL OVERLAY -->
+<div id="auth-modal" class="modal-overlay {% if error_message %}active{% endif %}" style="display: {% if error_message %}flex{% else %}none{% endif %};">
+  <div class="modal-card">
+      <div class="modal-header">
+          <h2 id="auth-title">Account Login</h2>
+          <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+          <p id="auth-subtitle" style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+              Access the Schema Guard compliance dashboard.
+          </p>
+          
+          {% if success_message %}
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--color-success); color: #a7f3d0; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+              {{ success_message }}
+          </div>
+          {% endif %}
+
+          {% if error_message %}
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--color-error); color: #fecaca; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+              {{ error_message }}
+          </div>
+          {% endif %}
+
+          <form action="{% url 'login_or_register' %}" method="POST">
+              {% csrf_token %}
+              <input type="hidden" id="auth-mode-input" name="action" value="{% if is_signup_mode %}register{% else %}login{% endif %}">
+              
+              <div class="form-group">
+                  <label class="form-label" for="auth-username">Username or Email</label>
+                  <input class="form-input" type="text" id="auth-username" required placeholder="Enter username or email" name="username" value="{{ saved_username|default:'' }}">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="auth-password">Password</label>
+                  <input class="form-input" type="password" id="auth-password" required placeholder="Enter secure password" name="password">
+                  <div style="text-align: right; margin-top: 0.35rem;">
+                      <a href="{% url 'forgot_password' %}" style="font-size: 0.8rem; color: var(--text-secondary); text-decoration: none; font-weight: 500;">Forgot Password?</a>
+                  </div>
+              </div>
+              <div class="form-group" id="email-group" style="display: {% if is_signup_mode %}block{% else %}none{% endif %};">
+                  <label class="form-label" for="auth-email">Email Address</label>
+                  <input class="form-input" type="email" id="auth-email" placeholder="Enter your email address" name="email" value="{{ saved_email|default:'' }}">
+              </div>
+              <div class="form-group" id="org-group" style="display: {% if is_signup_mode %}block{% else %}none{% endif %};">
+                  <label class="form-label" for="auth-org">Organization Name <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">(Optional - for teams)</span></label>
+                  <input class="form-input" type="text" id="auth-org" placeholder="Enter organization name or leave empty for personal workspace" name="organization_name" value="{{ saved_org_name|default:'' }}">
+              </div>
+              
+              <button type="submit" class="btn-primary" id="auth-submit-btn" style="width: 100%;">
+                  {% if is_signup_mode %}Create Account & Login{% else %}Verify Credentials ⚡{% endif %}
+              </button>
+          </form>
+          
+          <div style="margin-top: 1.25rem; text-align: center; font-size: 0.9rem;">
+              <span id="auth-toggle-prompt" style="color: var(--text-secondary);">
+                  {% if is_signup_mode %}Already have an account?{% else %}New to Schema Guard?{% endif %}
+              </span> 
+              <a href="javascript:void(0)" id="auth-toggle-btn" onclick="toggleAuthMode()" style="color: var(--color-primary-hover); font-weight: 600;">
+                  {% if is_signup_mode %}Login here{% else %}Create an account{% endif %}
+              </a>
+          </div>
+      </div>
+  </div>
+</div>
+
+<script>
+function openAuthModal(signup = false) {
+    const modal = document.getElementById('auth-modal');
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+    
+    if (signup) {
+        setSignupMode();
+    } else {
+        setLoginMode();
+    }
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    modal.classList.remove('active');
+    setTimeout(() => modal.style.display = 'none', 300);
+}
+
+function toggleAuthMode() {
+    const actionInput = document.getElementById('auth-mode-input');
+    if (actionInput.value === 'login') {
+        setSignupMode();
+    } else {
+        setLoginMode();
+    }
+}
+
+function setSignupMode() {
+    document.getElementById('auth-mode-input').value = 'register';
+    document.getElementById('auth-title').innerText = 'Organization Registration & Signup';
+    document.getElementById('auth-subtitle').innerText = 'Register a new organization and subadmin account to enforce schema policies.';
+    document.getElementById('email-group').style.display = 'block';
+    document.getElementById('org-group').style.display = 'block';
+    document.getElementById('auth-submit-btn').innerText = 'Create Account & Login';
+    document.getElementById('auth-toggle-prompt').innerText = 'Already have an account?';
+    document.getElementById('auth-toggle-btn').innerText = 'Login here';
+}
+
+function setLoginMode() {
+    document.getElementById('auth-mode-input').value = 'login';
+    document.getElementById('auth-title').innerText = 'Account Login';
+    document.getElementById('auth-subtitle').innerText = 'Access the Schema Guard compliance dashboard.';
+    document.getElementById('email-group').style.display = 'none';
+    document.getElementById('org-group').style.display = 'none';
+    document.getElementById('auth-submit-btn').innerText = 'Verify Credentials ⚡';
+    document.getElementById('auth-toggle-prompt').innerText = 'New to Schema Guard?';
+    document.getElementById('auth-toggle-btn').innerText = 'Create an account';
+}
+</script>
+{% endblock %}

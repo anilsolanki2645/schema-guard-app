@@ -1,0 +1,1326 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Dashboard{% endblock %}
+
+{% block content %}
+<section id="dashboard-view" class="view-section active">
+  <div class="dashboard-header-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+      <div>
+          <h2 class="view-title" style="margin: 0; font-size: 1.5rem; font-weight: 800;">⚡ Database Schema Pipelines</h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Track, configure, and force compliance checks across all database instances.</p>
+      </div>
+       {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or request.session.user.permissions.create %}
+       <button class="btn-primary-sm" onclick="openWizardModal()">➕ Connect DB & Create Pipeline</button>
+       {% endif %}
+  </div>
+
+  <!-- Pipelines Summary Counters -->
+  <div class="summary-counters" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <div class="counter-card card-blue" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-total" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-primary-hover);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Total Pipelines</span>
+      </div>
+      <div class="counter-card card-green" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-clean" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-success);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Active / Passing</span>
+      </div>
+      <div class="counter-card card-red" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-drifted" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-error);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Schema Drift Detected</span>
+      </div>
+  </div>
+
+  <!-- List of active database pipelines -->
+  <div class="glass-card" style="margin-bottom: 2rem; overflow-x: auto;">
+      <table class="pipelines-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+          <thead>
+              <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                  <th style="padding: 1rem;">Pipeline Name</th>
+                  <th style="padding: 1rem;">DB Type</th>
+                  <th style="padding: 1rem;">Schema/Table</th>
+                  <th style="padding: 1rem;">Cron Schedule</th>
+                  <th style="padding: 1rem;">Alert Channels</th>
+                  <th style="padding: 1rem;">Last Check Status</th>
+                  <th style="padding: 1rem; text-align: right;">Actions</th>
+              </tr>
+          </thead>
+          <tbody id="pipelines-table-body">
+              <!-- Dynamically populated via JS -->
+              <tr>
+                  <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading pipelines directory...</td>
+              </tr>
+          </tbody>
+      </table>
+  </div>
+
+  <!-- Pipeline Drill-Down Details Panel -->
+  <div id="pipeline-details-panel" class="glass-card" style="margin-top: 2rem; border-color: var(--color-primary); display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+          <div>
+              <h2 class="card-title" id="detail-pipeline-title" style="border: none; padding: 0; margin: 0; font-size: 1.35rem; font-weight: 800;">🔍 Pipeline: -</h2>
+              <p id="detail-pipeline-db-subtitle" style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Lazy catalog extractor targeting POSTGRES schemas.</p>
+          </div>
+          <div style="display: flex; gap: 0.75rem;">
+              <button class="btn-primary-sm" id="btn-trigger-check" onclick="triggerCheck()">Trigger Validation Check</button>
+              <button class="btn-secondary" id="btn-ask-ai" onclick="openAiDrawer()" style="border-color: var(--color-warning); display: none;">🤖 Ask AI Analyzer</button>
+          </div>
+      </div>
+
+      <div class="dashboard-grid" style="display: grid; grid-template-columns: 1fr 1.25fr; gap: 1.5rem; margin-bottom: 2rem;">
+          <!-- Details Info Panel -->
+          <div class="details-info-box" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Active Schedule:</span>
+                  <span class="info-val" id="detail-schedule" style="font-weight: 600;">-</span>
+              </div>
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Alert Targets:</span>
+                  <span class="info-val" id="detail-alerts" style="font-weight: 600;">-</span>
+              </div>
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Database Username:</span>
+                  <span class="info-val" id="detail-db-user" style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;">-</span>
+              </div>
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Database Name:</span>
+                  <span class="info-val" id="detail-db-name" style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;">-</span>
+              </div>
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Target Schema:</span>
+                  <span class="info-val" id="detail-db-schema" style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;">-</span>
+              </div>
+              <div class="info-row" style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Integrity Signature:</span>
+                  <span class="info-val" id="detail-signature" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-primary-hover); text-align: right; overflow-wrap: anywhere; max-width: 60%;">-</span>
+              </div>
+              <div class="info-row" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); flex-direction: column; align-items: flex-start; gap: 0.75rem; display: flex;">
+                  <span class="info-lbl" style="color: var(--text-secondary); font-weight: 500;">Pipeline Health Index:</span>
+                  <div style="display: flex; align-items: center; gap: 1rem; width: 100%;">
+                      <!-- SVG Health Ring -->
+                      <div class="compliance-ring-wrapper" style="position: relative; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(15,23,42,0.4); border-radius: 50%;">
+                          <svg width="50" height="50" viewBox="0 0 44 44" style="transform: rotate(-90deg);">
+                              <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4"></circle>
+                              <circle cx="22" cy="22" r="18" fill="none" id="health-ring-circle" stroke="var(--color-success)" stroke-width="4" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="0" style="transition: stroke-dashoffset 0.6s ease;"></circle>
+                          </svg>
+                          <span style="position: absolute; font-size: 0.8rem; font-weight: 800; font-family: var(--font-mono); color: var(--text-primary);" id="health-ring-value">100%</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+                          <span style="font-size: 0.9rem; font-weight: 700; color: var(--color-success);" id="health-label">Perfect Health</span>
+                          <span style="font-size: 0.75rem; color: var(--text-secondary);" id="health-sub">All validation checks passed</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          <!-- Terminal Output Console Simulation -->
+          <div class="terminal-container" style="background: #030712; border: 1px solid var(--border-color); border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column;">
+              <div class="terminal-header" style="background: rgba(31,41,55,0.4); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                  <span style="font-weight: 700; color: var(--text-secondary);">💻 Validation Console Logs</span>
+                  <div style="display: flex; gap: 0.25rem;">
+                      <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+                      <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; display: inline-block;"></span>
+                      <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block;"></span>
+                  </div>
+              </div>
+              <div id="terminal-body" style="padding: 1rem; height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8; white-space: pre-wrap; line-height: 1.4;">
+                  <!-- Logs -->
+              </div>
+          </div>
+      </div>
+
+      <!-- Side-by-Side visual schema comparisons -->
+      <div class="glass-card" style="background: rgba(3, 7, 18, 0.4); margin-bottom: 2rem;">
+          <h3 class="card-title" style="font-size: 1rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3); margin-top: 0; padding-bottom: 0.75rem;">🗺️ Visual Schema Comparison Map</h3>
+          
+          <div class="drift-mapper" style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1.5rem; width: 100%;">
+              <!-- Left: Baseline Contract -->
+              <div class="schema-side" style="background: rgba(3, 7, 18, 0.4); border: 1px dashed var(--border-color); border-radius: 0.75rem; padding: 1rem; min-height: 150px;">
+                  <div class="schema-side-header" style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.75rem; text-transform: uppercase; display: flex; justify-content: space-between;">
+                      <span>Contract Design Baseline</span>
+                      <span style="color: var(--color-primary-hover);">SNAPSHOT STATE</span>
+                  </div>
+                  <div class="schema-side-cols" id="map-left-cols" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                      <!-- Populated via JS -->
+                  </div>
+              </div>
+
+              <!-- Middle: Bridge Indicators -->
+              <div class="drift-bridge" id="map-bridge" style="display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.15rem;">
+                  <!-- Lightning bolts -->
+              </div>
+
+              <!-- Right: Live Database -->
+              <div class="schema-side" style="background: rgba(3, 7, 18, 0.4); border: 1px dashed var(--border-color); border-radius: 0.75rem; padding: 1rem; min-height: 150px;">
+                  <div class="schema-side-header" style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.75rem; text-transform: uppercase; display: flex; justify-content: space-between;">
+                      <span>Current Live DB State</span>
+                      <span style="color: var(--color-success);">LIVE SCHEMA</span>
+                  </div>
+                  <div class="schema-side-cols" id="map-right-cols" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                      <!-- Populated via JS -->
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- PERSISTED AUDIT HISTORY LOGS -->
+      <h3 class="card-title" style="font-size: 1rem; margin-bottom: 1rem;">📜 Execution Compliance Logs</h3>
+      <div class="history-table-container" style="overflow-x: auto; max-height: 250px;">
+          <table class="history-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+              <thead>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary);">
+                      <th style="padding: 0.5rem 1rem;">Timestamp</th>
+                      <th style="padding: 0.5rem 1rem;">Profile</th>
+                      <th style="padding: 0.5rem 1rem;">Status</th>
+                      <th style="padding: 0.5rem 1rem;">Violations</th>
+                      <th style="padding: 0.5rem 1rem;">Notification Event Sent</th>
+                  </tr>
+              </thead>
+              <tbody id="history-table-body">
+                  <!-- Dynamically populated via JS -->
+              </tbody>
+          </table>
+      </div>
+  </div>
+</section>
+
+<!-- WIZARD CONNECTION MODAL -->
+<div id="wizard-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+          <h2>🔌 Pipeline & Database Connection Wizard</h2>
+          <button class="modal-close" onclick="closeWizardModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+          <div class="wizard-steps" style="display: flex; gap: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+              <div class="wizard-step active" id="wiz-step-lbl-1" style="font-weight: 700; color: var(--color-primary-hover);">1. DB Connection</div>
+              <div class="wizard-step" id="wiz-step-lbl-2" style="color: var(--text-muted);">2. Alerting & Cron</div>
+              <div class="wizard-step" id="wiz-step-lbl-3" style="color: var(--text-muted);">3. Test & Save</div>
+          </div>
+
+          <!-- STEP 1 PANEL -->
+          <div class="wizard-panel" id="wiz-panel-1">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-name">Pipeline Name</label>
+                      <input class="form-input" type="text" id="wiz-name" placeholder="production_orders" required>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-db-type">Database Engine</label>
+                      <select class="form-select" id="wiz-db-type">
+                          <option value="postgres">PostgreSQL</option>
+                          <option value="mysql">MySQL</option>
+                          <option value="snowflake">Snowflake</option>
+                          <option value="sqlserver">Microsoft SQL Server</option>
+                          <option value="oracle">Oracle Database</option>
+                          <option value="databricks">Databricks Lakehouse</option>
+                      </select>
+                  </div>
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="wiz-conn-str">Connection String (or credentials)</label>
+                  <input class="form-input" type="text" id="wiz-conn-str" placeholder="postgresql://user:pass@host:port/db" required>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-schema">Schema Name</label>
+                      <input class="form-input" type="text" id="wiz-schema" placeholder="public" value="public" required>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-table">Table Name</label>
+                      <div id="wiz-table-container">
+                          <!-- Text input or Select lister populated via connection test -->
+                          <input class="form-input" type="text" id="wiz-table" placeholder="orders" required>
+                      </div>
+                  </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 1.5rem;">
+                  <button type="button" class="btn-secondary" id="wiz-test-btn" onclick="wizardTestAndFetchTables()" style="width: 100%; border-style: dashed; justify-content: center;">
+                      🔌 Test Connection & Fetch Tables
+                  </button>
+                  <div id="wiz-conn-status" style="margin-top: 0.5rem; font-size: 0.85rem; display: none;">
+                      <!-- Success or Error status text -->
+                  </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                  <button class="btn-primary" onclick="wizardGoToStep(2)" style="width: auto;">Continue to Alerting & Cron &rarr;</button>
+              </div>
+          </div>
+
+          <!-- STEP 2 PANEL -->
+          <div class="wizard-panel" id="wiz-panel-2" style="display: none;">
+              <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">⏱️ Cron Validation Scheduler</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Define how frequently Schema Guard polls the live database schema structure.</p>
+              
+              <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-cron-preset">Select Audit Schedule Preset</label>
+                      <select class="form-select" id="wiz-cron-preset" onchange="updateWizCronPreset()">
+                          <option value="hourly">Every Hour (0 * * * *)</option>
+                          <option value="daily" selected>Every Day at Midnight (0 0 * * *)</option>
+                          <option value="weekly">Every Week (0 0 * * 0)</option>
+                          <option value="custom">Custom Cron Expression...</option>
+                      </select>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="wiz-cron">Custom Cron Tab Expression</label>
+                      <input class="form-input" type="text" id="wiz-cron" value="0 0 * * *" disabled placeholder="* * * * *">
+                  </div>
+              </div>
+
+              <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">📢 Event-Based Alerting Routing</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Toggle channels to dispatch real-time warning payloads when schema drift is detected.</p>
+
+              <div class="alert-routing-options" style="display: flex; flex-direction: column; gap: 1rem;">
+                  <!-- Email Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="wiz-alert-email-enable" onchange="toggleWizAlertInput('email')">
+                          <label for="wiz-alert-email-enable" style="font-weight: 600; cursor: pointer;">📧 Email Notifications</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="wiz-alert-email-val" disabled placeholder="Recipient addresses (comma-separated, e.g. a@org.com, b@org.com)">
+                  </div>
+                  <!-- Slack Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="wiz-alert-slack-enable" onchange="toggleWizAlertInput('slack')">
+                          <label for="wiz-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack Webhook Channel</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="wiz-alert-slack-val" disabled placeholder="https://hooks.slack.com/services/...">
+                  </div>
+                  <!-- WhatsApp Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="wiz-alert-wp-enable" onchange="toggleWizAlertInput('wp')">
+                          <label for="wiz-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp Event Dispatch</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="wiz-alert-wp-val" disabled placeholder="Phone number (Ex: +123456789)">
+                  </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
+                  <button class="btn-secondary" onclick="wizardGoToStep(1)">&larr; Back</button>
+                  <button class="btn-primary" onclick="wizardGoToStep(3)" style="width: auto;">Verify & Register Pipeline &rarr;</button>
+              </div>
+          </div>
+
+          <!-- STEP 3 PANEL -->
+          <div class="wizard-panel" id="wiz-panel-3" style="display: none;">
+              <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">⚙️ Validation & Initialization Run</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.25rem;">
+                  We will execute a connection to verify parameters and compile the initial compliance data contract schema.
+              </p>
+
+              <!-- Dry Run Logs Console -->
+              <div class="terminal-container" style="background: #030712; border: 1px solid var(--border-color); border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 1.5rem;">
+                  <div class="terminal-header" style="background: rgba(31,41,55,0.4); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                      <span style="font-weight: 700; color: var(--text-secondary);">💻 Dry Run Terminal Logs</span>
+                      <div style="display: flex; gap: 0.25rem;">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; display: inline-block;"></span>
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block;"></span>
+                      </div>
+                  </div>
+                  <div id="wiz-terminal-body" style="padding: 1rem; height: 160px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; color: #22c55e; white-space: pre-wrap; line-height: 1.4;">
+                      $ Idle. Click dry-run button to run connection tests...
+                  </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
+                  <button class="btn-secondary" id="wiz-back-btn-3" onclick="wizardGoToStep(2)">&larr; Back</button>
+                  <button class="btn-primary" id="wiz-register-btn" onclick="submitWizard()" style="width: auto;" disabled>
+                      Register Pipeline 🚀
+                  </button>
+              </div>
+          </div>
+      </div>
+  </div>
+</div>
+
+<!-- EDIT CONNECTION MODAL -->
+<div id="edit-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="max-width: 550px;">
+      <div class="modal-header">
+          <h2>✏️ Edit Pipeline Configuration</h2>
+          <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+          <form onsubmit="submitEditForm(event)">
+              <input type="hidden" id="edit-pipeline-id">
+              <div class="form-group">
+                  <label class="form-label" style="font-weight:600;">Pipeline Name (Read-Only)</label>
+                  <input class="form-input" type="text" id="edit-name" disabled style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+              </div>
+              
+              <div class="form-group">
+                  <label class="form-label" for="edit-conn-str" style="font-weight:600;">Connection String</label>
+                  <input class="form-input" type="text" id="edit-conn-str" required>
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                  <div class="form-group">
+                      <label class="form-label" for="edit-cron-preset" style="font-weight:600;">Audit Schedule Preset</label>
+                      <select class="form-select" id="edit-cron-preset" onchange="updateEditCronPreset()">
+                          <option value="hourly">Every Hour (0 * * * *)</option>
+                          <option value="daily">Every Day at Midnight (0 0 * * *)</option>
+                          <option value="weekly">Every Week (0 0 * * 0)</option>
+                          <option value="custom">Custom Cron Expression...</option>
+                      </select>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label" for="edit-cron" style="font-weight:600;">Custom Cron Expression</label>
+                      <input class="form-input" type="text" id="edit-cron" placeholder="* * * * *">
+                  </div>
+              </div>
+
+              <h3 style="font-size: 1rem; margin-bottom: 0.5rem; font-weight:700;">📢 Event-Based Alerting Routing</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Update routing targets for warnings when schema drift is detected.</p>
+
+              <div class="alert-routing-options" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                  <!-- Email Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="edit-alert-email-enable" onchange="toggleEditAlertInput('email')">
+                          <label for="edit-alert-email-enable" style="font-weight: 600; cursor: pointer;">📧 Email Notifications</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="edit-alert-email-val" placeholder="Recipient addresses (comma-separated, e.g. a@org.com, b@org.com)">
+                  </div>
+                  <!-- Slack Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="edit-alert-slack-enable" onchange="toggleEditAlertInput('slack')">
+                          <label for="edit-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack Webhook Channel</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="edit-alert-slack-val" placeholder="https://hooks.slack.com/services/...">
+                  </div>
+                  <!-- WhatsApp Alert -->
+                  <div class="alert-route-item" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                      <div class="alert-route-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                          <input type="checkbox" id="edit-alert-wp-enable" onchange="toggleEditAlertInput('wp')">
+                          <label for="edit-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp Event Dispatch</label>
+                      </div>
+                      <input class="form-input alert-route-input" type="text" id="edit-alert-wp-val" placeholder="Phone number (Ex: +123456789)">
+                  </div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                  <button type="button" class="btn-secondary" onclick="closeEditModal()" style="width: auto;">Cancel</button>
+                  <button type="submit" class="btn-primary" style="width: auto;">Save Changes 💾</button>
+              </div>
+          </form>
+      </div>
+  </div>
+</div>
+
+<!-- AI DIAGNOSTICS DRAWER -->
+<div id="ai-drawer" class="drawer-overlay" style="display: none;">
+  <div class="drawer-panel">
+      <div class="drawer-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.75rem;">🤖</span>
+              <div>
+                  <h3 style="font-weight: 800; font-size: 1.1rem; margin: 0;">AI Diagnostics Assistant</h3>
+                  <p style="color: var(--color-warning); font-size: 0.75rem; font-weight: 600; margin: 0.15rem 0 0 0; text-transform: uppercase;">ACTIVE PIPELINE DRIFT REPAIR</p>
+              </div>
+          </div>
+          <button class="drawer-close" onclick="closeAiDrawer()" style="background: transparent; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer;">&times;</button>
+      </div>
+
+      <div class="drawer-body" style="display: flex; flex-direction: column; gap: 1.25rem; height: calc(100% - 70px);">
+          <!-- Diagnostic Summary -->
+          <div class="ai-analysis-header" style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 1rem; border-radius: 0.5rem;">
+              <div style="font-weight: 700; margin-bottom: 0.25rem; color: #fde047;">🔍 Drift Mismatch Detected:</div>
+              <div id="ai-drift-summary" style="font-size: 0.85rem; color: var(--text-secondary); max-height: 80px; overflow-y: auto; line-height: 1.4;">
+                  Analyzing database changes...
+              </div>
+          </div>
+
+          <!-- Chat Conversation container -->
+          <div class="ai-chat-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color); border-radius: 0.75rem; background: rgba(3,7,18,0.4); padding: 1rem;">
+              <div class="ai-chat-history" id="ai-chat-history" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem; padding-right: 0.5rem; max-height: 300px;">
+                  <!-- Dynamic chat logs -->
+              </div>
+              
+              <!-- Quick actions triggers -->
+              <div class="ai-quick-actions" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                  <button class="quick-action-btn" onclick="aiQuery('explain')">💡 Explain Downstream Impact</button>
+                  <button class="quick-action-btn" onclick="aiQuery('sql')">🔧 Generate SQL Repair Script</button>
+                  <button class="quick-action-btn" onclick="aiQuery('yaml')">📝 Update Contract YAML</button>
+              </div>
+              
+              <!-- Custom User Message input -->
+              <div class="chat-input-wrapper" style="display: flex; gap: 0.5rem;">
+                  <input class="form-input" type="text" id="ai-chat-input" placeholder="Type custom question (e.g. Will this crash my Spark job?)..." onkeypress="handleAiKeyPress(event)" style="flex-grow: 1;">
+                  <button class="btn-primary" onclick="sendCustomAiMessage()" style="width: auto; padding: 0.5rem 1rem;">Send</button>
+              </div>
+          </div>
+      </div>
+  </div>
+</div>
+
+<script>
+const userRole = "{{ request.session.user.role }}";
+const userPermissions = {
+    see: {{ request.session.user.permissions.see|yesno:"true,false" }},
+    create: {{ request.session.user.permissions.create|yesno:"true,false" }},
+    edit: {{ request.session.user.permissions.edit|yesno:"true,false" }},
+    delete: {{ request.session.user.permissions.delete|yesno:"true,false" }}
+};
+const canSee = userRole === 'admin' || userRole === 'subadmin' || userPermissions.see;
+const canCreate = userRole === 'admin' || userRole === 'subadmin' || userPermissions.create;
+const canEdit = userRole === 'admin' || userRole === 'subadmin' || userPermissions.edit;
+const canDelete = userRole === 'admin' || userRole === 'subadmin' || userPermissions.delete;
+
+// State management variables
+let pipelines = [];
+let activePipeline = null;
+let wizardStep = 1;
+let fetchedTables = [];
+let isTestingWizConn = false;
+let wizardTablesFetched = false;
+let wizardDryRunPassed = false;
+let isWizRegistering = false;
+let isRunningCheck = false;
+let aiChatHistory = [];
+let csrfToken = '{{ csrf_token }}';
+
+// Fetch pipelines on load
+document.addEventListener("DOMContentLoaded", () => {
+    syncPipelines();
+});
+
+function syncPipelines() {
+    if (!canSee) {
+        const tbody = document.getElementById('pipelines-table-body');
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.95rem;">🔒 Access Denied: You do not have permission to see pipelines. Please contact your administrator.</td></tr>`;
+        document.getElementById('cnt-total').innerText = '-';
+        document.getElementById('cnt-clean').innerText = '-';
+        document.getElementById('cnt-drifted').innerText = '-';
+        return;
+    }
+    fetch('/api/pipelines')
+        .then(res => res.json())
+        .then(data => {
+            pipelines = data;
+            renderPipelinesTable();
+            renderCounters();
+            
+            // Auto restore last active pipeline from localStorage
+            const activeId = localStorage.getItem('schema_guard_active_pipeline_id');
+            if (activeId) {
+                const found = pipelines.find(p => p.id === activeId);
+                if (found) {
+                    selectPipeline(found.id);
+                }
+            }
+        });
+}
+
+function renderCounters() {
+    document.getElementById('cnt-total').innerText = pipelines.length;
+    document.getElementById('cnt-clean').innerText = pipelines.filter(p => p.status === 'Clean').length;
+    document.getElementById('cnt-drifted').innerText = pipelines.filter(p => p.status !== 'Clean').length;
+}
+
+function renderPipelinesTable() {
+    const tbody = document.getElementById('pipelines-table-body');
+    if (pipelines.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No pipelines registered. Click "Connect DB & Create Pipeline" above.</td></tr>`;
+        return;
+    }
+    
+    let html = '';
+    pipelines.forEach(p => {
+        const isSelected = activePipeline && activePipeline.id === p.id;
+        const statusClass = p.status === 'Clean' ? 'status-clean' : (p.status === 'Failed' ? 'status-error' : 'status-drifted');
+        
+        let alertsHtml = [];
+        if (p.alerts.email) alertsHtml.push('📧 Email');
+        if (p.alerts.slack) alertsHtml.push('💬 Slack');
+        if (p.alerts.wp) alertsHtml.push('🟢 WP');
+        const alertsText = alertsHtml.length > 0 ? alertsHtml.map(a => `<span class="pipe-badge">${a}</span>`).join(' ') : '<span style="color: var(--text-muted);">None</span>';
+        
+        html += `
+            <tr onclick="selectPipeline('${p.id}')" style="cursor: pointer; background: ${isSelected ? 'rgba(139, 92, 246, 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 1rem;"><strong>${p.name}</strong></td>
+                <td style="padding: 1rem;"><code style="text-transform: uppercase;">${p.dbType}</code></td>
+                <td style="padding: 1rem;"><code>${p.schema}.${p.table}</code></td>
+                <td style="padding: 1rem;"><code>${p.cron}</code></td>
+                <td style="padding: 1rem;">${alertsText}</td>
+                <td style="padding: 1rem;">
+                    <span class="pipe-status ${statusClass}">${p.status}</span>
+                </td>
+                <td style="padding: 1rem; text-align: right;" onclick="event.stopPropagation()">
+                    <div class="btn-actions-row" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                        <button class="btn-primary-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="runCheckDirect('${p.id}')">Run</button>
+                        ${canEdit ? `<button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--color-success); border-color: rgba(34, 197, 94, 0.3);" onclick="openEditModal('${p.id}')">Edit</button>` : ''}
+                        ${canDelete ? `<button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--color-error); border-color: rgba(239, 68, 68, 0.3);" onclick="deletePipeline('${p.id}')">Delete</button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function parseConnectionDetails(connStr, dbType, defaultSchema) {
+    let username = 'N/A';
+    let database = 'N/A';
+    let schema = defaultSchema || 'public';
+
+    if (connStr.startsWith('env:')) {
+        return {
+            username: `Resolved from ${connStr}`,
+            database: 'Resolved from Environment',
+            schema: schema
+        };
+    }
+
+    try {
+        const parts = connStr.split('://');
+        if (parts.length > 1) {
+            const path = parts[1];
+            const credsAndRest = path.split('@');
+            if (credsAndRest.length > 1) {
+                const creds = credsAndRest[0];
+                const rest = credsAndRest[1];
+                
+                const userPass = creds.split(':');
+                username = decodeURIComponent(userPass[0]);
+                
+                const mainRest = rest.split('?')[0];
+                const pathParts = mainRest.split('/');
+                
+                if (dbType === 'snowflake') {
+                    if (pathParts.length > 1) database = decodeURIComponent(pathParts[1]);
+                    if (pathParts.length > 2) schema = decodeURIComponent(pathParts[2]);
+                } else {
+                    if (pathParts.length > 1) database = decodeURIComponent(pathParts[1]);
+                }
+            } else {
+                const mainRest = path.split('?')[0];
+                const pathParts = mainRest.split('/');
+                if (pathParts.length > 1) database = decodeURIComponent(pathParts[1]);
+            }
+        }
+    } catch (e) {
+        console.error("Failed to parse connection string details:", e);
+    }
+
+    return {
+        username: username || 'N/A',
+        database: database || 'N/A',
+        schema: schema || 'N/A'
+    };
+}
+
+function selectPipeline(id) {
+    const found = pipelines.find(p => p.id === id);
+    if (!found) return;
+    activePipeline = found;
+    localStorage.setItem('schema_guard_active_pipeline_id', id);
+    
+    // Highlight table selection
+    renderPipelinesTable();
+    
+    // Populate details panel
+    document.getElementById('pipeline-details-panel').style.display = 'block';
+    document.getElementById('detail-pipeline-title').innerText = `🔍 Pipeline: ${found.name}`;
+    document.getElementById('detail-pipeline-db-subtitle').innerText = `Lazy catalog extractor targeting ${found.dbType.toUpperCase()} schemas.`;
+    document.getElementById('detail-schedule').innerText = `${found.cronText} (${found.cron})`;
+    
+    let alerts = [];
+    if (found.alerts.email) alerts.push(`Email (${found.alerts.email})`);
+    if (found.alerts.slack) alerts.push('Slack Webhook');
+    if (found.alerts.wp) alerts.push(`WhatsApp (${found.alerts.wp})`);
+    document.getElementById('detail-alerts').innerText = alerts.length > 0 ? alerts.join(', ') : 'None configured';
+    const parsed = parseConnectionDetails(found.connStr, found.dbType, found.schema);
+    document.getElementById('detail-db-user').innerText = parsed.username;
+    document.getElementById('detail-db-name').innerText = parsed.database;
+    document.getElementById('detail-db-schema').innerText = parsed.schema;
+    document.getElementById('detail-signature').innerText = found.lockSignature || 'N/A';
+    
+    // Render AI drawer button if not clean
+    document.getElementById('btn-ask-ai').style.display = found.status !== 'Clean' ? 'block' : 'none';
+    
+    // Calculate health index
+    const history = found.complianceHistory || [];
+    let score = 100;
+    if (history.length > 0) {
+        const passes = history.filter(h => h.status === 'PASS').length;
+        score = Math.round((passes / history.length) * 100);
+    }
+    
+    let label = 'Perfect Health';
+    let sub = 'All validation checks passed';
+    let labelColor = 'var(--color-success)';
+    let strokeColor = 'var(--color-success)';
+    if (score < 100 && score >= 70) {
+        label = 'Slightly Drifted';
+        sub = 'Minor drift incidents recorded';
+        labelColor = 'var(--color-warning)';
+        strokeColor = 'var(--color-warning)';
+    } else if (score < 70) {
+        label = 'Critical Drift';
+        sub = 'Frequent drift violations detected';
+        labelColor = 'var(--color-error)';
+        strokeColor = 'var(--color-error)';
+    }
+    
+    document.getElementById('health-ring-value').innerText = `${score}%`;
+    document.getElementById('health-label').innerText = label;
+    document.getElementById('health-label').style.color = labelColor;
+    document.getElementById('health-sub').innerText = sub;
+    
+    const circle = document.getElementById('health-ring-circle');
+    const circumference = 113;
+    const offset = circumference - (circumference * score) / 100;
+    circle.setAttribute('stroke-dashoffset', offset);
+    circle.setAttribute('stroke', strokeColor);
+    
+    // Populate Terminal Initial Logs
+    if (!isRunningCheck) {
+        document.getElementById('terminal-body').innerHTML = `Connection: ${found.dbType.toUpperCase()}\nSchema Table Target: ${found.schema}.${found.table}\nClick "Trigger Validation Check" above to query live database.`;
+    }
+    
+    // Render visual schema maps
+    renderSchemaMap(found.schemaMap);
+    
+    // Render compliance logs history table
+    renderComplianceHistory(found.complianceHistory);
+}
+
+function getNodeStyle(status) {
+    if (status === 'removed') {
+        return 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.12); color: #fca5a5;';
+    }
+    if (status === 'changed') {
+        return 'border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.12); color: #fde047;';
+    }
+    if (status === 'added') {
+        return 'border: 1px solid rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.12); color: #86efac;';
+    }
+    return 'border: 1px solid var(--border-color); background: rgba(30, 41, 59, 0.15);';
+}
+
+function renderSchemaMap(map) {
+    const leftContainer = document.getElementById('map-left-cols');
+    const rightContainer = document.getElementById('map-right-cols');
+    const bridgeContainer = document.getElementById('map-bridge');
+    
+    leftContainer.innerHTML = '';
+    rightContainer.innerHTML = '';
+    bridgeContainer.innerHTML = '';
+    
+    if (!map || (!map.left && !map.right)) {
+        leftContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 2rem 0;">No mapping configurations available. Run validation check first.</div>`;
+        return;
+    }
+    
+    const leftCols = map.left || [];
+    const rightCols = map.right || [];
+    
+    leftCols.forEach(col => {
+        let nodeStyle = getNodeStyle(col.status);
+        
+        leftContainer.innerHTML += `
+            <div class="column-node" style="${nodeStyle} padding: 0.4rem 0.6rem; border-radius: 0.35rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; height: 42px; box-sizing: border-box; margin-bottom: 0.50rem;">
+                <div class="col-details" style="display: flex; flex-direction: column;">
+                    <span class="col-name" style="font-weight: 600; text-decoration: ${col.status === 'removed' ? 'line-through' : 'none'};">${col.name}</span>
+                    <span class="col-type" style="font-size: 0.65rem; color: var(--text-muted); font-family: var(--font-mono);">${col.type}</span>
+                </div>
+                <div>
+                    ${col.pk ? '<span class="col-badge badge-pk" style="background: rgba(139,92,246,0.15); color: var(--color-primary-hover); border: 1px solid rgba(139,92,246,0.25); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-weight:700;">PK</span>' : ''}
+                    ${!col.nullable ? '<span class="col-badge badge-nn" style="background: rgba(100,116,139,0.15); color: var(--text-secondary); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-weight:700; margin-left: 0.15rem;">NN</span>' : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    rightCols.forEach(col => {
+        let nodeStyle = getNodeStyle(col.status);
+        
+        rightContainer.innerHTML += `
+            <div class="column-node" style="${nodeStyle} padding: 0.4rem 0.6rem; border-radius: 0.35rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; height: 42px; box-sizing: border-box; margin-bottom: 0.50rem;">
+                <div class="col-details" style="display: flex; flex-direction: column;">
+                    <span class="col-name" style="font-weight: 600;">${col.name}</span>
+                    <span class="col-type" style="font-size: 0.65rem; color: var(--text-muted); font-family: var(--font-mono);">${col.type}</span>
+                </div>
+                <div>
+                    ${col.pk ? '<span class="col-badge badge-pk" style="background: rgba(139,92,246,0.15); color: var(--color-primary-hover); border: 1px solid rgba(139,92,246,0.25); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-weight:700;">PK</span>' : ''}
+                    ${!col.nullable ? '<span class="col-badge badge-nn" style="background: rgba(100,116,139,0.15); color: var(--text-secondary); font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-weight:700; margin-left: 0.15rem;">NN</span>' : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    const count = Math.max(leftCols.length, rightCols.length);
+    for (let i = 0; i < count; i++) {
+        const leftCol = leftCols[i];
+        const rightCol = rightCols[i];
+        let arrowColor = 'var(--text-muted)';
+        if ((leftCol && leftCol.status && leftCol.status !== 'normal') || (rightCol && rightCol.status && rightCol.status !== 'normal')) {
+            arrowColor = 'var(--color-error)';
+        }
+        bridgeContainer.innerHTML += `<div class="bridge-arrow" style="color: ${arrowColor}; font-size: 1rem; display: flex; align-items: center; height: 42px; margin-bottom: 0.50rem; justify-content: center;">⚡</div>`;
+    }
+}
+
+function renderComplianceHistory(history) {
+    const tbody = document.getElementById('history-table-body');
+    tbody.innerHTML = '';
+    if (!history || history.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">No audit checks run.</td></tr>`;
+        return;
+    }
+    
+    history.forEach(h => {
+        const passClass = h.status === 'PASS' ? 'hist-pass' : 'hist-fail';
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.5rem 1rem;">${h.time}</td>
+                <td style="padding: 0.5rem 1rem;">${h.profile}</td>
+                <td style="padding: 0.5rem 1rem;">
+                    <span class="hist-status ${passClass}">${h.status}</span>
+                </td>
+                <td style="padding: 0.5rem 1rem;">${h.violations}</td>
+                <td style="padding: 0.5rem 1rem;"><code>${h.alertEvent || 'None'}</code></td>
+            </tr>
+        `;
+    });
+}
+
+function triggerCheck() {
+    if (!activePipeline || isRunningCheck) return;
+    isRunningCheck = true;
+    
+    const term = document.getElementById('terminal-body');
+    term.innerHTML = `schema-guard gate --contract contracts/${activePipeline.table}.yaml\n`;
+    
+    document.getElementById('btn-trigger-check').disabled = true;
+    document.getElementById('btn-trigger-check').innerText = 'Executing...';
+    
+    fetch(`/api/pipelines/${activePipeline.id}/run`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(res.statusText);
+        }
+        return res.json();
+    })
+    .then(updated => {
+        let lineIdx = 0;
+        const intervalId = setInterval(() => {
+            if (lineIdx < updated.logs.length) {
+                term.innerHTML += updated.logs[lineIdx] + '\n';
+                term.scrollTop = term.scrollHeight;
+                lineIdx++;
+            } else {
+                clearInterval(intervalId);
+                isRunningCheck = false;
+                document.getElementById('btn-trigger-check').disabled = false;
+                document.getElementById('btn-trigger-check').innerText = 'Trigger Validation Check';
+                
+                // Fetch updated pipelines to synchronize details and table
+                fetch('/api/pipelines')
+                    .then(res => res.json())
+                    .then(data => {
+                        pipelines = data;
+                        renderCounters();
+                        renderPipelinesTable();
+                        
+                        // Reselect same pipeline to update metrics and visual map!
+                        selectPipeline(updated.id);
+                    });
+            }
+        }, 100);
+    })
+    .catch(err => {
+        isRunningCheck = false;
+        document.getElementById('btn-trigger-check').disabled = false;
+        document.getElementById('btn-trigger-check').innerText = 'Trigger Validation Check';
+        alert("Error running check: " + err.message);
+    });
+}
+
+function runCheckDirect(id) {
+    selectPipeline(id);
+    setTimeout(() => triggerCheck(), 100);
+}
+
+// -------------------------------------------------------------
+// Connection Wizard modal logic
+// -------------------------------------------------------------
+function openWizardModal() {
+    wizardStep = 1;
+    wizardGoToStep(1);
+    document.getElementById('wiz-name').value = '';
+    document.getElementById('wiz-conn-str').value = '';
+    document.getElementById('wiz-schema').value = 'public';
+    document.getElementById('wiz-table-container').innerHTML = `<input class="form-input" type="text" id="wiz-table" placeholder="orders" required>`;
+    
+    document.getElementById('wiz-alert-email-enable').checked = false;
+    document.getElementById('wiz-alert-email-val').value = '';
+    document.getElementById('wiz-alert-email-val').disabled = true;
+    
+    document.getElementById('wiz-alert-slack-enable').checked = false;
+    document.getElementById('wiz-alert-slack-val').value = '';
+    document.getElementById('wiz-alert-slack-val').disabled = true;
+    
+    document.getElementById('wiz-alert-wp-enable').checked = false;
+    document.getElementById('wiz-alert-wp-val').value = '';
+    document.getElementById('wiz-alert-wp-val').disabled = true;
+    
+    document.getElementById('wiz-cron-preset').value = 'daily';
+    document.getElementById('wiz-cron').value = '0 0 * * *';
+    document.getElementById('wiz-cron').disabled = true;
+    
+    document.getElementById('wiz-conn-status').style.display = 'none';
+    document.getElementById('wiz-terminal-body').innerText = '$ Idle. Click dry-run button to run connection tests...';
+    document.getElementById('wiz-register-btn').disabled = true;
+    
+    const modal = document.getElementById('wizard-modal');
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+}
+
+function closeWizardModal() {
+    const modal = document.getElementById('wizard-modal');
+    modal.classList.remove('active');
+    setTimeout(() => modal.style.display = 'none', 300);
+}
+
+function wizardGoToStep(step) {
+    wizardStep = step;
+    document.getElementById('wiz-panel-1').style.display = step === 1 ? 'block' : 'none';
+    document.getElementById('wiz-panel-2').style.display = step === 2 ? 'block' : 'none';
+    document.getElementById('wiz-panel-3').style.display = step === 3 ? 'block' : 'none';
+    
+    for (let i = 1; i <= 3; i++) {
+        const lbl = document.getElementById(`wiz-step-lbl-${i}`);
+        if (i <= step) {
+            lbl.style.fontWeight = '700';
+            lbl.style.color = 'var(--color-primary-hover)';
+        } else {
+            lbl.style.fontWeight = '400';
+            lbl.style.color = 'var(--text-muted)';
+        }
+    }
+    
+    if (step === 3) {
+        runWizardDryRun();
+    }
+}
+
+function updateWizCronPreset() {
+    const preset = document.getElementById('wiz-cron-preset').value;
+    const cronInput = document.getElementById('wiz-cron');
+    if (preset === 'hourly') {
+        cronInput.value = '0 * * * *';
+        cronInput.disabled = true;
+    } else if (preset === 'daily') {
+        cronInput.value = '0 0 * * *';
+        cronInput.disabled = true;
+    } else if (preset === 'weekly') {
+        cronInput.value = '0 0 * * 0';
+        cronInput.disabled = true;
+    } else {
+        cronInput.value = '* * * * *';
+        cronInput.disabled = false;
+    }
+}
+
+function toggleWizAlertInput(channel) {
+    const isChecked = document.getElementById(`wiz-alert-${channel}-enable`).checked;
+    document.getElementById(`wiz-alert-${channel}-val`).disabled = !isChecked;
+}
+
+function wizardTestAndFetchTables() {
+    if (isTestingWizConn) return;
+    isTestingWizConn = true;
+    
+    const btn = document.getElementById('wiz-test-btn');
+    btn.disabled = true;
+    btn.innerText = '⏳ Connecting to database and listing tables...';
+    
+    const dbType = document.getElementById('wiz-db-type').value;
+    const connStr = document.getElementById('wiz-conn-str').value;
+    const schema = document.getElementById('wiz-schema').value;
+    const statusBox = document.getElementById('wiz-conn-status');
+    
+    statusBox.style.display = 'none';
+    
+    fetch('/api/pipelines/list-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ dbType, connStr, schema })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error('Connection failed or bad request.');
+        }
+        return res.json();
+    })
+    .then(data => {
+        isTestingWizConn = false;
+        btn.disabled = false;
+        btn.innerText = '🔌 Test Connection & Fetch Tables';
+        
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `<span style="color: var(--color-success);">Success: Connected. Listed ${data.tables.length} tables.</span>`;
+        
+        // Render select dropdown
+        let selectHtml = `<select class="form-select" id="wiz-table" onchange="checkWizManualEntry()">`;
+        data.tables.forEach(t => {
+            selectHtml += `<option value="${t}">${t}</option>`;
+        });
+        if (data.tables.length === 0) {
+            selectHtml += `<option value="">No tables found in this schema</option>`;
+        }
+        selectHtml += `</select>
+        <div style="margin-top: 0.25rem; text-align: right;">
+            <a href="javascript:void(0)" onclick="resetWizardTableInput()" style="color: var(--color-primary-hover); font-size: 0.75rem; text-decoration: none;">✏️ Enter table name manually</a>
+        </div>`;
+        document.getElementById('wiz-table-container').innerHTML = selectHtml;
+    })
+    .catch(err => {
+        isTestingWizConn = false;
+        btn.disabled = false;
+        btn.innerText = '🔌 Test Connection & Fetch Tables';
+        
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `<span style="color: var(--color-error);">Connection FAILED: Check connection details.</span>`;
+    });
+}
+
+function resetWizardTableInput() {
+    document.getElementById('wiz-table-container').innerHTML = `<input class="form-input" type="text" id="wiz-table" placeholder="orders" required>`;
+}
+
+function runWizardDryRun() {
+    const term = document.getElementById('wiz-terminal-body');
+    term.innerHTML = '$ Testing connection parameters for ' + document.getElementById('wiz-db-type').value.toUpperCase() + '...\n';
+    
+    wizardDryRunPassed = false;
+    document.getElementById('wiz-register-btn').disabled = true;
+    
+    const dbType = document.getElementById('wiz-db-type').value;
+    const connStr = document.getElementById('wiz-conn-str').value;
+    const schema = document.getElementById('wiz-schema').value;
+    const table = document.getElementById('wiz-table').value;
+    
+    fetch('/api/pipelines/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ dbType, connStr, schema, table })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            term.innerHTML += `[SUCCESS] Connection verified.\n[INFO] Schema Table Target: ${schema}.${table}\n[INFO] Found columns:\n`;
+            data.columns.forEach(col => {
+                term.innerHTML += `  - ${col.name} (${col.type}) ${col.primary_key ? '[PK]' : ''} ${!col.nullable ? '[NN]' : ''}\n`;
+            });
+            term.innerHTML += `\n[SUCCESS] Generated mock baseline YAML contract.\n[SUCCESS] Baseline checks: PASSED.\n`;
+            wizardDryRunPassed = true;
+            document.getElementById('wiz-register-btn').disabled = false;
+        } else {
+            term.innerHTML += `[ERROR] Connection failed: ${data.message || 'Validation error'}\n`;
+        }
+        term.scrollTop = term.scrollHeight;
+    })
+    .catch(err => {
+        term.innerHTML += `[ERROR] Dry run connection failed: ${err.message}\n`;
+        term.scrollTop = term.scrollHeight;
+    });
+}
+
+function submitWizard() {
+    if (isWizRegistering) return;
+    isWizRegistering = true;
+    
+    document.getElementById('wiz-register-btn').disabled = true;
+    document.getElementById('wiz-register-btn').innerText = 'Registering...';
+    document.getElementById('wiz-back-btn-3').disabled = true;
+    
+    const name = document.getElementById('wiz-name').value;
+    const dbType = document.getElementById('wiz-db-type').value;
+    const connStr = document.getElementById('wiz-conn-str').value;
+    const schema = document.getElementById('wiz-schema').value;
+    const table = document.getElementById('wiz-table').value;
+    const cron = document.getElementById('wiz-cron').value;
+    
+    const cronPreset = document.getElementById('wiz-cron-preset').value;
+    let cronText = 'Custom Schedule';
+    if (cronPreset === 'hourly') cronText = 'Hourly preset';
+    if (cronPreset === 'daily') cronText = 'Daily preset';
+    if (cronPreset === 'weekly') cronText = 'Weekly preset';
+    
+    const alerts = { email: '', slack: '', wp: '' };
+    if (document.getElementById('wiz-alert-email-enable').checked) {
+        alerts.email = document.getElementById('wiz-alert-email-val').value;
+    }
+    if (document.getElementById('wiz-alert-slack-enable').checked) {
+        alerts.slack = document.getElementById('wiz-alert-slack-val').value;
+    }
+    if (document.getElementById('wiz-alert-wp-enable').checked) {
+        alerts.wp = document.getElementById('wiz-alert-wp-val').value;
+    }
+    
+    fetch('/api/pipelines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ name, dbType, connStr, schema, table, cron, cronText, alerts })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error('Register pipeline request failed.');
+        }
+        return res.json();
+    })
+    .then(newPipe => {
+        isWizRegistering = false;
+        document.getElementById('wiz-register-btn').disabled = false;
+        document.getElementById('wiz-register-btn').innerText = 'Register Pipeline 🚀';
+        document.getElementById('wiz-back-btn-3').disabled = false;
+        
+        closeWizardModal();
+        syncPipelines();
+        setTimeout(() => selectPipeline(newPipe.id), 200);
+    })
+    .catch(err => {
+        isWizRegistering = false;
+        document.getElementById('wiz-register-btn').disabled = false;
+        document.getElementById('wiz-register-btn').innerText = 'Register Pipeline 🚀';
+        document.getElementById('wiz-back-btn-3').disabled = false;
+        alert("Error registering pipeline: " + err.message);
+    });
+}
+
+// -------------------------------------------------------------
+// Edit Pipeline Modal Logic
+// -------------------------------------------------------------
+function openEditModal(id) {
+    const p = pipelines.find(x => x.id === id);
+    if (!p) return;
+    
+    document.getElementById('edit-pipeline-id').value = p.id;
+    document.getElementById('edit-name').value = p.name;
+    document.getElementById('edit-conn-str').value = p.connStr;
+    
+    // Set alerts
+    document.getElementById('edit-alert-email-enable').checked = !!p.alerts.email;
+    document.getElementById('edit-alert-email-val').value = p.alerts.email || '';
+    document.getElementById('edit-alert-email-val').disabled = !p.alerts.email;
+    
+    document.getElementById('edit-alert-slack-enable').checked = !!p.alerts.slack;
+    document.getElementById('edit-alert-slack-val').value = p.alerts.slack || '';
+    document.getElementById('edit-alert-slack-val').disabled = !p.alerts.slack;
+    
+    document.getElementById('edit-alert-wp-enable').checked = !!p.alerts.wp;
+    document.getElementById('edit-alert-wp-val').value = p.alerts.wp || '';
+    document.getElementById('edit-alert-wp-val').disabled = !p.alerts.wp;
+    
+    // Set schedule preset
+    let preset = 'custom';
+    if (p.cron === '0 * * * *') preset = 'hourly';
+    if (p.cron === '0 0 * * *') preset = 'daily';
+    if (p.cron === '0 0 * * 0') preset = 'weekly';
+    
+    document.getElementById('edit-cron-preset').value = preset;
+    document.getElementById('edit-cron').value = p.cron;
+    document.getElementById('edit-cron').disabled = (preset !== 'custom');
+    
+    const modal = document.getElementById('edit-modal');
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('edit-modal');
+    modal.classList.remove('active');
+    setTimeout(() => modal.style.display = 'none', 300);
+}
+
+function updateEditCronPreset() {
+    const preset = document.getElementById('edit-cron-preset').value;
+    const cronInput = document.getElementById('edit-cron');
+    if (preset === 'hourly') {
+        cronInput.value = '0 * * * *';
+        cronInput.disabled = true;
+    } else if (preset === 'daily') {
+        cronInput.value = '0 0 * * *';
+        cronInput.disabled = true;
+    } else if (preset === 'weekly') {
+        cronInput.value = '0 0 * * 0';
+        cronInput.disabled = true;
+    } else {
+        cronInput.disabled = false;
+    }
+}
+
+function toggleEditAlertInput(channel) {
+    const isChecked = document.getElementById(`edit-alert-${channel}-enable`).checked;
+    document.getElementById(`edit-alert-${channel}-val`).disabled = !isChecked;
+}
+
+function submitEditForm(event) {
+    event.preventDefault();
+    const id = document.getElementById('edit-pipeline-id').value;
+    const connStr = document.getElementById('edit-conn-str').value;
+    const cron = document.getElementById('edit-cron').value;
+    
+    const preset = document.getElementById('edit-cron-preset').value;
+    let cronText = 'Custom Schedule';
+    if (preset === 'hourly') cronText = 'Hourly preset';
+    if (preset === 'daily') cronText = 'Daily preset';
+    if (preset === 'weekly') cronText = 'Weekly preset';
+    
+    const alerts = { email: '', slack: '', wp: '' };
+    if (document.getElementById('edit-alert-email-enable').checked) {
+        alerts.email = document.getElementById('edit-alert-email-val').value;
+    }
+    if (document.getElementById('edit-alert-slack-enable').checked) {
+        alerts.slack = document.getElementById('edit-alert-slack-val').value;
+    }
+    if (document.getElementById('edit-alert-wp-enable').checked) {
+        alerts.wp = document.getElementById('edit-alert-wp-val').value;
+    }
+    
+    fetch(`/api/pipelines/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ connStr, cron, cronText, alerts })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Save edits failed.');
+        return res.json();
+    })
+    .then(updated => {
+        closeEditModal();
+        syncPipelines();
+        setTimeout(() => selectPipeline(updated.id), 200);
+    })
+    .catch(err => {
+        alert("Error saving: " + err.message);
+    });
+}
+
+function deletePipeline(id) {
+    if (!confirm("Are you sure you want to delete this pipeline connection?")) return;
+    
+    fetch(`/api/pipelines/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Delete failed.');
+        syncPipelines();
+        if (activePipeline && activePipeline.id === id) {
+            activePipeline = null;
+            localStorage.removeItem('schema_guard_active_pipeline_id');
+            document.getElementById('pipeline-details-panel').style.display = 'none';
+        }
+    })
+    .catch(err => {
+        alert("Error deleting: " + err.message);
+    });
+}
+
+// -------------------------------------------------------------
+// AI Drawer logic
+// -------------------------------------------------------------
+function openAiDrawer() {
+    if (!activePipeline) return;
+    
+    aiChatHistory = [];
+    document.getElementById('ai-chat-history').innerHTML = '';
+    document.getElementById('ai-drift-summary').innerText = 'Analyzing database schema changes against contract...';
+    
+    const drawer = document.getElementById('ai-drawer');
+    drawer.style.display = 'block';
+    setTimeout(() => drawer.classList.add('active'), 10);
+    
+    // Fetch initial diagnostic analysis summary
+    aiQuery('explain');
+}
+
+function closeAiDrawer() {
+    const drawer = document.getElementById('ai-drawer');
+    drawer.classList.remove('active');
+    setTimeout(() => drawer.style.display = 'none', 300);
+}
+
+function appendChatMessage(sender, text) {
+    const hist = document.getElementById('ai-chat-history');
+    const msgClass = sender === 'user' ? 'chat-msg chat-user' : 'chat-msg chat-assistant';
+    
+    // Clean and simple formatting support
+    const formatted = text
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+        
+    hist.innerHTML += `<div class="${msgClass}"><div>${formatted}</div></div>`;
+    hist.scrollTop = hist.scrollHeight;
+}
+
+function aiQuery(type) {
+    if (!activePipeline) return;
+    
+    let queryText = '';
+    if (type === 'explain') {
+        queryText = 'Explain downstream impact of this structural drift.';
+    } else if (type === 'sql') {
+        queryText = 'Generate SQL repair script to reconcile this schema mutation.';
+    } else {
+        queryText = 'Update YAML contract representation file configuration.';
+    }
+    
+    appendChatMessage('user', queryText);
+    
+    fetch(`/api/pipelines/${activePipeline.id}/ai-diagnostics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ query_type: type })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('ai-drift-summary').innerText = data.drift_summary || 'Drift detected on target table.';
+        appendChatMessage('assistant', data.response);
+    })
+    .catch(err => {
+        appendChatMessage('assistant', 'Error communicating with AI reasoning model: ' + err.message);
+    });
+}
+
+function handleAiKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendCustomAiMessage();
+    }
+}
+
+function sendCustomAiMessage() {
+    const input = document.getElementById('ai-chat-input');
+    const question = input.value.trim();
+    if (!question || !activePipeline) return;
+    
+    input.value = '';
+    appendChatMessage('user', question);
+    
+    fetch(`/api/pipelines/${activePipeline.id}/ai-diagnostics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ query_type: 'custom', custom_query: question })
+    })
+    .then(res => res.json())
+    .then(data => {
+        appendChatMessage('assistant', data.response);
+    })
+    .catch(err => {
+        appendChatMessage('assistant', 'Error communicating with AI reasoning model: ' + err.message);
+    });
+}
+</script>
+{% endblock %}

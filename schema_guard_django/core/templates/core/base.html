@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Schema Guard{% endblock %}</title>
+    
+    <!-- Premium Fonts Inclusions -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Global Glassmorphic CSS Styling -->
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}">
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER MODULE -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-shield">🛡️</div>
+                <div class="logo-text">
+                    <h1>Schema Guard</h1>
+                    <p>Continuous Schema Gatekeeper & Compliance Engine</p>
+                </div>
+            </div>
+            
+            {% if request.session.user %}
+            <!-- Navigation Tabs (Only visible when logged in) -->
+            <nav class="nav-tabs" id="app-nav" style="display: flex;">
+                <a href="{% url 'dashboard' %}" class="tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
+                    ⚡ Pipelines Dashboard
+                </a>
+                <a href="{% url 'builder' %}" class="tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
+                    📝 YAML Contract Builder
+                </a>
+                {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
+                <a href="{% url 'admin_panel' %}" class="tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
+                    👥 User Management
+                </a>
+                {% endif %}
+                <a href="{% url 'troubleshooting' %}" class="tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
+                    🧩 Troubleshooting Hub
+                </a>
+            </nav>
+            
+            <!-- User Info Badge & Session Terminate Button -->
+            <div class="header-user-section">
+                <div class="profile-info" id="user-badge-container">
+                    <span class="user-avatar">👤</span>
+                    <div class="user-meta">
+                        <span class="username" id="badge-username">{{ request.session.user.username }}</span>
+                        <span class="role-badge" id="badge-role">{{ request.session.user.role }}</span>
+                    </div>
+                    <a href="{% url 'logout' %}" class="btn-logout" id="logout-button" style="text-decoration: none;">Logout</a>
+                </div>
+            </div>
+            {% else %}
+            <div class="header-user-section">
+                <button class="btn-primary-sm" onclick="openAuthModal(false)">Log In</button>
+            </div>
+            {% endif %}
+        </header>
+
+        <!-- MAIN LAYOUT SLOTS -->
+        <main style="margin-top: 1rem;">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
