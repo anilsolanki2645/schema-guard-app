@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from django.utils import timezone as dj_timezone
-from schema_guard_django.core.models import User, Pipeline, Organization
+from core.models import User, Pipeline, Organization
 
 logger = logging.getLogger("schema_guard_db_impl")
 
@@ -13,7 +13,7 @@ def init_db():
             admin_user = User.objects.filter(username='admin').first()
             if not admin_user:
                 # Import views.hash_password dynamically to avoid circular import issues
-                from schema_guard_django.core.views import hash_password
+                from core.views import hash_password
                 User.objects.create(
                     username='admin',
                     email='anusolanki2645@gmail.com',  # Super Admin email from .env

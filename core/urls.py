@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from schema_guard_django.core import views
+from core import views
 
 @csrf_exempt
 def pipelines_api_dispatch(request):

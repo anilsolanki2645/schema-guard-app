@@ -19,7 +19,7 @@ from schema_guard.diff_engine import compare_schemas, normalize_type
 from schema_guard.alerter import send_alert, send_email_alert, send_slack_alert, send_whatsapp_alert
 from passlib.context import CryptContext
 
-logger = logging.getLogger("schema_guard_django_views")
+logger = logging.getLogger("core_views")
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
@@ -371,7 +371,7 @@ def require_login(view_func):
             return redirect('login_page')
         
         # Check direct database verification status
-        from schema_guard_django.core.models import User
+        from core.models import User
         user = User.objects.filter(username=user_info['username']).first()
         if not user:
             request.session.flush()
@@ -398,7 +398,7 @@ def login_page(request):
     if request.session.get('user'):
         # Check verification state
         user_info = request.session.get('user')
-        from schema_guard_django.core.models import User
+        from core.models import User
         user = User.objects.filter(username=user_info['username']).first()
         if user and not user.is_verified:
             return redirect('verify_email_page')
@@ -437,7 +437,7 @@ def verify_email_page(request):
     if not user_info:
         return redirect('login_page')
         
-    from schema_guard_django.core.models import User
+    from core.models import User
     user = User.objects.filter(username=user_info['username']).first()
     if not user:
         request.session.flush()
@@ -457,7 +457,7 @@ def verify_email_action(request):
         return redirect('login_page')
         
     code = request.POST.get('code', '').strip()
-    from schema_guard_django.core.models import User
+    from core.models import User
     user = User.objects.filter(username=user_info['username']).first()
     
     if not user:
@@ -485,7 +485,7 @@ def resend_verification_code_api(request):
     if not user_info:
         return JsonResponse({"detail": "Unauthorized"}, status=401)
         
-    from schema_guard_django.core.models import User
+    from core.models import User
     user = User.objects.filter(username=user_info['username']).first()
     if not user:
         return JsonResponse({"detail": "User not found"}, status=404)
@@ -503,7 +503,7 @@ def resend_verification_code_api(request):
 def forgot_password_view(request):
     if request.method == "POST":
         email = request.POST.get('email', '').strip()
-        from schema_guard_django.core.models import User
+        from core.models import User
         user = User.objects.filter(email=email).first()
         if not user:
             return render(request, 'core/forgot_password.html', {
@@ -539,7 +539,7 @@ def reset_password_view(request):
                 'error_message': 'Passwords do not match.'
             })
             
-        from schema_guard_django.core.models import User
+        from core.models import User
         user = User.objects.filter(email=email).first()
         if not user or user.reset_code != code:
             return render(request, 'core/reset_password.html', {
@@ -601,7 +601,7 @@ def login_or_register_view(request):
             })
             
         # Check email uniqueness
-        from schema_guard_django.core.models import User, Organization
+        from core.models import User, Organization
         if User.objects.filter(email=email).exists():
             return render(request, 'core/login.html', {
                 'error_message': f"Email '{email}' is already registered with another account.",
@@ -659,7 +659,7 @@ def login_or_register_view(request):
 
     else:
         # Login flow supporting Username OR Email login
-        from schema_guard_django.core.models import User
+        from core.models import User
         user_obj = User.objects.filter(models.Q(username=username) | models.Q(email=username)).first()
         
         if not user_obj or not verify_password(password, user_obj.password_hash):
@@ -702,9 +702,9 @@ def get_pipelines_api(request):
         return JsonResponse(db.get_all_pipelines(), safe=False)
     else:
         # Return only pipelines belonging to user's organization
-        from schema_guard_django.core.models import Pipeline
+        from core.models import Pipeline
         qs = Pipeline.objects.filter(organization_id=user_info.get('organization_id')).order_by('-created_at')
-        from schema_guard_django.core.db_impl import serialize_pipeline
+        from core.db_impl import serialize_pipeline
         pipelines = [serialize_pipeline(p) for p in qs]
         return JsonResponse(pipelines, safe=False)
 
@@ -804,7 +804,7 @@ def create_pipeline_api(request):
     
     new_pipe = db.create_pipeline(p)
     
-    from schema_guard_django.core.apps import register_pipeline_cron
+    from core.apps import register_pipeline_cron
     try:
         register_pipeline_cron(new_pipe)
     except Exception as e:
@@ -840,7 +840,7 @@ def edit_pipeline_api(request, id):
     db.update_pipeline(id, updates)
     updated = db.get_pipeline(id)
     
-    from schema_guard_django.core.apps import register_pipeline_cron
+    from core.apps import register_pipeline_cron
     try:
         register_pipeline_cron(updated)
     except Exception as e:
@@ -865,7 +865,7 @@ def delete_pipeline_api(request, id):
     if user_info.get('role') != 'admin' and p.get('organization_id') != user_info.get('organization_id'):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
-    from schema_guard_django.core.apps import scheduler
+    from core.apps import scheduler
     try:
         if scheduler.get_job(id):
             scheduler.remove_job(id)
@@ -1004,9 +1004,9 @@ def get_users_api(request):
     if user_info.get('role') == 'admin':
         return JsonResponse(db.get_all_users(), safe=False)
     else:
-        from schema_guard_django.core.models import User
+        from core.models import User
         qs = User.objects.filter(organization_id=user_info.get('organization_id')).order_by('-created_at')
-        from schema_guard_django.core.db_impl import serialize_user
+        from core.db_impl import serialize_user
         users = [serialize_user(u) for u in qs]
         return JsonResponse(users, safe=False)
 
@@ -1031,7 +1031,7 @@ def create_user_api(request):
     if db.get_user(username):
         return JsonResponse({"detail": f"Username '{username}' already exists."}, status=400)
         
-    from schema_guard_django.core.models import User
+    from core.models import User
     if User.objects.filter(email=email).exists():
         return JsonResponse({"detail": f"Email '{email}' is already registered."}, status=400)
         
@@ -1068,7 +1068,7 @@ def update_user_api(request, username):
         return JsonResponse({"detail": "Cannot modify main administrator account role."}, status=400)
         
     user_info = request.session.get('user')
-    from schema_guard_django.core.models import User
+    from core.models import User
     target_user = User.objects.filter(username=username).first()
     if not target_user:
         return JsonResponse({"detail": "User not found."}, status=404)
@@ -1099,7 +1099,7 @@ def delete_user_api(request, username):
         return JsonResponse({"detail": "Cannot delete main administrator account."}, status=400)
         
     user_info = request.session.get('user')
-    from schema_guard_django.core.models import User
+    from core.models import User
     target_user = User.objects.filter(username=username).first()
     if not target_user:
         return JsonResponse({"detail": "User not found."}, status=404)
@@ -1119,7 +1119,7 @@ def get_organizations_api(request):
     if not user_info or user_info.get('role') != 'admin':
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
-    from schema_guard_django.core.models import Organization
+    from core.models import Organization
     orgs = [{"id": o.id, "name": o.name, "created_at": o.created_at.strftime("%Y-%m-%d %H:%M:%S")} for o in Organization.objects.all().order_by('-created_at')]
     return JsonResponse(orgs, safe=False)
 
@@ -1141,7 +1141,7 @@ def create_organization_api(request):
     if not org_name or not subadmin_username or not subadmin_email or not subadmin_password:
         return JsonResponse({"detail": "All fields are required."}, status=400)
         
-    from schema_guard_django.core.models import Organization, User
+    from core.models import Organization, User
     if Organization.objects.filter(name=org_name).exists():
         return JsonResponse({"detail": f"Organization '{org_name}' already exists."}, status=400)
         

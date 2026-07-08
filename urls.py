@@ -5,6 +5,6 @@ from django.views.static import serve
 
 urlpatterns = [
     path('django-admin/', admin.site.urls),
-    path('', include('schema_guard_django.core.urls')),
+    path('', include('core.urls')),
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATICFILES_DIRS[0]}),
 ]

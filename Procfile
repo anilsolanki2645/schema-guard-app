@@ -1,1 +1,1 @@
-web: gunicorn schema_guard_django.wsgi --log-file -
+web: gunicorn wsgi --log-file -

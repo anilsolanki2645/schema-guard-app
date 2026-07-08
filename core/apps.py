@@ -5,7 +5,7 @@ from django.conf import settings
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-logger = logging.getLogger("schema_guard_django_apps")
+logger = logging.getLogger("core_apps")
 scheduler = BackgroundScheduler()
 
 
@@ -34,19 +34,19 @@ def register_pipeline_cron(pipeline: dict):
 def check_pipeline_task(pipeline_id: str):
     logger.info(f"Scheduled audit run triggered for pipeline: {pipeline_id}")
     try:
-        from schema_guard_django.core.views import perform_pipeline_check
+        from core.views import perform_pipeline_check
         perform_pipeline_check(pipeline_id)
     except Exception as e:
         logger.error(f"Scheduled check failed for {pipeline_id}: {e}")
 
 
 class CoreConfig(AppConfig):
-    name = 'schema_guard_django.core'
+    name = 'core'
 
     def ready(self):
         # Apply the monkey-patch for the third-party schema_guard.db module
         import sys
-        from schema_guard_django.core import db_impl
+        from core import db_impl
         sys.modules['schema_guard.db'] = db_impl
         import schema_guard
         schema_guard.db = db_impl
@@ -180,13 +180,3 @@ class CoreConfig(AppConfig):
                 engine.dispose()
         BaseExtractor.get_tables = base_get_tables
 
-        # Prevent running twice in Django auto-reloader
-        if os.environ.get('RUN_MAIN') == 'true' or not settings.DEBUG:
-            db_impl.init_db()
-            scheduler.start()
-            logger.info("Background scheduler started in Django.")
-            for pipeline in db_impl.get_all_pipelines():
-                try:
-                    register_pipeline_cron(pipeline)
-                except Exception as e:
-                    logger.error(f"Could not register cron for {pipeline['id']}: {e}")
