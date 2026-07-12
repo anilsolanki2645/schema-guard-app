@@ -525,7 +525,7 @@ def forgot_password_view(request):
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            return HttpResponse(f"Diagnostic Traceback:\n{tb}", content_type="text/plain", status=500)
+            return HttpResponse(f"Diagnostic Traceback:\n{tb}", content_type="text/plain", status=200)
         
     return render(request, 'core/forgot_password.html')
 
