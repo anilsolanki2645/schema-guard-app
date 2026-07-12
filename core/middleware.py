@@ -53,3 +53,17 @@ class StartupMiddleware:
 
     def __call__(self, request):
         return self.get_response(request)
+
+class DiagnosticMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_exception(self, request, exception):
+        import traceback
+        from django.http import HttpResponse
+        tb = traceback.format_exc()
+        return HttpResponse(f"Diagnostic Middleware Traceback:\n{tb}", content_type="text/plain", status=200)
+
