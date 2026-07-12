@@ -12,12 +12,22 @@ def init_db():
             # Check or create default admin
             admin_user = User.objects.filter(username='admin').first()
             if not admin_user:
+                import os
+                admin_email = os.environ.get('ADMIN_EMAIL', 'admin@schema-guard.local')
+                admin_password = os.environ.get('ADMIN_PASSWORD')
+                if not admin_password:
+                    logger.warning(
+                        "ADMIN_PASSWORD environment variable is not set. "
+                        "Default admin account will NOT be created. "
+                        "Set ADMIN_EMAIL and ADMIN_PASSWORD to seed the initial admin user."
+                    )
+                    return
                 # Import views.hash_password dynamically to avoid circular import issues
                 from core.views import hash_password
                 User.objects.create(
                     username='admin',
-                    email='anusolanki2645@gmail.com',  # Super Admin email from .env
-                    password_hash=hash_password('Anil@2645'),
+                    email=admin_email,
+                    password_hash=hash_password(admin_password),
                     role='admin',
                     permissions={"see": True, "create": True, "edit": True, "delete": True},
                     is_verified=True
@@ -104,7 +114,7 @@ def get_user_with_hash(username):
     return data
 
 def get_all_pipelines():
-    return [serialize_pipeline(p) for p in Pipeline.objects.all().order_by('-created_at')]
+    return [serialize_pipeline(p) for p in Pipeline.objects.select_related('organization').all().order_by('-created_at')]
 
 # Helper to custom-sort or get pipelines
 class PipelineQuerySetHelper:
@@ -195,7 +205,7 @@ def delete_pipeline(id):
     return deleted > 0
 
 def get_all_users():
-    return [serialize_user(u) for u in User.objects.all().order_by('-created_at')]
+    return [serialize_user(u) for u in User.objects.select_related('organization').all().order_by('-created_at')]
 
 def update_user_role(username, role, permissions):
     u = User.objects.filter(username=username).first()

@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import random
+import functools
 from datetime import datetime, timezone
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
@@ -18,6 +19,7 @@ from schema_guard.snapshot import capture_snapshot, load_snapshot
 from schema_guard.diff_engine import compare_schemas, normalize_type
 from schema_guard.alerter import send_alert, send_email_alert, send_slack_alert, send_whatsapp_alert
 from passlib.context import CryptContext
+from core.audit import log_action
 
 logger = logging.getLogger("core_views")
 
@@ -59,6 +61,13 @@ def resolve_connection_string(conn_str: str) -> str:
         if not resolved:
             raise RuntimeError(f"Environment variable '{var_name}' is not set.")
         return resolved
+    if conn_str.startswith("profile:"):
+        profile_name = conn_str.split(":", 1)[1]
+        from core.models import ConnectionProfile
+        prof = ConnectionProfile.objects.filter(name=profile_name).first()
+        if not prof:
+            raise RuntimeError(f"Connection profile '{profile_name}' not found.")
+        return prof.conn_str
     return conn_str
 
 # -------------------------------------------------------------
@@ -135,7 +144,7 @@ def send_verification_email(email: str, code: str) -> bool:
         send_mail(
             subject,
             message,
-            settings.DEFAULT_FROM_EMAIL or 'anusolanki2645@gmail.com',
+            settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=False,
             html_message=html_message
@@ -153,53 +162,113 @@ def send_password_reset_email(email: str, code: str) -> bool:
     <html>
     <head>
         <meta charset="utf-8">
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap');
-            @keyframes pulse-glow-amber {{
-                0% {{ box-shadow: 0 0 15px rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.4); }}
-                50% {{ box-shadow: 0 0 30px rgba(245, 158, 11, 0.6); border-color: rgba(245, 158, 11, 0.8); }}
-                100% {{ box-shadow: 0 0 15px rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.4); }}
-            }}
-            .code-glow {{
-                animation: pulse-glow-amber 2.5s infinite ease-in-out;
-            }}
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Schema Guard Account</title>
     </head>
-    <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 0;">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" width="580" style="background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7);">
+    <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
             <!-- Top neon accent bar -->
             <tr>
-                <td height="4" style="background: linear-gradient(90deg, #f59e0b, #d97706, #fde047);"></td>
+                <td height="4" style="background: linear-gradient(90deg, #a78bfa, #7c3aed, #38bdf8);"></td>
             </tr>
             <!-- Logo & Header -->
             <tr>
                 <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                    <div style="display: inline-block; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 12px 18px; margin-bottom: 20px;">
-                        <span style="font-size: 32px; vertical-align: middle;">🔑</span>
-                        <span style="font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: 2px; vertical-align: middle; margin-left: 10px; font-family: 'Outfit', sans-serif;">SCHEMA GUARD</span>
+                    <div style="display: inline-block; background: rgba(139, 92, 246, 0.08); border: 1.5px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
+                        <span style="font-size: 24px; vertical-align: middle;">🛡️</span>
+                        <span style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; font-family: 'Outfit', sans-serif;">Schema <span style="color: #38bdf8;">Guard</span></span>
                     </div>
-                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif;">Password Reset Request</h1>
+                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em;">Verify Your Account</h1>
                 </td>
             </tr>
             <!-- Body Content -->
             <tr>
                 <td style="padding: 20px 40px 40px 40px; color: #9ca3af; line-height: 1.65; font-size: 15px;">
-                    <p style="margin-top: 0;">We received a request to reset your password. Use the secure authorization code below to configure your new password credentials:</p>
+                    <p style="margin-top: 0; margin-bottom: 20px;">Welcome to the next generation of automated schema protection. To complete your registration and activate your credentials, please enter the following 6-digit verification code:</p>
                     
                     <div style="text-align: center; margin: 35px 0;">
-                        <div class="code-glow" style="display: inline-block; background: rgba(15, 23, 42, 0.8); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 18px 40px; font-size: 38px; font-weight: 800; color: #fde047; font-family: 'JetBrains Mono', monospace; letter-spacing: 8px; text-shadow: 0 0 10px rgba(253, 224, 71, 0.5);">
+                        <div style="display: inline-block; background: rgba(15, 23, 42, 0.85); border: 1.5px solid #a78bfa; border-radius: 12px; padding: 18px 40px; font-size: 38px; font-weight: 800; color: #c084fc; font-family: 'Courier New', Courier, monospace; letter-spacing: 8px; box-shadow: 0 0 20px rgba(167, 139, 250, 0.15); text-shadow: 0 0 10px rgba(167, 139, 250, 0.4);">
                             {code}
                         </div>
                     </div>
                     
-                    <p style="font-size: 13px; color: #6b7280; margin-top: 35px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 25px; text-align: center;">
+                    <p style="font-size: 13px; color: #6b7280; margin-top: 35px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 25px; text-align: center; margin-bottom: 0;">
+                        If you did not request this verification code, please ignore this email.
+                    </p>
+                </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+                <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563; line-height: 1.5;">
+                    Sent by Schema Guard Intelligent Agent Systems.<br>
+                    <span style="color: #6b7280;">Continuous Schema Gatekeeping & Drift Compliance Engine</span>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    try:
+        print(f"\n========================================\n[EMAIL] Verification code to {email}: {code}\n========================================\n")
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+            html_message=html_message
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {email}: {e}")
+        return False
+
+def send_password_reset_email(email: str, code: str) -> bool:
+    subject = "Reset your Schema Guard Password"
+    message = f"Your password reset code is: {code}\n\nPlease enter this code on the password reset page to update your password."
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Schema Guard Password</title>
+    </head>
+    <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
+            <!-- Top neon accent bar -->
+            <tr>
+                <td height="4" style="background: linear-gradient(90deg, #fbbf24, #d97706, #fb7185);"></td>
+            </tr>
+            <!-- Logo & Header -->
+            <tr>
+                <td style="padding: 40px 40px 20px 40px; text-align: center;">
+                    <div style="display: inline-block; background: rgba(245, 158, 11, 0.08); border: 1.5px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
+                        <span style="font-size: 24px; vertical-align: middle;">🔑</span>
+                        <span style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; font-family: 'Outfit', sans-serif;">Schema <span style="color: #fbbf24;">Guard</span></span>
+                    </div>
+                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em;">Password Reset Request</h1>
+                </td>
+            </tr>
+            <!-- Body Content -->
+            <tr>
+                <td style="padding: 20px 40px 40px 40px; color: #9ca3af; line-height: 1.65; font-size: 15px;">
+                    <p style="margin-top: 0; margin-bottom: 20px;">We received a request to reset your password. Use the secure authorization code below to configure your new password credentials:</p>
+                    
+                    <div style="text-align: center; margin: 35px 0;">
+                        <div style="display: inline-block; background: rgba(15, 23, 42, 0.85); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 18px 40px; font-size: 38px; font-weight: 800; color: #fbbf24; font-family: 'Courier New', Courier, monospace; letter-spacing: 8px; box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);">
+                            {code}
+                        </div>
+                    </div>
+                    
+                    <p style="font-size: 13px; color: #6b7280; margin-top: 35px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 25px; text-align: center; margin-bottom: 0;">
                         If you did not make this request, please change your password or contact support immediately.
                     </p>
                 </td>
             </tr>
             <!-- Footer -->
             <tr>
-                <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563;">
+                <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563; line-height: 1.5;">
                     Sent by Schema Guard Intelligent Agent Systems.<br>
                     <span style="color: #6b7280;">Continuous Schema Gatekeeping & Drift Compliance Engine</span>
                 </td>
@@ -213,7 +282,7 @@ def send_password_reset_email(email: str, code: str) -> bool:
         send_mail(
             subject,
             message,
-            settings.DEFAULT_FROM_EMAIL or 'anusolanki2645@gmail.com',
+            settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=False,
             html_message=html_message
@@ -341,6 +410,10 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
             "violations": len(violations),
             "alertEvent": alert_event
         })
+        # Cap compliance history to prevent unbounded JSON growth
+        MAX_COMPLIANCE_HISTORY = 100
+        if len(compliance) > MAX_COMPLIANCE_HISTORY:
+            compliance = compliance[:MAX_COMPLIANCE_HISTORY]
 
         updates = {
             "status": status_str,
@@ -365,6 +438,7 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
 # Django View Decorators & Helpers
 # -------------------------------------------------------------
 def require_login(view_func):
+    @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
         user_info = request.session.get('user')
         if not user_info:
@@ -384,6 +458,7 @@ def require_login(view_func):
     return wrapper
 
 def require_admin(view_func):
+    @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
         user = request.session.get('user')
         if not user or user.get('role') not in ['admin', 'subadmin']:
@@ -479,7 +554,6 @@ def verify_email_action(request):
             'email': user.email
         })
 
-@csrf_exempt
 def resend_verification_code_api(request):
     user_info = request.session.get('user')
     if not user_info:
@@ -655,6 +729,7 @@ def login_or_register_view(request):
             "organization_id": org.id,
             "is_verified": False
         }
+        log_action(request, 'user.register', 'user', username, {'email': email, 'organization': org_name})
         return redirect('verify_email_page')
 
     else:
@@ -681,10 +756,14 @@ def login_or_register_view(request):
         
         if not user_obj.is_verified:
             return redirect('verify_email_page')
-            
+        
+        log_action(request, 'user.login', 'user', user_obj.username)
         return redirect('dashboard')
 
 def logout_view(request):
+    user_info = request.session.get('user')
+    if user_info:
+        log_action(request, 'user.logout', 'user', user_info.get('username', ''))
     request.session.flush()
     return redirect('login_page')
 
@@ -804,6 +883,10 @@ def create_pipeline_api(request):
     
     new_pipe = db.create_pipeline(p)
     
+    log_action(request, 'pipeline.create', 'pipeline', pipe_id, {
+        'db_type': data.get('dbType'), 'table': data.get('table')
+    })
+    
     from core.apps import register_pipeline_cron
     try:
         register_pipeline_cron(new_pipe)
@@ -883,6 +966,7 @@ def delete_pipeline_api(request, id):
         pass
         
     db.delete_pipeline(id)
+    log_action(request, 'pipeline.delete', 'pipeline', id)
     return JsonResponse({"status": "success"})
 
 @require_login
@@ -899,6 +983,21 @@ def list_tables_api(request):
     except Exception as e:
         return JsonResponse({"detail": str(e)}, status=400)
 
+
+@require_login
+def list_schemas_api(request):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    
+    data = json.loads(request.body)
+    try:
+        resolved_conn = resolve_connection_string(data.get("connStr"))
+        extractor = get_extractor(data.get("dbType"))
+        schemas = extractor.get_schemas(resolved_conn)
+        return JsonResponse({"schemas": schemas})
+    except Exception as e:
+        return JsonResponse({"detail": str(e)}, status=400)
+
 @require_login
 def test_connection_api(request):
     if request.method != "POST":
@@ -912,6 +1011,168 @@ def test_connection_api(request):
         return JsonResponse({"status": "success", "columns": schema_info["columns"]})
     except Exception as e:
         return JsonResponse({"status": "failed", "message": str(e)})
+
+def validate_pipeline_gate_api(request, id):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+        
+    from core.models import Pipeline, GateValidationLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+        
+    # Authentication check: Session auth or X-Schema-Guard-Token header / token parameter
+    user_info = request.session.get('user')
+    auth_header = request.headers.get("X-Schema-Guard-Token") or request.GET.get("token")
+    
+    authenticated = False
+    actor = "system/api"
+    
+    if user_info:
+        # Check organization boundary for session users
+        if user_info.get('role') == 'admin' or p_obj.organization_id == user_info.get('organization_id'):
+            authenticated = True
+            actor = user_info.get('username')
+    elif auth_header and auth_header == p_obj.lock_signature:
+        authenticated = True
+        actor = "ci-cd-pipeline"
+        
+    if not authenticated:
+        return JsonResponse({"detail": "Unauthorized: Invalid session or X-Schema-Guard-Token header."}, status=403)
+        
+    data = json.loads(request.body)
+    commit_sha = data.get("commit_sha", "").strip()
+    branch = data.get("branch", "").strip()
+    proposed_schema = data.get("schema", {})
+    
+    if not proposed_schema or "columns" not in proposed_schema:
+        return JsonResponse({"detail": "Missing proposed schema columns validation payload."}, status=400)
+        
+    proposed_cols = proposed_schema["columns"]
+    
+    # Load pipeline contract configuration
+    contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
+    if not os.path.exists(contract_path):
+        return JsonResponse({"detail": "Data contract file is missing on the server. Please construct a contract design first."}, status=400)
+        
+    try:
+        cfg = load_contract(contract_path)
+    except Exception as e:
+        return JsonResponse({"detail": f"Failed to load contract specifications: {e}"}, status=400)
+        
+    contract_cols = cfg.get("columns", [])
+    
+    # Perform gate validation
+    violations = []
+    warnings = []
+    
+    contract_map = {col["name"]: col for col in contract_cols}
+    proposed_names = set(col["name"] for col in proposed_cols)
+    
+    # Verify missing columns and mismatching rules
+    for col_name, c_col in contract_map.items():
+        if col_name not in proposed_names:
+            violations.append(f"Column '{col_name}' is required by contract but is missing in the proposed schema.")
+            continue
+            
+        p_col = next(col for col in proposed_cols if col["name"] == col_name)
+        
+        # Check nullability
+        c_null = c_col.get("nullable", True)
+        p_null = p_col.get("nullable", True)
+        if c_null and not p_null:
+            violations.append(f"Column '{col_name}' is nullable in contract but is marked as NOT NULL in the proposed schema.")
+        elif not c_null and p_null:
+            warnings.append(f"Column '{col_name}' is NOT NULL in contract but is marked as nullable in the proposed schema.")
+            
+        # Check types
+        c_type = normalize_type(c_col.get("type", ""))
+        p_type = normalize_type(p_col.get("type", ""))
+        if c_type != p_type:
+            allowed = False
+            for drift in c_col.get("allowed_drift", []):
+                if normalize_type(drift.get("from")) == c_type and normalize_type(drift.get("to")) == p_type:
+                    allowed = True
+                    break
+            if not allowed:
+                violations.append(f"Column '{col_name}' type mismatch: contract expects '{c_col.get('type')}', proposed has '{p_col.get('type')}'")
+                
+    # Warn for added columns
+    proposed_map = {col["name"]: col for col in proposed_cols}
+    for col_name, p_col in proposed_map.items():
+        if col_name not in contract_map:
+            p_null = p_col.get("nullable", True)
+            if not p_null:
+                warnings.append(f"New column '{col_name}' is NOT NULL. Ensure it has a default value to prevent breaking downstream ingestion.")
+            else:
+                warnings.append(f"New column '{col_name}' added (not defined in contract).")
+                
+    status_str = "FAIL" if violations else "PASS"
+    
+    # Save validation log entry
+    log_entry = GateValidationLog.objects.create(
+        pipeline=p_obj,
+        commit_sha=commit_sha,
+        branch=branch,
+        status=status_str,
+        violations_count=len(violations),
+        details={
+            "violations": violations,
+            "warnings": warnings,
+            "total_columns": len(proposed_cols)
+        }
+    )
+    
+    # Write to system audit trail
+    from core.audit import log_system_action
+    log_system_action(
+        action='pipeline.drift_detected' if violations else 'pipeline.check',
+        target_type='pipeline_gate',
+        target_id=id,
+        details={
+            'actor': actor,
+            'commit': commit_sha,
+            'branch': branch,
+            'status': status_str,
+            'violations': len(violations)
+        }
+    )
+    
+    return JsonResponse({
+        "compatible": len(violations) == 0,
+        "status": status_str,
+        "violations": violations,
+        "warnings": warnings,
+        "checked_at": log_entry.checked_at.strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+@require_login
+def get_gate_logs_api(request, id):
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+        
+    user_info = request.session.get('user')
+    from core.models import Pipeline, GateValidationLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+        
+    # Enforce organization boundary
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+        
+    logs_qs = GateValidationLog.objects.filter(pipeline=p_obj).order_by('-checked_at')[:50]
+    logs_data = [{
+        "id": log.id,
+        "commit_sha": log.commit_sha,
+        "branch": log.branch,
+        "status": log.status,
+        "violations_count": log.violations_count,
+        "details": log.details,
+        "checked_at": log.checked_at.strftime("%Y-%m-%d %H:%M:%S")
+    } for log in logs_qs]
+    
+    return JsonResponse(logs_data, safe=False)
 
 @require_login
 def run_pipeline_check_api(request, id):
@@ -1172,3 +1433,379 @@ def create_organization_api(request):
         "organization": {"id": org.id, "name": org.name},
         "subadmin": subadmin
     })
+
+# -------------------------------------------------------------
+# Health Check Endpoint
+# -------------------------------------------------------------
+def health_check_api(request):
+    """Health check endpoint for load balancer probes and uptime monitoring."""
+    import django
+    from django.db import connection
+    
+    health = {
+        "status": "healthy",
+        "version": "1.0.0",
+        "django_version": django.get_version(),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    
+    # Check database connectivity
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        health["database"] = "connected"
+    except Exception as e:
+        health["status"] = "degraded"
+        health["database"] = f"error: {str(e)}"
+    
+    status_code = 200 if health["status"] == "healthy" else 503
+    return JsonResponse(health, status=status_code)
+
+# -------------------------------------------------------------
+# DDL Sandbox / Simulation Playground
+# -------------------------------------------------------------
+@require_login
+def sandbox_page(request):
+    """Render the DDL Blast Radius simulation sandbox page."""
+    user_info = request.session.get('user')
+    from core.models import Pipeline
+    
+    # Scope pipeline list to organization boundary
+    if user_info.get('role') == 'admin':
+        qs = Pipeline.objects.all().order_by('name')
+    else:
+        qs = Pipeline.objects.filter(organization_id=user_info.get('organization_id')).order_by('name')
+        
+    return render(request, 'core/sandbox.html', {
+        "pipelines": qs
+    })
+
+@require_login
+def simulate_ddl_api(request):
+    """Simulate proposed DDL scripts on locked contracts and build safe migration paths."""
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+        
+    user_info = request.session.get('user')
+    data = json.loads(request.body)
+    pipeline_id = data.get("pipeline_id")
+    ddl_sql = data.get("ddl_sql", "").strip()
+    
+    target_type = data.get("target_type", "standard")
+    
+    if not pipeline_id or not ddl_sql:
+        return JsonResponse({"detail": "Missing target pipeline ID or SQL DDL content."}, status=400)
+        
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=pipeline_id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+        
+    # Scope check
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+        
+    # Read pipeline contract design
+    contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
+    if not os.path.exists(contract_path):
+        return JsonResponse({"detail": "Active contract specifications not found on server."}, status=400)
+        
+    try:
+        cfg = load_contract(contract_path)
+    except Exception as e:
+        return JsonResponse({"detail": f"Failed to load YAML contract: {e}"}, status=400)
+        
+    contract_cols = cfg.get("columns", [])
+    
+    from core.ddl_parser import simulate_ddl_on_schema, generate_safe_transition_recipe
+    
+    try:
+        # Simulate proposed DDL on original columns list
+        simulated_cols, action = simulate_ddl_on_schema(ddl_sql, contract_cols)
+    except Exception as e:
+        return JsonResponse({"status": "failed", "message": f"DDL parsing/simulation error: {str(e)}"}, status=400)
+        
+    # Diff check: compare simulated columns state against active contract design
+    violations = []
+    warnings = []
+    
+    # 1. Any required contract column missing after DDL simulation?
+    contract_map = {col["name"]: col for col in contract_cols}
+    simulated_names = set(col["name"] for col in simulated_cols)
+    
+    for col_name, c_col in contract_map.items():
+        if col_name not in simulated_names:
+            violations.append(f"CRITICAL: Column '{col_name}' required by downstream contract will be dropped.")
+            continue
+            
+        p_col = next(col for col in simulated_cols if col["name"] == col_name)
+        
+        # Nullability checks
+        c_null = c_col.get("nullable", True)
+        p_null = p_col.get("nullable", True)
+        if c_null and not p_null:
+            violations.append(f"CRITICAL: Column '{col_name}' nullability change: changing from NULL to NOT NULL will fail insertions.")
+        elif not c_null and p_null:
+            warnings.append(f"Notice: Column '{col_name}' will become nullable (not contract-breaking but increases null exposure).")
+            
+        # Type checks
+        c_type = normalize_type(c_col.get("type", ""))
+        p_type = normalize_type(p_col.get("type", ""))
+        if c_type != p_type:
+            allowed = False
+            for drift in c_col.get("allowed_drift", []):
+                if normalize_type(drift.get("from")) == c_type and normalize_type(drift.get("to")) == p_type:
+                    allowed = True
+                    break
+            if not allowed:
+                violations.append(f"CRITICAL: Column '{col_name}' type mismatch: contract expects '{c_col.get('type')}', DDL alters to '{p_col.get('type')}'")
+                
+    # 2. Added columns warnings
+    simulated_map = {col["name"]: col for col in simulated_cols}
+    for col_name, p_col in simulated_map.items():
+        if col_name not in contract_map:
+            p_null = p_col.get("nullable", True)
+            if not p_null:
+                warnings.append(f"Notice: New column '{col_name}' is NOT NULL. A default value is required to prevent insertion crashes.")
+            else:
+                warnings.append(f"Notice: New column '{col_name}' added (fully backward-compatible).")
+                
+    # Compile results
+    compatible = len(violations) == 0
+    compliance_rating = "Safe (Compatible)" if compatible else "High Risk (Breaking)"
+    recipe = generate_safe_transition_recipe(action, table_type=target_type)
+    
+    # Render new YAML preview
+    import yaml
+    new_contract_data = {
+        "source": cfg.get("source", {}),
+        "columns": [
+            {"name": col["name"], "type": col["type"], "nullable": col.get("nullable", True)}
+            for col in simulated_cols
+        ]
+    }
+    yaml_preview = yaml.dump(new_contract_data, default_flow_style=False, sort_keys=False)
+    
+    # Audit log entry
+    from core.audit import log_action
+    log_action(
+        request, 
+        'contract.lock', 
+        'pipeline_sandbox', 
+        pipeline_id, 
+        {
+            'ddl_action': action.get("type"), 
+            'compatible': compatible, 
+            'violations': len(violations)
+        }
+    )
+    
+    return JsonResponse({
+        "status": "success",
+        "action": action,
+        "compatible": compatible,
+        "compliance_rating": compliance_rating,
+        "violations": violations,
+        "warnings": warnings,
+        "recipe": recipe,
+        "yaml_preview": yaml_preview
+    })
+
+
+@require_login
+def export_dbt_schema_api(request, id):
+    """Export active pipeline contracts as fully-compliant dbt schema.yml configurations."""
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+        
+    user_info = request.session.get('user')
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+        
+    # Enforce organization boundary
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+        
+    # Load contract design
+    contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
+    if not os.path.exists(contract_path):
+        return JsonResponse({"detail": "Active contract specifications not found on server."}, status=400)
+        
+    try:
+        cfg = load_contract(contract_path)
+    except Exception as e:
+        return JsonResponse({"detail": f"Failed to load contract specifications: {e}"}, status=400)
+        
+    columns = cfg.get("columns", [])
+    
+    # Construct dbt schema structure
+    dbt_columns = []
+    for col in columns:
+        col_name = col.get("name")
+        col_type = col.get("type", "unknown")
+        nullable = col.get("nullable", True)
+        
+        col_def = {
+            "name": col_name,
+            "description": f"Contract baseline type: {col_type}."
+        }
+        
+        # Map not-null assertions
+        if not nullable:
+            col_def["tests"] = ["not_null"]
+            
+        dbt_columns.append(col_def)
+        
+    dbt_model = {
+        "name": p_obj.table,
+        "description": f"Auto-generated model configuration from Schema Guard pipeline: '{p_obj.name}'.",
+        "columns": dbt_columns
+    }
+    
+    dbt_schema = {
+        "version": 2,
+        "models": [dbt_model]
+    }
+    
+    import yaml
+    try:
+        dbt_yaml = yaml.dump(dbt_schema, default_flow_style=False, sort_keys=False)
+    except Exception as e:
+        return JsonResponse({"detail": f"Failed to serialize dbt schema: {e}"}, status=500)
+        
+    # Log to audit trail
+    from core.audit import log_action
+    log_action(request, 'contract.lock', 'pipeline_dbt_export', id)
+    
+    return JsonResponse({
+        "status": "success",
+        "dbt_yaml": dbt_yaml
+    })
+
+
+@require_login
+def download_airflow_operator(request):
+    """Download the python module containing Schema Guard Airflow operators/sensors."""
+    operator_path = os.path.join(os.path.dirname(__file__), 'airflow_operator.py')
+    if not os.path.exists(operator_path):
+        return HttpResponse("Airflow operator file not found.", status=404)
+        
+    with open(operator_path, 'rb') as f:
+        response = HttpResponse(f.read(), content_type='text/x-python')
+        response['Content-Disposition'] = 'attachment; filename="airflow_operator.py"'
+        return response
+
+
+@require_login
+def connection_profiles_page(request):
+    user_info = request.session.get('user')
+    return render(request, 'core/connection_profiles.html', {
+        'user': user_info,
+    })
+
+
+@require_login
+def connection_profiles_api(request):
+    from core.models import ConnectionProfile
+    user_info = request.session.get('user')
+    org_id = user_info.get('organization_id')
+    
+    if request.method == "GET":
+        if user_info.get('role') == 'admin':
+            profiles = ConnectionProfile.objects.all()
+        else:
+            profiles = ConnectionProfile.objects.filter(organization_id=org_id)
+            
+        profiles_list = []
+        for p in profiles:
+            profiles_list.append({
+                "id": p.id,
+                "name": p.name,
+                "db_type": p.db_type,
+                "conn_str": p.conn_str,
+                "created_at": p.created_at.isoformat()
+            })
+        return JsonResponse({"status": "success", "profiles": profiles_list})
+        
+    elif request.method == "POST":
+        if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+            return JsonResponse({"detail": "Permission Denied: Your account role cannot manage connection profiles."}, status=403)
+            
+        data = json.loads(request.body)
+        name = data.get("name", "").strip()
+        db_type = data.get("db_type", "").strip()
+        conn_str = data.get("conn_str", "").strip()
+        
+        if not name or not db_type or not conn_str:
+            return JsonResponse({"detail": "All fields (name, db_type, conn_str) are required."}, status=400)
+            
+        import re
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', name):
+            return JsonResponse({"detail": "Invalid profile name. Only letters, numbers, underscores, and dashes are allowed."}, status=400)
+            
+        if ConnectionProfile.objects.filter(name=name).exists():
+            return JsonResponse({"detail": f"A connection profile with name '{name}' already exists."}, status=400)
+            
+        try:
+            resolved_conn = resolve_connection_string(conn_str)
+            extractor = get_extractor(db_type)
+            # Test schema list/tables
+            extractor.get_tables(resolved_conn, "public")
+        except Exception as conn_err:
+            if not conn_str.startswith("env:"):
+                return JsonResponse({"detail": f"Connection test failed: {conn_err}"}, status=400)
+                
+        p_obj = ConnectionProfile.objects.create(
+            name=name,
+            db_type=db_type,
+            conn_str=conn_str,
+            organization_id=org_id
+        )
+        
+        from core.audit import log_action
+        log_action(request, 'pipeline.create', 'connection_profile', str(p_obj.id))
+        
+        return JsonResponse({
+            "status": "success",
+            "profile": {
+                "id": p_obj.id,
+                "name": p_obj.name,
+                "db_type": p_obj.db_type,
+                "conn_str": p_obj.conn_str,
+                "created_at": p_obj.created_at.isoformat()
+            }
+        })
+        
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@require_login
+def connection_profile_detail_api(request, id):
+    from core.models import ConnectionProfile
+    user_info = request.session.get('user')
+    org_id = user_info.get('organization_id')
+    
+    profile = ConnectionProfile.objects.filter(id=id).first()
+    if not profile:
+        return JsonResponse({"detail": "Connection profile not found."}, status=404)
+        
+    if user_info.get('role') != 'admin' and profile.organization_id != org_id:
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+        
+    if request.method == "DELETE":
+        if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+            return JsonResponse({"detail": "Permission Denied: Your account role cannot delete connection profiles."}, status=403)
+            
+        profile.delete()
+        
+        from core.audit import log_action
+        log_action(request, 'pipeline.delete', 'connection_profile', str(id))
+        
+        return JsonResponse({"status": "success"})
+        
+    return HttpResponseNotAllowed(["DELETE"])
+
+
+

@@ -1,6 +1,48 @@
+# Environment and secrets
 .env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.pyc
-db.sqlite3
-staticfiles/
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
 
+# Django
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Contract and snapshot artifacts (generated at runtime)
+contracts/
+snapshots/
+
+# Virtual environments
+venv/
+.venv/
+env/

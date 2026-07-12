@@ -9,3 +9,5 @@ apscheduler>=3.10
 
 # Custom schema-guard library (from PyPI or Git)
 db-schema-guard>=0.1.2
+snowflake-sqlalchemy>=1.11.0
+

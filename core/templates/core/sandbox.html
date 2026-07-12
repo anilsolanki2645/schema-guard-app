@@ -1,0 +1,250 @@
+{% extends 'core/base.html' %}
+{% block title %}DDL Blast Radius Sandbox — Schema Guard{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <h1 style="font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">🧪 DDL Blast Radius Simulation Sandbox</h1>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem; margin-bottom: 0;">
+                Test proposed database DDL migrations against active downstream contracts. Shadow-run SQL changes to prevent breaking client systems.
+            </p>
+        </div>
+        <span class="pipe-badge" style="background: rgba(139, 92, 246, 0.15); color: var(--color-primary-hover); border: 1px solid rgba(139, 92, 246, 0.3); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; padding: 0.35rem 0.65rem;">
+            🔥 Shadow Schema Play
+        </span>
+    </div>
+
+    <!-- MAIN TWO-COLUMN LAYOUT -->
+    <div class="dashboard-grid grid-sandbox">
+        
+        <!-- LEFT: INPUT & TARGET CONTROLLER -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="form-group">
+                <label class="form-label" for="sandbox-pipeline-select" style="font-weight: 700; font-size: 0.85rem;">1. Select Downstream Data Contract Pipeline</label>
+                <select class="form-select" id="sandbox-pipeline-select" style="background: rgba(15, 23, 42, 0.6);">
+                    <option value="" disabled selected>-- Choose pipeline to test against --</option>
+                    {% for pipeline in pipelines %}
+                        <option value="{{ pipeline.id }}" data-table="{{ pipeline.table }}" data-dbtype="{{ pipeline.db_type }}">
+                            {{ pipeline.name }} (Table: {{ pipeline.schema }}.{{ pipeline.table }} | {{ pipeline.db_type|upper }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="sandbox-target-type-select" style="font-weight: 700; font-size: 0.85rem;">Target Schema Model Type</label>
+                <select class="form-select" id="sandbox-target-type-select" style="background: rgba(15, 23, 42, 0.6);">
+                    <option value="standard" selected>Standard Relational Table (Zero-Downtime Expand/Contract)</option>
+                    <option value="scd2">SCD Type 2 Historical Dimension (History-Preserving Guard)</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <label class="form-label" for="sandbox-ddl-input" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0;">2. Paste Proposed DDL SQL Migration Script</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-secondary" onclick="loadDdlTemplate('rename')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Rename</button>
+                        <button class="btn-secondary" onclick="loadDdlTemplate('drop')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Drop</button>
+                        <button class="btn-secondary" onclick="loadDdlTemplate('alter')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Alter Type</button>
+                    </div>
+                </div>
+                <textarea class="form-input" id="sandbox-ddl-input" placeholder="-- Example: ALTER TABLE orders RENAME COLUMN price TO cost;&#10;-- Or write custom DDL here..." style="font-family: var(--font-mono); font-size: 0.8rem; background: #030712; border-color: rgba(255,255,255,0.05); color: #38bdf8; height: 280px; resize: none; line-height: 1.5; padding: 1rem; flex-grow: 1;"></textarea>
+            </div>
+
+            <button class="btn-primary" onclick="runSandboxSimulation()" style="justify-content: center; font-weight: 700; font-size: 0.9rem; padding: 0.75rem;">
+                🚀 Simulate DDL & Audit Blast Radius
+            </button>
+        </div>
+
+        <!-- RIGHT: SIMULATION RESULTS VIEWPORT -->
+        <div id="sandbox-results-viewport" style="display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px dashed rgba(255,255,255,0.05); border-radius: 0.75rem; min-height: 480px; padding: 2rem; background: rgba(3, 7, 18, 0.2);">
+            <div style="text-align: center; max-width: 320px;">
+                <span style="font-size: 3rem;">🧪</span>
+                <h3 style="font-size: 1.1rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--text-primary);">Sandbox Idle</h3>
+                <p style="color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5;">
+                    Select a contract pipeline, enter your SQL DDL statements, and click simulate to analyze schema safety and compile backward-compatible scripts.
+                </p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let csrfToken = '{{ csrf_token }}';
+
+function loadDdlTemplate(type) {
+    const select = document.getElementById('sandbox-pipeline-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const tableName = selectedOption ? selectedOption.getAttribute('data-table') : 'my_table';
+    
+    const textarea = document.getElementById('sandbox-ddl-input');
+    
+    if (type === 'rename') {
+        textarea.value = `ALTER TABLE ${tableName} RENAME COLUMN price TO cost;`;
+    } else if (type === 'drop') {
+        textarea.value = `ALTER TABLE ${tableName} DROP COLUMN email;`;
+    } else {
+        textarea.value = `ALTER TABLE ${tableName} ALTER COLUMN amount TYPE numeric(12,2) NOT NULL;`;
+    }
+}
+
+function runSandboxSimulation() {
+    const pipelineId = document.getElementById('sandbox-pipeline-select').value;
+    const ddlSql = document.getElementById('sandbox-ddl-input').value.trim();
+    const targetType = document.getElementById('sandbox-target-type-select').value;
+    
+    if (!pipelineId) {
+        alert("Please select a target pipeline contract first.");
+        return;
+    }
+    if (!ddlSql) {
+        alert("Please input SQL DDL migration scripts to simulate.");
+        return;
+    }
+    
+    const viewport = document.getElementById('sandbox-results-viewport');
+    viewport.innerHTML = `
+        <div style="text-align: center;">
+            <div class="loading-spinner" style="margin: 0 auto 1.5rem auto;"></div>
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">Executing Shadow DDL Simulation...</h3>
+            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.25rem;">Parsing AST alter tokens and verifying compatibility metrics.</p>
+        </div>
+    `;
+    
+    fetch('/api/sandbox/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ pipeline_id: pipelineId, ddl_sql: ddlSql, target_type: targetType })
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => { throw new Error(data.message || data.detail || 'Simulation failed') });
+        }
+        return res.json();
+    })
+    .then(data => {
+        renderSimulationResults(data);
+    })
+    .catch(err => {
+        viewport.innerHTML = `
+            <div style="text-align: center; max-width: 400px; color: var(--color-error);">
+                <span style="font-size: 3rem;">⚠️</span>
+                <h3 style="font-size: 1.1rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem;">Simulation Failed</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 0.75rem; border-radius: 0.5rem; font-family: var(--font-mono); text-align: left; overflow-wrap: break-word;">
+                    ${err.message}
+                </p>
+                <button class="btn-secondary" onclick="resetSandboxViewport()" style="margin-top: 1rem; display: inline-flex; width: auto; font-size: 0.8rem; padding: 0.35rem 0.75rem;">Reset Sandbox</button>
+            </div>
+        `;
+    });
+}
+
+function resetSandboxViewport() {
+    document.getElementById('sandbox-results-viewport').innerHTML = `
+        <div style="text-align: center; max-width: 320px;">
+            <span style="font-size: 3rem;">🧪</span>
+            <h3 style="font-size: 1.1rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--text-primary);">Sandbox Idle</h3>
+            <p style="color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5;">
+                Select a contract pipeline, enter your SQL DDL statements, and click simulate to analyze schema safety and compile backward-compatible scripts.
+            </p>
+        </div>
+    `;
+}
+
+function renderSimulationResults(data) {
+    const viewport = document.getElementById('sandbox-results-viewport');
+    
+    // Style ratings
+    const isCompatible = data.compatible;
+    const ratingColor = isCompatible ? 'var(--color-success)' : 'var(--color-error)';
+    const ratingBackground = isCompatible ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const ratingBorder = isCompatible ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+    const actionName = data.action.type.toUpperCase().replace('_', ' ');
+
+    let violationsHtml = '';
+    if (data.violations.length > 0) {
+        violationsHtml = `
+            <div style="margin-bottom: 1.25rem;">
+                <h4 style="font-size: 0.8rem; font-weight: 700; color: #fca5a5; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">❌ Contract Violations (${data.violations.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    ${data.violations.map(v => `<div style="font-size: 0.75rem; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15); padding: 0.5rem; border-radius: 0.35rem; color: #fca5a5; line-height: 1.45;">${v}</div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    let warningsHtml = '';
+    if (data.warnings.length > 0) {
+        warningsHtml = `
+            <div style="margin-bottom: 1.25rem;">
+                <h4 style="font-size: 0.8rem; font-weight: 700; color: #fde047; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">⚠️ Schema Warnings / Notices (${data.warnings.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    ${data.warnings.map(w => `<div style="font-size: 0.75rem; background: rgba(253,224,71,0.05); border: 1px solid rgba(253,224,71,0.15); padding: 0.5rem; border-radius: 0.35rem; color: #fde047; line-height: 1.45;">${w}</div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.violations.length === 0 && data.warnings.length === 0) {
+        violationsHtml = `
+            <div style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.2); padding: 1rem; border-radius: 0.5rem; text-align: center; color: var(--color-success); font-size: 0.8rem; margin-bottom: 1.25rem;">
+                🎉 This migration is fully compatible and introduces no schema drift to the downstream contract!
+            </div>
+        `;
+    }
+
+    viewport.borderStyle = 'solid';
+    viewport.style.borderColor = isCompatible ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+    viewport.style.alignItems = 'stretch';
+    viewport.style.justifyContent = 'flex-start';
+    
+    viewport.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 0.5rem;">
+            <div>
+                <div style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.05em;">DDL Action Captured</div>
+                <div style="font-size: 0.9rem; font-weight: 800; color: var(--color-info); margin-top: 0.1rem;">${actionName}</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.05em;">Blast Radius Score</div>
+                <div class="pipe-badge" style="background: ${ratingBackground}; color: ${ratingColor}; border: 1px solid ${ratingBorder}; font-size: 0.75rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 0.25rem; margin-top: 0.2rem;">
+                    ${data.compliance_rating}
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1.5rem; flex-grow: 1; overflow-y: auto; padding-right: 0.5rem;">
+            <!-- Left Panel: Warnings & DDL recipe -->
+            <div>
+                ${violationsHtml}
+                ${warningsHtml}
+                
+                <h4 style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary);">🔧 Recommended Safe Transition DDL Recipe</h4>
+                <pre style="background: #030712; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; overflow-x: auto; color: #38bdf8; line-height: 1.5; white-space: pre-wrap; cursor: pointer;" onclick="copyToClipboard(this)" title="Click to copy script">${data.recipe}</pre>
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem; display: flex; align-items: center; gap: 0.25rem;">
+                    📋 Click script block to copy recommended zero-downtime transition DDL.
+                </div>
+            </div>
+            
+            <!-- Right Panel: Contract YAML preview -->
+            <div style="display: flex; flex-direction: column;">
+                <h4 style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary);">📝 Updated Contract YAML Preview</h4>
+                <pre style="background: #030712; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; overflow-x: auto; color: #a78bfa; line-height: 1.45; flex-grow: 1; white-space: pre-wrap; word-break: break-all; margin: 0; min-height: 250px;">${data.yaml_preview}</pre>
+            </div>
+        </div>
+    `;
+}
+
+function copyToClipboard(element) {
+    const text = element.textContent;
+    const temp = document.createElement('textarea');
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+    alert("Safe DDL script copied to clipboard!");
+}
+</script>
+{% endblock %}

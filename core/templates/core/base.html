@@ -12,16 +12,43 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=2.3">
 </head>
 <body>
     <div class="container">
         <!-- HEADER MODULE -->
         <header class="app-header">
             <div class="logo-area">
-                <div class="logo-shield">🛡️</div>
+                <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
+                    <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
+                        <defs>
+                            <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
+                                <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+                            </radialGradient>
+                            <linearGradient id="metalGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#c084fc"/>
+                                <stop offset="50%" stop-color="#818cf8"/>
+                                <stop offset="100%" stop-color="#6366f1"/>
+                            </linearGradient>
+                            <linearGradient id="cyberCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#22d3ee"/>
+                                <stop offset="100%" stop-color="#06b6d4"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="16" cy="16" r="14" fill="url(#glow)" />
+                        <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
+                        <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
+                        <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
+                        <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#metalGrad)" fill-opacity="0.95" />
+                        <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
+                        <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
+                        <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#cyberCyan)" />
+                        <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
+                    </svg>
+                </div>
                 <div class="logo-text">
-                    <h1>Schema Guard</h1>
+                    <h1>Schema <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Guard</span></h1>
                     <p>Continuous Schema Gatekeeper & Compliance Engine</p>
                 </div>
             </div>
@@ -35,11 +62,17 @@
                 <a href="{% url 'builder' %}" class="tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
                     📝 YAML Contract Builder
                 </a>
+                <a href="{% url 'connection_profiles' %}" class="tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
+                    🔌 Connection Profiles
+                </a>
                 {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
                 <a href="{% url 'admin_panel' %}" class="tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
                     👥 User Management
                 </a>
                 {% endif %}
+                <a href="{% url 'sandbox_page' %}" class="tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+                    🧪 DDL Sandbox <span style="font-size: 0.65rem; background: var(--color-warning); color: #020617; font-weight: 800; padding: 0.05rem 0.25rem; border-radius: 0.25rem; text-transform: uppercase;">New</span>
+                </a>
                 <a href="{% url 'troubleshooting' %}" class="tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
                     🧩 Troubleshooting Hub
                 </a>

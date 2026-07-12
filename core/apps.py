@@ -83,51 +83,42 @@ class CoreConfig(AppConfig):
             <html>
             <head>
                 <meta charset="utf-8">
-                <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap');
-                    @keyframes pulse-glow-red {{
-                        0% {{ box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.4); }}
-                        50% {{ box-shadow: 0 0 30px rgba(239, 68, 68, 0.6); border-color: rgba(239, 68, 68, 0.8); }}
-                        100% {{ box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.4); }}
-                    }}
-                    .alert-glow {{
-                        animation: pulse-glow-red 2.5s infinite ease-in-out;
-                    }}
-                </style>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Schema Drift Detected</title>
             </head>
-            <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 0;">
-                <table align="center" border="0" cellpadding="0" cellspacing="0" width="580" style="background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7);">
+            <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
                     <!-- Top neon accent bar -->
                     <tr>
-                        <td height="4" style="background: linear-gradient(90deg, #ef4444, #dc2626, #fca5a5);"></td>
+                        <td height="4" style="background: linear-gradient(90deg, #ef4444, #b91c1c, #fca5a5);"></td>
                     </tr>
                     <!-- Logo & Header -->
                     <tr>
                         <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                            <div style="display: inline-block; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 18px; margin-bottom: 20px;">
-                                <span style="font-size: 32px; vertical-align: middle;">⚠️</span>
-                                <span style="font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: 2px; vertical-align: middle; margin-left: 10px; font-family: 'Outfit', sans-serif;">DRIFT DETECTED</span>
+                            <div style="display: inline-block; background: rgba(239, 68, 68, 0.08); border: 1.5px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
+                                <span style="font-size: 24px; vertical-align: middle;">⚠️</span>
+                                <span style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; font-family: 'Outfit', sans-serif;">Drift <span style="color: #ef4444;">Detected</span></span>
                             </div>
-                            <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif;">Data Contract Violation</h1>
+                            <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em;">Data Contract Violation</h1>
                         </td>
                     </tr>
                     <!-- Body Content -->
                     <tr>
                         <td style="padding: 20px 40px 40px 40px; color: #9ca3af; line-height: 1.65; font-size: 15px;">
-                            <p style="margin-top: 0;">Our automated compliance gate detected one or more structural anomalies matching your database schema baseline. Please reconcile the changes immediately to protect downstream consumers:</p>
+                            <p style="margin-top: 0; margin-bottom: 20px;">Our automated compliance gate detected one or more structural anomalies matching your database schema baseline. Please reconcile the changes immediately to protect downstream consumers:</p>
                             
-                            <div class="alert-glow" style="background: rgba(24, 8, 8, 0.85); border: 1.5px solid #ef4444; border-radius: 12px; padding: 25px; margin: 25px 0;">
-                                <ul style="margin: 0; padding-left: 5px; list-style-type: none; color: #fecaca; font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.65;">
+                            <div style="background: rgba(24, 8, 8, 0.85); border: 1.5px solid #ef4444; border-radius: 12px; padding: 25px; margin: 25px 0; box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);">
+                                <ul style="margin: 0; padding-left: 0; list-style-type: none; color: #fecaca; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.7;">
                                     {violations_html_items}
                                 </ul>
                             </div>
                             
-                            <p style="margin-top: 20px;">Please check the <strong>Schema Guard Dashboard</strong> to inspect visual comparison maps, view impact analysis, and generate repair SQL scripts.</p>
+                            <p style="margin-top: 20px; margin-bottom: 0;">Please check the <strong>Schema Guard Dashboard</strong> to inspect visual comparison maps, view impact analysis, and generate repair SQL scripts.</p>
                         </td>
                     </tr>
                     <!-- Footer -->
                     <tr>
-                        <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563;">
+                        <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563; line-height: 1.5;">
                             Sent by Schema Guard Automated Policy Engine.<br>
                             <span style="color: #6b7280;">Continuous Schema Gatekeeping & Drift Compliance Engine</span>
                         </td>
@@ -142,7 +133,7 @@ class CoreConfig(AppConfig):
                 send_mail(
                     subject,
                     violations_text,
-                    settings.DEFAULT_FROM_EMAIL or 'anusolanki2645@gmail.com',
+                    settings.DEFAULT_FROM_EMAIL,
                     recipient_list,
                     fail_silently=False,
                     html_message=html_message
@@ -163,8 +154,8 @@ class CoreConfig(AppConfig):
         def base_get_tables(self, connection_details, schema_name):
             driver_map = {
                 "PostgresExtractor": "postgresql",
-                "MysqlExtractor": "mysql",
-                "SqlserverExtractor": "mssql",
+                "MySQLExtractor": "mysql",
+                "SQLServerExtractor": "mssql",
                 "OracleExtractor": "oracle",
                 "SnowflakeExtractor": "snowflake",
                 "DatabricksExtractor": "databricks"
@@ -179,4 +170,25 @@ class CoreConfig(AppConfig):
             finally:
                 engine.dispose()
         BaseExtractor.get_tables = base_get_tables
+
+        # Apply monkey-patch for missing get_schemas in BaseExtractor
+        def base_get_schemas(self, connection_details):
+            driver_map = {
+                "PostgresExtractor": "postgresql",
+                "MySQLExtractor": "mysql",
+                "SQLServerExtractor": "mssql",
+                "OracleExtractor": "oracle",
+                "SnowflakeExtractor": "snowflake",
+                "DatabricksExtractor": "databricks"
+            }
+            class_name = self.__class__.__name__
+            default_driver = driver_map.get(class_name, "postgresql")
+            connection_string = self.make_sqlalchemy_url(connection_details, default_driver)
+            engine = create_engine(connection_string)
+            try:
+                inspector = inspect(engine)
+                return inspector.get_schema_names()
+            finally:
+                engine.dispose()
+        BaseExtractor.get_schemas = base_get_schemas
 

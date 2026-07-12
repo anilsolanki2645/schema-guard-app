@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DEBUG=true
+      - SECRET_KEY=docker-dev-secret-key-change-in-production
+      - ADMIN_EMAIL=admin@schema-guard.local
+      - ADMIN_PASSWORD=admin123
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+      - static_files:/app/staticfiles
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn wsgi:application --bind 0.0.0.0:8000 --workers 2 --reload --log-file -"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: schema_guard
+      POSTGRES_USER: schema_guard_user
+      POSTGRES_PASSWORD: schema_guard_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+  static_files:

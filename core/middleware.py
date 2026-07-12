@@ -19,6 +19,13 @@ class StartupMiddleware:
             if not StartupMiddleware._initialized:
                 StartupMiddleware._initialized = True
                 logger.info("Running application startup checks...")
+                import sys
+                is_testing = 'test' in sys.argv or 'test_coverage' in sys.argv
+                
+                if is_testing:
+                    logger.info("Running in test environment. Skipping migrations, collectstatic, and scheduler initialization.")
+                    return
+
                 try:
                     # Run database migrations and collect static files automatically
                     from django.core.management import call_command

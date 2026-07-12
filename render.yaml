@@ -1,0 +1,40 @@
+databases:
+  - name: schema-guard-db
+    plan: free
+    databaseName: schema_guard
+    user: schema_guard_user
+
+services:
+  - type: web
+    name: schema-guard-app
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --log-file -"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://schema-guard-app.onrender.com"
+      - key: DB_CONNECTION_STRING
+        fromDatabase:
+          name: schema-guard-db
+          property: connectionString
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SNOWFLAKE_DB_CONNECTION_STRING
+        sync: false
