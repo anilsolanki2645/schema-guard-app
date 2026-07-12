@@ -520,7 +520,7 @@ def forgot_password_view(request):
             user.reset_code = code
             user.save()
             
-            send_password_reset_email(email, code)
+            # send_password_reset_email(email, code)
             return redirect(f'/reset-password?email={email}')
         except Exception as e:
             import traceback
