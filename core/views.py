@@ -163,75 +163,6 @@ def send_password_reset_email(email: str, code: str) -> bool:
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verify Your Schema Guard Account</title>
-    </head>
-    <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
-        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
-            <!-- Top neon accent bar -->
-            <tr>
-                <td height="4" style="background: linear-gradient(90deg, #a78bfa, #7c3aed, #38bdf8);"></td>
-            </tr>
-            <!-- Logo & Header -->
-            <tr>
-                <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                    <div style="display: inline-block; background: rgba(139, 92, 246, 0.08); border: 1.5px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
-                        <span style="font-size: 24px; vertical-align: middle;">🛡️</span>
-                        <span style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; font-family: 'Outfit', sans-serif;">Schema <span style="color: #38bdf8;">Guard</span></span>
-                    </div>
-                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em;">Verify Your Account</h1>
-                </td>
-            </tr>
-            <!-- Body Content -->
-            <tr>
-                <td style="padding: 20px 40px 40px 40px; color: #9ca3af; line-height: 1.65; font-size: 15px;">
-                    <p style="margin-top: 0; margin-bottom: 20px;">Welcome to the next generation of automated schema protection. To complete your registration and activate your credentials, please enter the following 6-digit verification code:</p>
-                    
-                    <div style="text-align: center; margin: 35px 0;">
-                        <div style="display: inline-block; background: rgba(15, 23, 42, 0.85); border: 1.5px solid #a78bfa; border-radius: 12px; padding: 18px 40px; font-size: 38px; font-weight: 800; color: #c084fc; font-family: 'Courier New', Courier, monospace; letter-spacing: 8px; box-shadow: 0 0 20px rgba(167, 139, 250, 0.15); text-shadow: 0 0 10px rgba(167, 139, 250, 0.4);">
-                            {code}
-                        </div>
-                    </div>
-                    
-                    <p style="font-size: 13px; color: #6b7280; margin-top: 35px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 25px; text-align: center; margin-bottom: 0;">
-                        If you did not request this verification code, please ignore this email.
-                    </p>
-                </td>
-            </tr>
-            <!-- Footer -->
-            <tr>
-                <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563; line-height: 1.5;">
-                    Sent by Schema Guard Intelligent Agent Systems.<br>
-                    <span style="color: #6b7280;">Continuous Schema Gatekeeping & Drift Compliance Engine</span>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    try:
-        print(f"\n========================================\n[EMAIL] Verification code to {email}: {code}\n========================================\n")
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-            html_message=html_message
-        )
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send verification email to {email}: {e}")
-        return False
-
-def send_password_reset_email(email: str, code: str) -> bool:
-    subject = "Reset your Schema Guard Password"
-    message = f"Your password reset code is: {code}\n\nPlease enter this code on the password reset page to update your password."
-    html_message = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Reset Your Schema Guard Password</title>
     </head>
     <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
@@ -576,20 +507,25 @@ def resend_verification_code_api(request):
 # -------------------------------------------------------------
 def forgot_password_view(request):
     if request.method == "POST":
-        email = request.POST.get('email', '').strip()
-        from core.models import User
-        user = User.objects.filter(email=email).first()
-        if not user:
-            return render(request, 'core/forgot_password.html', {
-                'error_message': 'No account is registered with this email address.'
-            })
+        try:
+            email = request.POST.get('email', '').strip()
+            from core.models import User
+            user = User.objects.filter(email=email).first()
+            if not user:
+                return render(request, 'core/forgot_password.html', {
+                    'error_message': 'No account is registered with this email address.'
+                })
+                
+            code = generate_code()
+            user.reset_code = code
+            user.save()
             
-        code = generate_code()
-        user.reset_code = code
-        user.save()
-        
-        send_password_reset_email(email, code)
-        return redirect(f'/reset-password?email={email}')
+            send_password_reset_email(email, code)
+            return redirect(f'/reset-password?email={email}')
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            return HttpResponse(f"Diagnostic Traceback:\n{tb}", content_type="text/plain", status=500)
         
     return render(request, 'core/forgot_password.html')
 
