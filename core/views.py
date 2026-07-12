@@ -76,6 +76,65 @@ def resolve_connection_string(conn_str: str) -> str:
 def generate_code() -> str:
     return "".join(random.choices("0123456789", k=6))
 
+def send_email_helper(subject: str, message: str, to_email: str, html_message: str = None) -> bool:
+    from django.conf import settings
+    resend_api_key = getattr(settings, "RESEND_API_KEY", None)
+    
+    if resend_api_key:
+        import urllib.request
+        import urllib.error
+        import json
+        
+        from_email = getattr(settings, "RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        url = "https://api.resend.com/emails"
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            "text": message
+        }
+        if html_message:
+            data["html"] = html_message
+            
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode("utf-8"),
+            headers=headers,
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                logger.info(f"Email sent successfully via Resend API to {to_email}. ID: {res_data.get('id')}")
+                return True
+        except urllib.error.HTTPError as e:
+            err_content = e.read().decode("utf-8")
+            logger.error(f"Failed to send email via Resend HTTP API to {to_email}. Status: {e.code}, Response: {err_content}")
+            return False
+        except Exception as e:
+            logger.error(f"Error calling Resend API to {to_email}: {e}")
+            return False
+    else:
+        # Fall back to standard Django send_mail
+        from django.core.mail import send_mail
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [to_email],
+                fail_silently=False,
+                html_message=html_message
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send email via fallback send_mail to {to_email}: {e}")
+            return False
+
 def send_verification_email(email: str, code: str) -> bool:
     subject = "Verify your Schema Guard Account"
     message = f"Your email verification code is: {code}\n\nPlease enter this code on the verification page to activate your account."
@@ -139,20 +198,8 @@ def send_verification_email(email: str, code: str) -> bool:
     </body>
     </html>
     """
-    try:
-        print(f"\n========================================\n[EMAIL] Verification code to {email}: {code}\n========================================\n")
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-            html_message=html_message
-        )
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send verification email to {email}: {e}")
-        return False
+    print(f"\n========================================\n[EMAIL] Verification code to {email}: {code}\n========================================\n")
+    return send_email_helper(subject, message, email, html_message=html_message)
 
 def send_password_reset_email(email: str, code: str) -> bool:
     subject = "Reset your Schema Guard Password"
@@ -208,20 +255,8 @@ def send_password_reset_email(email: str, code: str) -> bool:
     </body>
     </html>
     """
-    try:
-        print(f"\n========================================\n[EMAIL] Password reset code to {email}: {code}\n========================================\n")
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-            html_message=html_message
-        )
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send password reset email to {email}: {e}")
-        return False
+    print(f"\n========================================\n[EMAIL] Password reset code to {email}: {code}\n========================================\n")
+    return send_email_helper(subject, message, email, html_message=html_message)
 
 # -------------------------------------------------------------
 # Unified Compliance Gate Check Engine
