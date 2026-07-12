@@ -1377,10 +1377,19 @@ def health_check_api(request):
     """Health check endpoint for load balancer probes and uptime monitoring."""
     import django
     from django.db import connection
+    import os
     
+    views_path = os.path.join(os.path.dirname(__file__), "views.py")
+    try:
+        with open(views_path, "r", encoding="utf-8") as f:
+            lines = len(f.readlines())
+    except Exception:
+        lines = -1
+        
     health = {
         "status": "healthy",
         "version": "1.0.0",
+        "views_line_count": lines,
         "django_version": django.get_version(),
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     }
