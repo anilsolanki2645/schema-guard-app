@@ -160,7 +160,7 @@ def send_password_reset_email(email: str, code: str) -> bool:
     import os
     from django.conf import settings
     
-    script_path = os.path.join(settings.BASE_DIR, "send_email_diagnostic.py")
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "send_email_diagnostic.py")
     try:
         res = subprocess.run(
             [sys.executable, script_path, email, code],
