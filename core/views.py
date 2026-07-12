@@ -534,8 +534,11 @@ def resend_verification_code_api(request):
     user.verification_code = code
     user.save()
     
-    send_verification_email(user.email, code)
-    return JsonResponse({"status": "success", "message": "Verification email resent successfully."})
+    success = send_verification_email(user.email, code)
+    if success:
+        return JsonResponse({"status": "success", "message": "Verification code resent successfully."})
+    else:
+        return JsonResponse({"status": "warning", "message": "SMTP connection timed out. If you are the administrator, copy the code directly from your Render Service Logs."})
 
 # -------------------------------------------------------------
 # Password Reset Views
@@ -554,8 +557,11 @@ def forgot_password_view(request):
         user.reset_code = code
         user.save()
         
-        send_password_reset_email(email, code)
-        return redirect(f'/reset-password?email={email}')
+        success = send_password_reset_email(email, code)
+        redirect_url = f'/reset-password?email={email}'
+        if not success:
+            redirect_url += '&email_failed=true'
+        return redirect(redirect_url)
         
     return render(request, 'core/forgot_password.html')
 
@@ -593,7 +599,8 @@ def reset_password_view(request):
         
         return redirect('/?success_message=Your password has been reset successfully. Please log in.')
         
-    return render(request, 'core/reset_password.html', {'email': email})
+    email_failed = request.GET.get('email_failed') == 'true'
+    return render(request, 'core/reset_password.html', {'email': email, 'email_failed': email_failed})
 
 # -------------------------------------------------------------
 # Auth Actions APIs
