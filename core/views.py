@@ -1420,6 +1420,7 @@ def health_check_api(request):
         "status": "healthy",
         "version": "1.0.0",
         "views_line_count": lines,
+        "resend_configured": "RESEND_API_KEY" in os.environ,
         "django_version": django.get_version(),
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     }
