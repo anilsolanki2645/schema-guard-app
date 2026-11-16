@@ -21,13 +21,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=3.2">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=3.3">
 
     <!-- Instant Sidebar Collapse State Restore (Zero Layout Shift) -->
     <script>
     try {
         if (localStorage.getItem('sg_sidebar_collapsed') === 'true') {
-            document.documentElement.classList.add('sg-collapsed-preload');
+            document.documentElement.classList.add('sidebar-collapsed');
         }
     } catch(e) {}
     </script>
@@ -381,12 +381,29 @@
     <!-- Global Sidebar & Mobile Drawer Scripts -->
     <script>
     function toggleSidebarCollapse() {
+        const html = document.documentElement;
         const layout = document.getElementById('app-layout');
-        if (!layout) return;
-        const isCollapsed = layout.classList.toggle('sidebar-collapsed');
-        try {
-            localStorage.setItem('sg_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-        } catch(e) {}
+        
+        // Determine current collapsed state
+        const isCollapsed = html.classList.contains('sidebar-collapsed') || (layout && layout.classList.contains('sidebar-collapsed'));
+        const nextCollapsed = !isCollapsed;
+
+        if (nextCollapsed) {
+            html.classList.add('sidebar-collapsed');
+            if (layout) layout.classList.add('sidebar-collapsed');
+            try { localStorage.setItem('sg_sidebar_collapsed', 'true'); } catch(e) {}
+        } else {
+            html.classList.remove('sidebar-collapsed');
+            html.classList.remove('sg-collapsed-preload');
+            if (layout) layout.classList.remove('sidebar-collapsed');
+            try { localStorage.setItem('sg_sidebar_collapsed', 'false'); } catch(e) {}
+        }
+
+        // Update titles on all toggle buttons
+        const allToggleBtns = document.querySelectorAll('.sidebar-desktop-collapse-btn, .sidebar-toggle-btn');
+        allToggleBtns.forEach(btn => {
+            btn.setAttribute('title', nextCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)');
+        });
     }
 
     function toggleSidebar() {
@@ -396,13 +413,24 @@
         if (backdrop) backdrop.classList.toggle('active');
     }
 
-    // Restore desktop collapsed state immediately on load
+    // Synchronize initial state across DOM elements
     (function() {
         try {
-            if (localStorage.getItem('sg_sidebar_collapsed') === 'true') {
-                const layout = document.getElementById('app-layout');
+            const isCollapsed = localStorage.getItem('sg_sidebar_collapsed') === 'true';
+            const html = document.documentElement;
+            const layout = document.getElementById('app-layout');
+            if (isCollapsed) {
+                html.classList.add('sidebar-collapsed');
                 if (layout) layout.classList.add('sidebar-collapsed');
+            } else {
+                html.classList.remove('sidebar-collapsed');
+                html.classList.remove('sg-collapsed-preload');
+                if (layout) layout.classList.remove('sidebar-collapsed');
             }
+            const allToggleBtns = document.querySelectorAll('.sidebar-desktop-collapse-btn, .sidebar-toggle-btn');
+            allToggleBtns.forEach(btn => {
+                btn.setAttribute('title', isCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)');
+            });
         } catch(e) {}
     })();
 
