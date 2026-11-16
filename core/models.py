@@ -3,6 +3,11 @@ from django.db import models
 
 class Organization(models.Model):
     name = models.CharField(max_length=255, unique=True)
+    plan = models.CharField(max_length=50, default='free')  # 'free', 'pro', 'enterprise'
+    max_pipelines = models.IntegerField(default=5)
+    stripe_customer_id = models.CharField(max_length=100, blank=True, default='')
+    stripe_subscription_id = models.CharField(max_length=100, blank=True, default='')
+    subscription_status = models.CharField(max_length=50, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -29,7 +34,7 @@ class Pipeline(models.Model):
     id = models.CharField(max_length=150, unique=True, primary_key=True)
     name = models.CharField(max_length=255)
     db_type = models.CharField(max_length=50)
-    conn_str = models.CharField(max_length=1000)
+    conn_str = models.TextField()  # Encrypted at rest via core.security
     schema = models.CharField(max_length=255)
     table = models.CharField(max_length=255)
     cron = models.CharField(max_length=50, default='0 0 * * *')
@@ -39,6 +44,7 @@ class Pipeline(models.Model):
     last_checked = models.DateTimeField(null=True, blank=True)
     lock_signature = models.CharField(max_length=255, null=True, blank=True)
     schema_map = models.JSONField(default=dict)
+    contract_yaml = models.TextField(blank=True, default='')  # Persistent database storage for contract
     logs = models.JSONField(default=list)
     compliance_history = models.JSONField(default=list)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name='pipelines')
@@ -67,6 +73,12 @@ class AuditLog(models.Model):
         ('pipeline.alert_sent', 'Alert Dispatched'),
         ('org.create', 'Organization Created'),
         ('contract.lock', 'Contract Locked'),
+        ('apikey.create', 'API Key Created'),
+        ('apikey.revoke', 'API Key Revoked'),
+        ('billing.checkout_created', 'Stripe Checkout Created'),
+        ('billing.subscription_updated', 'Stripe Subscription Updated'),
+        ('billing.subscription_cancelled', 'Stripe Subscription Cancelled'),
+        ('user.oauth_login', 'User OAuth Login'),
     ]
     
     action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
@@ -95,6 +107,7 @@ class SchemaSnapshot(models.Model):
     pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='schema_snapshots')
     version = models.PositiveIntegerField()
     schema_data = models.JSONField()  # Full schema columns data at this point in time
+    hash = models.CharField(max_length=64, blank=True, default='')
     status = models.CharField(max_length=20, default='Clean')  # Status at capture time: Clean, Drifted
     violations_count = models.PositiveIntegerField(default=0)
     captured_at = models.DateTimeField(auto_now_add=True)
@@ -133,12 +146,32 @@ class GateValidationLog(models.Model):
 
 
 class ConnectionProfile(models.Model):
-    name = models.CharField(max_length=150, unique=True)
+    name = models.CharField(max_length=150)
     db_type = models.CharField(max_length=50)
-    conn_str = models.CharField(max_length=1000)
+    conn_str = models.TextField()  # Encrypted at rest via core.security
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name='connection_profiles')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [['organization', 'name']]
 
     def __str__(self):
         return self.name
 
+
+class ApiKey(models.Model):
+    """Cryptographically secure API keys for programmatic access and CI/CD gates."""
+    key_id = models.CharField(max_length=64, unique=True, db_index=True)
+    key_hash = models.CharField(max_length=128, db_index=True)
+    name = models.CharField(max_length=150, default='CI/CD Gate Token')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='api_keys')
+    created_by = models.CharField(max_length=150, default='system')
+    is_active = models.BooleanField(default=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.key_id})"

@@ -29,10 +29,13 @@ class SchemaGuardOperator(BaseOperator):
     Fails the task if compliance fails.
     """
     @apply_defaults
-    def __init__(self, endpoint_url, token, *args, **kwargs):
+    def __init__(self, endpoint_url, token, schema=None, commit_sha="", branch="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.endpoint_url = endpoint_url
         self.token = token
+        self.schema = schema
+        self.commit_sha = commit_sha
+        self.branch = branch
 
     def execute(self, context=None):
         headers = {
@@ -40,9 +43,16 @@ class SchemaGuardOperator(BaseOperator):
             "X-Schema-Guard-Token": self.token
         }
         
+        payload = {
+            "commit_sha": self.commit_sha,
+            "branch": self.branch,
+        }
+        if self.schema:
+            payload["schema"] = self.schema
+        
         req = urllib.request.Request(
             self.endpoint_url,
-            data=json.dumps({}).encode('utf-8'),
+            data=json.dumps(payload).encode('utf-8'),
             headers=headers,
             method='POST'
         )
@@ -77,10 +87,11 @@ class SchemaGuardSensor(BaseSensorOperator):
     Airflow Sensor that pokes Schema Guard status until compatibility checks succeed.
     """
     @apply_defaults
-    def __init__(self, endpoint_url, token, *args, **kwargs):
+    def __init__(self, endpoint_url, token, schema=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.endpoint_url = endpoint_url
         self.token = token
+        self.schema = schema
 
     def poke(self, context=None):
         headers = {
@@ -88,9 +99,13 @@ class SchemaGuardSensor(BaseSensorOperator):
             "X-Schema-Guard-Token": self.token
         }
         
+        payload = {}
+        if self.schema:
+            payload["schema"] = self.schema
+            
         req = urllib.request.Request(
             self.endpoint_url,
-            data=json.dumps({}).encode('utf-8'),
+            data=json.dumps(payload).encode('utf-8'),
             headers=headers,
             method='POST'
         )

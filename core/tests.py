@@ -923,5 +923,52 @@ class PipelineAirflowIntegrationTests(TestCase):
         self.assertFalse(sensor.poke())
 
 
+class WebhookAlertTests(TestCase):
+    """Test Custom Webhook Dispatcher alert alerts."""
 
+    @patch('urllib.request.urlopen')
+    def test_send_custom_webhook_alert_success(self, mock_urlopen):
+        from core.views import send_custom_webhook_alert
+        
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+        
+        violations = ["Column 'name' was dropped."]
+        dq_report = {"status": "PASS", "checks": []}
+        
+        res = send_custom_webhook_alert(
+            violations=violations,
+            dq_report=dq_report,
+            webhook_url="https://api.test.com/webhook",
+            pipeline_name="test_pipeline",
+            status_str="Drifted"
+        )
+        
+        self.assertTrue(res)
+        mock_urlopen.assert_called_once()
+        
+        # Verify request parameters
+        args, kwargs = mock_urlopen.call_args
+        req = args[0]
+        self.assertEqual(req.full_url, "https://api.test.com/webhook")
+        self.assertEqual(req.headers["Content-type"], "application/json")
+        self.assertEqual(req.method, "POST")
 
+    @patch('urllib.request.urlopen')
+    def test_send_custom_webhook_alert_failure(self, mock_urlopen):
+        from core.views import send_custom_webhook_alert
+        mock_urlopen.side_effect = Exception("HTTP 500 Server Error")
+        
+        violations = []
+        dq_report = {"status": "FAIL", "checks": []}
+        
+        res = send_custom_webhook_alert(
+            violations=violations,
+            dq_report=dq_report,
+            webhook_url="https://api.test.com/webhook",
+            pipeline_name="test_pipeline",
+            status_str="Drifted"
+        )
+        
+        self.assertFalse(res)

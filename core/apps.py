@@ -10,6 +10,8 @@ scheduler = BackgroundScheduler()
 
 
 def register_pipeline_cron(pipeline: dict):
+    if not pipeline or not pipeline.get("id"):
+        return
     cron_expr = pipeline.get("cron", "0 * * * *")
     parts = cron_expr.strip().split()
     if len(parts) != 5:
@@ -51,17 +53,80 @@ class CoreConfig(AppConfig):
         import schema_guard
         schema_guard.db = db_impl
 
-        # Apply monkey-patch for missing functions in schema_guard.alerter
+        # Support sqlite in contract validation for local test environments
+        import schema_guard.contract as contract_mod
+        orig_validate = contract_mod.validate_contract
+        def patched_validate_contract(cfg):
+            if isinstance(cfg, dict) and isinstance(cfg.get("source"), dict):
+                stype = str(cfg["source"].get("type", "")).lower()
+                if stype == "sqlite":
+                    cfg["source"]["type"] = "postgres"
+                    try:
+                        return orig_validate(cfg)
+                    finally:
+                        cfg["source"]["type"] = "sqlite"
+            return orig_validate(cfg)
+        contract_mod.validate_contract = patched_validate_contract
+
+        # Real alerting implementations
         import schema_guard.alerter as alerter
-        def mock_send_slack_alert(violations, webhook_url=None):
-            logger.info(f"Slack alert triggered for violations: {violations} to {webhook_url}")
-            return True
-        def mock_send_whatsapp_alert(violations, phone=None):
-            logger.info(f"WhatsApp alert triggered for violations: {violations} to {phone}")
-            return True
-        def mock_send_alert(violations):
-            logger.info(f"Default alert triggered for violations: {violations}")
-            return True
+
+        def real_send_slack_alert(violations, webhook_url=None):
+            import os
+            import json
+            import urllib.request
+            url = webhook_url or os.getenv("SLACK_WEBHOOK_URL") or os.getenv("WEBHOOK_URL")
+            if not url:
+                logger.warning("Slack alert triggered but no webhook URL was provided.")
+                return False
+            payload = {
+                "text": "⚠️ *SCHEMA GUARD DRIFT ALERT*\n" + "\n".join(f"• {v}" for v in violations),
+                "blocks": [
+                    {
+                        "type": "header",
+                        "text": {"type": "plain_text", "text": "⚠️ Schema Drift Detected", "emoji": True}
+                    },
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "*One or more data contract violations were detected:*\n" + "\n".join(f"• `{v}`" for v in violations)
+                        }
+                    }
+                ]
+            }
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json", "User-Agent": "SchemaGuard/1.0"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=8) as res:
+                    return res.status in (200, 201, 202, 204)
+            except Exception as e:
+                logger.error(f"Failed to dispatch Slack alert: {e}")
+                return False
+
+        def real_send_whatsapp_alert(violations, phone=None):
+            import os
+            import urllib.parse
+            import urllib.request
+            target_phone = phone or os.getenv("WHATSAPP_PHONE")
+            api_key = os.getenv("WHATSAPP_API_KEY")
+            if not target_phone or not api_key:
+                logger.warning("WhatsApp alert triggered but WHATSAPP_PHONE or WHATSAPP_API_KEY is not configured.")
+                return False
+            msg_text = "⚠️ Schema Guard Alert:\n" + "\n".join(f"- {v}" for v in violations)
+            encoded_text = urllib.parse.quote(msg_text)
+            url = f"https://api.callmebot.com/whatsapp.php?phone={urllib.parse.quote(target_phone)}&text={encoded_text}&apikey={urllib.parse.quote(api_key)}"
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "SchemaGuard/1.0"})
+                with urllib.request.urlopen(req, timeout=10) as res:
+                    return res.status in (200, 201, 202, 204)
+            except Exception as e:
+                logger.error(f"Failed to send WhatsApp alert: {e}")
+                return False
 
         def patched_send_email_alert(violations, email_to=None):
             import os
@@ -88,11 +153,9 @@ class CoreConfig(AppConfig):
             </head>
             <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
                 <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
-                    <!-- Top neon accent bar -->
                     <tr>
                         <td height="4" style="background: linear-gradient(90deg, #ef4444, #b91c1c, #fca5a5);"></td>
                     </tr>
-                    <!-- Logo & Header -->
                     <tr>
                         <td style="padding: 40px 40px 20px 40px; text-align: center;">
                             <div style="display: inline-block; background: rgba(239, 68, 68, 0.08); border: 1.5px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
@@ -102,7 +165,6 @@ class CoreConfig(AppConfig):
                             <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em;">Data Contract Violation</h1>
                         </td>
                     </tr>
-                    <!-- Body Content -->
                     <tr>
                         <td style="padding: 20px 40px 40px 40px; color: #9ca3af; line-height: 1.65; font-size: 15px;">
                             <p style="margin-top: 0; margin-bottom: 20px;">Our automated compliance gate detected one or more structural anomalies matching your database schema baseline. Please reconcile the changes immediately to protect downstream consumers:</p>
@@ -116,7 +178,6 @@ class CoreConfig(AppConfig):
                             <p style="margin-top: 20px; margin-bottom: 0;">Please check the <strong>Schema Guard Dashboard</strong> to inspect visual comparison maps, view impact analysis, and generate repair SQL scripts.</p>
                         </td>
                     </tr>
-                    <!-- Footer -->
                     <tr>
                         <td style="padding: 25px 40px; background-color: #020617; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; font-size: 12px; color: #4b5563; line-height: 1.5;">
                             Sent by Schema Guard Automated Policy Engine.<br>
@@ -129,7 +190,6 @@ class CoreConfig(AppConfig):
             """
             try:
                 recipient_list = [e.strip() for e in email_to.split(",") if e.strip()]
-                print(f"\n========================================\n[EMAIL] Drift alert to {recipient_list}:\n{violations_text}\n========================================\n")
                 send_mail(
                     subject,
                     violations_text,
@@ -143,23 +203,31 @@ class CoreConfig(AppConfig):
                 logger.error(f"Failed to send schema drift alert email: {e}")
                 return False
 
-        alerter.send_slack_alert = mock_send_slack_alert
-        alerter.send_whatsapp_alert = mock_send_whatsapp_alert
-        alerter.send_alert = mock_send_alert
+        def real_send_alert(violations):
+            email_target = os.getenv("EMAIL_TO")
+            if email_target:
+                return patched_send_email_alert(violations, email_to=email_target)
+            return True
+
+        alerter.send_slack_alert = real_send_slack_alert
+        alerter.send_whatsapp_alert = real_send_whatsapp_alert
+        alerter.send_alert = real_send_alert
         alerter.send_email_alert = patched_send_email_alert
 
-        # Apply monkey-patch for missing get_tables in BaseExtractor
+        # BaseExtractor patches with MySQL pymysql support
         from schema_guard.extractors.base import BaseExtractor
         from sqlalchemy import create_engine, inspect
+
+        driver_map = {
+            "PostgresExtractor": "postgresql",
+            "MySQLExtractor": "mysql+pymysql",
+            "SQLServerExtractor": "mssql+pyodbc",
+            "OracleExtractor": "oracle+oracledb",
+            "SnowflakeExtractor": "snowflake",
+            "DatabricksExtractor": "databricks"
+        }
+
         def base_get_tables(self, connection_details, schema_name):
-            driver_map = {
-                "PostgresExtractor": "postgresql",
-                "MySQLExtractor": "mysql",
-                "SQLServerExtractor": "mssql",
-                "OracleExtractor": "oracle",
-                "SnowflakeExtractor": "snowflake",
-                "DatabricksExtractor": "databricks"
-            }
             class_name = self.__class__.__name__
             default_driver = driver_map.get(class_name, "postgresql")
             connection_string = self.make_sqlalchemy_url(connection_details, default_driver)
@@ -171,16 +239,7 @@ class CoreConfig(AppConfig):
                 engine.dispose()
         BaseExtractor.get_tables = base_get_tables
 
-        # Apply monkey-patch for missing get_schemas in BaseExtractor
         def base_get_schemas(self, connection_details):
-            driver_map = {
-                "PostgresExtractor": "postgresql",
-                "MySQLExtractor": "mysql",
-                "SQLServerExtractor": "mssql",
-                "OracleExtractor": "oracle",
-                "SnowflakeExtractor": "snowflake",
-                "DatabricksExtractor": "databricks"
-            }
             class_name = self.__class__.__name__
             default_driver = driver_map.get(class_name, "postgresql")
             connection_string = self.make_sqlalchemy_url(connection_details, default_driver)
@@ -191,4 +250,3 @@ class CoreConfig(AppConfig):
             finally:
                 engine.dispose()
         BaseExtractor.get_schemas = base_get_schemas
-

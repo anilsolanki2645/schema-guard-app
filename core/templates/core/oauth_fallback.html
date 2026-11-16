@@ -1,0 +1,40 @@
+{% extends 'core/base.html' %}
+{% block title %}Schema Guard - {{ provider }} Sign-In{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 4rem auto; padding: 2rem;">
+    <div class="glass-card" style="padding: 2.5rem; text-align: center; border-radius: 1rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">
+            {% if provider == 'GitHub' %}🐙{% else %}🌐{% endif %}
+        </div>
+        <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--text-primary);">
+            {{ provider }} Authentication
+        </h2>
+        <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 2rem; line-height: 1.6;">
+            Fast, secure 1-click developer sign-in to Schema Guard.
+        </p>
+
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 2rem; text-align: left;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.05em;">Developer Sandbox Mode</span>
+                <span style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">Active</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin: 0 0 1rem 0;">
+                External OAuth client keys are not set in <code>.env</code> (e.g. <code>{{ provider|upper }}_CLIENT_ID</code>). You can proceed immediately with a verified development profile or configure your keys.
+            </p>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">
+                Target: {{ provider }} OAuth &rarr; Instant Workspace Provisioning
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <a href="{{ callback_url }}" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.85rem 1.5rem; font-size: 1rem;">
+                Continue with Test {{ provider }} Profile ⚡
+            </a>
+            <a href="{% url 'login_page' %}" class="btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem;">
+                Return to Login
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Terms of Service | Schema Guard{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 2rem auto; padding: 0 1.5rem 4rem;">
+    <!-- Header Hero -->
+    <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2rem; border-color: rgba(139, 92, 246, 0.3);">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+            <span style="font-size: 2rem;">📜</span>
+            <h1 style="font-size: 2.25rem; font-weight: 800; color: #ffffff; margin: 0;">Terms of Service</h1>
+        </div>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">
+            Effective Date: November 14, 2026 | Last Updated: November 14, 2026
+        </p>
+    </div>
+
+    <!-- Content Sections -->
+    <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; display: flex; flex-direction: column; gap: 2rem; line-height: 1.7; color: var(--text-secondary);">
+        
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">1.</span> Acceptance of Terms
+            </h2>
+            <p>
+                By creating an account, connecting a database profile, or invoking Schema Guard APIs and CI/CD gates ("Service"), you agree to be bound by these Terms of Service ("Terms") between your organization ("Customer") and Schema Guard Inc. ("Company", "we", "us"). If you are entering into these Terms on behalf of an entity, you represent and warrant that you have authority to bind that entity.
+            </p>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">2.</span> Description of Service & Zero-Row Policy
+            </h2>
+            <p>
+                Schema Guard provides automated schema extraction, cryptographic contract locking, and CI/CD gatekeeping for relational and cloud data warehouses.
+            </p>
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 0.75rem; padding: 1.25rem; margin: 1rem 0;">
+                <strong style="color: #38bdf8; display: block; margin-bottom: 0.35rem;">🛡️ Zero-Row Guarantee</strong>
+                Schema Guard extracts structural catalog metadata (table names, column types, nullability, constraints). Schema Guard never reads, copies, replicates, or stores the underlying row-level records or personal payload data of your connected databases.
+            </div>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">3.</span> Database Credentials & Cryptographic Security
+            </h2>
+            <p>
+                Customer is responsible for safeguarding API keys, OAuth session tokens, and database connection strings. All connection strings stored inside Schema Guard are encrypted at rest using AES-256 Fernet envelope encryption. Customers are encouraged to provide read-only database credentials with restricted catalog-inspection permissions.
+            </p>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">4.</span> Acceptable Use Policy
+            </h2>
+            <p>You agree not to:</p>
+            <ul style="padding-left: 1.5rem; margin: 0.5rem 0;">
+                <li>Attempt to bypass rate limits, API quotas, or licensing restrictions.</li>
+                <li>Submit Server-Side Request Forgery (SSRF) targets or attack internal network infrastructure via outbound webhooks.</li>
+                <li>Decompile, reverse-engineer, or disassemble any portion of the service platform.</li>
+                <li>Use Schema Guard to transmit malware, viruses, or unlawful material.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">5.</span> Subscription, Billing & Cancellation
+            </h2>
+            <p>
+                Paid tiers (Team Pro at $49/mo, Enterprise at $199/mo) are billed in advance on a recurring monthly or annual basis via Stripe. You may cancel your subscription at any time via the self-service Customer Portal (<a href="/pricing" style="color: #38bdf8; text-decoration: none;">/pricing</a>). Cancellations take effect at the conclusion of the current billing cycle without prorated refunds.
+            </p>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">6.</span> Service Availability & SLA
+            </h2>
+            <p>
+                We strive for 99.9% uptime for the CI/CD gatekeeping API. Scheduled maintenance windows will be announced with at least 24 hours advance notice. We are not liable for gate verification delays caused by third-party database downtime, network outages, or customer firewall blocks.
+            </p>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">7.</span> Limitation of Liability
+            </h2>
+            <p>
+                To the maximum extent permitted by applicable law, Schema Guard Inc. shall not be liable for any indirect, incidental, punitive, or consequential damages, including loss of data, database corruption, or business interruption. Total liability under these terms shall not exceed the aggregate fees paid by Customer in the twelve (12) months preceding the claim.
+            </p>
+        </section>
+
+        <section>
+            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #38bdf8;">8.</span> Contact & Legal Inquiries
+            </h2>
+            <p>
+                For questions regarding these Terms or enterprise agreements, contact our legal counsel at <a href="mailto:legal@schemaguard.io" style="color: #38bdf8; text-decoration: none;">legal@schemaguard.io</a>.
+            </p>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

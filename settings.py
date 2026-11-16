@@ -4,13 +4,10 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 
 # Load env file
 env_path = BASE_DIR / ".env"
-if not env_path.exists():
-    env_path = Path(__file__).resolve().parent / ".env"
-
 if env_path.exists():
     load_dotenv(env_path)
 
@@ -95,35 +92,75 @@ TEMPLATES = [
 WSGI_APPLICATION = 'wsgi.application'
 
 import sys
-IS_TESTING = 'test' in sys.argv or 'test_coverage' in sys.argv
+IS_TESTING = 'test' in sys.argv or 'test_coverage' in sys.argv or any('load_test' in arg for arg in sys.argv)
 
 if IS_TESTING:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db_test.sqlite3',
+            'OPTIONS': {
+                'timeout': 60,
+            }
+        }
+    }
+elif os.environ.get("USE_SQLITE", "false").lower() == "true":
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 60,
+            }
         }
     }
 elif os.environ.get("PGHOST"):
+    pghost = os.environ.get("PGHOST")
+    opts = {
+        'sslmode': os.environ.get("PGSSLMODE", "require"),
+    }
+    # Resolve hostaddr to protect against local Windows DNS failures or timeouts
+    hostaddr = os.environ.get("PGHOSTADDR")
+    if not hostaddr and pghost and pghost not in ('localhost', '127.0.0.1'):
+        try:
+            import socket
+            hostaddr = socket.gethostbyname(pghost)
+        except Exception:
+            if 'c-9.us-east-1.aws.neon.tech' in pghost:
+                hostaddr = '52.45.105.76'
+    if hostaddr:
+        opts['hostaddr'] = hostaddr
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.environ.get("PGDATABASE", "neondb"),
             'USER': os.environ.get("PGUSER", "neondb_owner"),
             'PASSWORD': os.environ.get("PGPASSWORD", ""),
-            'HOST': os.environ.get("PGHOST"),
+            'HOST': pghost,
             'PORT': os.environ.get("PGPORT") or 5432,
-            'OPTIONS': {
-                'sslmode': os.environ.get("PGSSLMODE", "require"),
-            }
+            'CONN_MAX_AGE': 600,
+            'CONN_HEALTH_CHECKS': True,
+            'OPTIONS': opts,
         }
     }
 else:
     db_url = os.environ.get("NEON_DB_CONNECTION_STRING") or os.environ.get("DB_CONNECTION_STRING")
     if db_url:
-        # Handle sslmode query parameters if any (strip them for parsed host/port)
         clean_url = db_url.split("?", 1)[0]
         parsed = urlparse(clean_url)
+        opts = {'sslmode': 'require'}
+        hostaddr = os.environ.get("PGHOSTADDR")
+        if not hostaddr and parsed.hostname and parsed.hostname not in ('localhost', '127.0.0.1'):
+            try:
+                import socket
+                hostaddr = socket.gethostbyname(parsed.hostname)
+            except Exception:
+                if 'c-9.us-east-1.aws.neon.tech' in parsed.hostname:
+                    hostaddr = '52.45.105.76'
+        if hostaddr:
+            opts['hostaddr'] = hostaddr
+
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
@@ -134,9 +171,7 @@ else:
                 'PORT': parsed.port or 5432,
                 'CONN_MAX_AGE': 600,
                 'CONN_HEALTH_CHECKS': True,
-                'OPTIONS': {
-                    'sslmode': 'require',
-                }
+                'OPTIONS': opts,
             }
         }
     else:
@@ -191,27 +226,43 @@ except ImportError:
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Session security
+if IS_TESTING:
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+else:
+    SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", "86400"))  # 24 hours default
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# Email settings configured from env variables
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_PASSWORD')
-DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_FROM', EMAIL_HOST_USER)
-EMAIL_TIMEOUT = 5
+# Email settings configured from env variables or fallback
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
 
+if RESEND_API_KEY:
+    EMAIL_BACKEND = 'core.email_backend.ResendEmailBackend'
+    DEFAULT_FROM_EMAIL = RESEND_FROM_EMAIL
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+    try:
+        EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587') or '587')
+    except ValueError:
+        EMAIL_PORT = 587
+    
+    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
+    if EMAIL_USE_SSL:
+        EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'false').lower() == 'true'
+    else:
+        EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
+        
+    EMAIL_HOST_USER = os.environ.get('EMAIL_USER')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_PASSWORD')
+    DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_FROM', EMAIL_HOST_USER)
+    
+    # Fallback to console email backend in development if credentials are not configured
+    if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
+        EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-
-# Fallback to console email backend in development if credentials are not configured
-if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_TIMEOUT = 5
 
 # Security settings for production
 if not DEBUG:
@@ -224,6 +275,31 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get("SECURE_HSTS_INCLUDE_SUBDOMAINS", "true").lower() == "true"
     SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "true").lower() == "true"
+
+    # Enterprise Defense-in-depth headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_REFERRER_POLICY = 'same-origin'
+
+# Stripe Billing Settings
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_placeholder')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_placeholder')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'whsec_placeholder')
+STRIPE_PRO_PRICE_ID = os.environ.get('STRIPE_PRO_PRICE_ID', 'price_pro_monthly')
+STRIPE_ENTERPRISE_PRICE_ID = os.environ.get('STRIPE_ENTERPRISE_PRICE_ID', 'price_enterprise_monthly')
+
+PLAN_QUOTAS = {
+    'free': {'max_pipelines': 5, 'name': 'Developer (Free)'},
+    'pro': {'max_pipelines': 50, 'name': 'Team Pro'},
+    'enterprise': {'max_pipelines': 1000, 'name': 'Enterprise'},
+}
+
+# OAuth Settings (GitHub & Google)
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
 # Logging configuration
 LOGGING = {

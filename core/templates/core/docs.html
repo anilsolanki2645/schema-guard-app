@@ -1,0 +1,580 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard Documentation & Developer Reference{% endblock %}
+
+{% block content %}
+<div class="docs-container" style="display: flex; gap: 2.5rem; max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem 5rem; align-items: flex-start;">
+    
+    <!-- LEFT SIDEBAR: Sticky Table of Contents -->
+    <aside class="docs-sidebar glass-card" style="width: 280px; flex-shrink: 0; position: sticky; top: 1.5rem; max-height: calc(100vh - 3rem); overflow-y: auto; padding: 1.5rem; border-radius: 1rem; border-color: rgba(255, 255, 255, 0.08);">
+        <div style="font-size: 0.75rem; font-weight: 800; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem;">
+            Documentation Index
+        </div>
+        <nav style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.88rem;">
+            <a href="#overview" class="docs-nav-link" style="color: var(--text-primary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🚀 Product Overview
+            </a>
+            <a href="#how-it-works" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                ⚙️ How Schema Guard Works
+            </a>
+            <a href="#data-contracts" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🔒 Cryptographic Contracts
+            </a>
+            <a href="#connectors" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🔌 Multi-Database Connectors
+            </a>
+            <a href="#cicd-gates" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🤖 CI/CD Gatekeeper
+            </a>
+            <a href="#airflow-integration" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🌪️ Apache Airflow Operator
+            </a>
+            <a href="#dbt-integration" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                📦 dbt Contract Sync
+            </a>
+            <a href="#sandbox" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🧪 DDL Simulation Sandbox
+            </a>
+            <a href="#alerts" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🔔 Multi-Channel Alerts
+            </a>
+            <a href="#security" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                🔐 Security & Encryption
+            </a>
+            <a href="#api-reference" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                📡 REST API Specification
+            </a>
+            <a href="#billing-plans" class="docs-nav-link" style="color: var(--text-secondary); text-decoration: none; padding: 0.4rem 0.6rem; border-radius: 0.4rem; display: block;">
+                💎 Plans & Stripe Billing
+            </a>
+        </nav>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT PANE -->
+    <main class="docs-content" style="flex: 1; min-width: 0;">
+        
+        <!-- SECTION 1: Product Overview -->
+        <section id="overview" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                <span style="font-size: 2rem;">🚀</span>
+                <h1 style="font-size: 2.25rem; font-weight: 800; color: #ffffff; margin: 0;">Product Overview</h1>
+            </div>
+            <p style="font-size: 1.1rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.5rem;">
+                <strong>Schema Guard</strong> is a continuous database schema gatekeeper and data contract compliance platform. It bridges the gap between transactional application databases and downstream data consumers (dbt models, Apache Airflow ETL, Kafka stream processors, dashboards, and ML features) to prevent silent, breaking schema mutations from reaching production.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; margin-top: 1.5rem;">
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">💥 The Problem</div>
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">
+                        App developers alter a database table (e.g. rename <code>user_id</code> to <code>customer_uuid</code> or alter a column type from <code>INTEGER</code> to <code>VARCHAR</code>). Downstream analytics and data pipelines break silently at 3 AM.
+                    </p>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">🛡️ The Solution</div>
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">
+                        Schema Guard enforces strict, version-controlled YAML data contracts locked with cryptographic SHA-256 signatures. It evaluates proposed schema changes inside CI/CD pull requests and blocks breaking migrations before merge.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: How It Works -->
+        <section id="how-it-works" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">⚙️</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">How Schema Guard Works</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 2rem;">
+                Schema Guard functions through a 4-phase automated lifecycle that keeps your live databases, CI/CD pull requests, and scheduled data extraction jobs completely synchronized and validated:
+            </p>
+
+            <div style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.5rem; font-family: var(--font-mono); font-size: 0.85rem; color: #38bdf8; overflow-x: auto; margin-bottom: 2rem; line-height: 1.6;">
+[Developer Pull Request / DDL]
+           │
+           ▼
+[CI/CD Gate: POST /api/pipelines/&lt;id&gt;/validate-gate]
+           │
+           ├─► (1) Verify API Token & Plan Quota
+           ├─► (2) Verify SHA-256 Contract Lock Signature
+           ├─► (3) Diff Engine: Compare Proposed Schema vs Baseline
+           │        ├── Checks column removals / renames
+           │        ├── Checks type incompatibilities (e.g. TEXT -&gt; INT)
+           │        └── Checks nullability violations (NOT NULL shift)
+           │
+     ┌─────┴────────┐
+     ▼              ▼
+[PASS: Exit 0]  [FAIL: Exit 1 (PR Blocked)]
+     │              └── AI Diagnostic Reason & SQL Remediation Generated
+     ▼
+[Production Database]
+     │
+     ▼ (Scheduled Cron Audits: Every 1m / Daily)
+[Multi-DB Lazy Extractor] ──► [Diff Engine] ──► [Slack / WhatsApp / Email Alerts]
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div style="border-left: 3px solid #8b5cf6; padding-left: 1rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.35rem 0; font-size: 1rem;">1. Baseline Registration & Locking</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; margin: 0;">
+                        When a pipeline is connected, Schema Guard introspects the table metadata and compiles a canonical YAML contract. The contract is cryptographically locked with a SHA-256 hash stored in both the database and file system.
+                    </p>
+                </div>
+                <div style="border-left: 3px solid #38bdf8; padding-left: 1rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.35rem 0; font-size: 1rem;">2. CI/CD Gate Verification</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; margin: 0;">
+                        In GitHub Actions, GitLab CI, or pre-commit hooks, developers call the gate API. Schema Guard evaluates proposed migration DDL and rejects changes that drop columns, narrow types, or break downstream consumers.
+                    </p>
+                </div>
+                <div style="border-left: 3px solid #22c55e; padding-left: 1rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.35rem 0; font-size: 1rem;">3. Automated Cron Drift Auditing</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; margin: 0;">
+                        A multi-worker background scheduler queries the target database on configured cron schedules. If manual or out-of-band changes occur, immediate alerts are dispatched to Slack, WhatsApp, and Email.
+                    </p>
+                </div>
+                <div style="border-left: 3px solid #f59e0b; padding-left: 1rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.35rem 0; font-size: 1rem;">4. AI Diagnostic & Repair Engine</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; margin: 0;">
+                        When a schema discrepancy occurs, the integrated AI reasoning engine analyzes the structural drift, assesses the blast radius on analytics pipelines, and outputs executable SQL repair scripts.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: Cryptographic Data Contracts -->
+        <section id="data-contracts" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🔒</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Cryptographic Data Contracts</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Data contracts are declarative, human-readable specifications written in YAML. To prevent unauthorized modifications, each contract is locked with a cryptographic SHA-256 digest:
+            </p>
+
+            <div style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 0.5rem;">Example: contracts/production_orders.yaml</div>
+                <pre style="margin: 0; color: #a78bfa; font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.5; overflow-x: auto;">source:
+  name: production_orders_contract
+  type: postgres
+  connection: postgresql://readonly@db.internal:5432/analytics
+  schema: public
+  table: orders
+columns:
+  - name: order_id
+    type: INTEGER
+    nullable: false
+    primary_key: true
+  - name: customer_id
+    type: INTEGER
+    nullable: false
+  - name: total_amount
+    type: NUMERIC(12, 2)
+    nullable: true
+  - name: status
+    type: VARCHAR(50)
+    nullable: false
+  - name: created_at
+    type: TIMESTAMP
+    nullable: false</pre>
+            </div>
+        </section>
+
+        <!-- SECTION 4: Multi-Database Connectors -->
+        <section id="connectors" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🔌</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Multi-Database Connectors</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Schema Guard uses on-demand <strong>lazy extractors</strong>. Instead of holding persistent connection pools that consume database server capacity, extractors connect, inspect the database catalog metadata, and disconnect immediately.
+            </p>
+
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.12); color: var(--text-muted);">
+                        <th style="padding: 0.75rem;">Database Engine</th>
+                        <th style="padding: 0.75rem;">Connection String Pattern</th>
+                        <th style="padding: 0.75rem;">Extractor Mechanism</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">PostgreSQL</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">postgresql://user:pass@host:5432/db</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">information_schema.columns</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">MySQL / MariaDB</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">mysql+pymysql://user:pass@host:3306/db</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">information_schema.columns</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">Snowflake</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">snowflake://user:pass@account/db/schema</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">snowflake-sqlalchemy catalog</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">SQL Server (MSSQL)</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">mssql+pyodbc://user:pass@host/db</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">sys.columns & sys.types</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">Databricks</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">databricks://token@host:443/sql/1.0/warehouses/...</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">Unity Catalog schema API</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; font-weight: 700; color: #ffffff;">SQLite (Dev / Local)</td>
+                        <td style="padding: 0.75rem; font-family: var(--font-mono); color: #38bdf8;">sqlite:///path/to/database.db</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">PRAGMA table_info</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- SECTION 5: CI/CD Gatekeeper -->
+        <section id="cicd-gates" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🤖</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">CI/CD Gatekeeper Integration</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Integrate schema verification into your deployment pipeline. The gate endpoint returns <code>HTTP 200</code> if the proposed migration is safe, or <code>HTTP 422</code> if breaking changes are detected:
+            </p>
+
+            <div style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 0.5rem;">GitHub Actions Workflow (.github/workflows/schema_gate.yml)</div>
+                <pre style="margin: 0; color: #38bdf8; font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.5; overflow-x: auto;">name: Schema Guard Contract Gate
+
+on:
+  pull_request:
+    branches: [main, production]
+
+jobs:
+  verify-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Schema Compatibility
+        run: |
+          RESPONSE=$(curl -s -w "%{http_code}" -o response.json -X POST \
+            "https://your-domain.com/api/pipelines/orders_pipeline/validate-gate" \
+            -H "Content-Type: application/json" \
+            -H "X-Schema-Guard-Token: ${{ secrets.SCHEMA_GUARD_API_KEY }}" \
+            -d '{
+              "commit_sha": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}",
+              "schema": {
+                "columns": [
+                  {"name": "order_id", "type": "INTEGER", "nullable": false},
+                  {"name": "customer_id", "type": "INTEGER", "nullable": false},
+                  {"name": "total_amount", "type": "NUMERIC(12,2)", "nullable": true}
+                ]
+              }
+            }')
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -c 4)
+          cat response.json
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "❌ Schema contract validation failed! Breaking changes detected."
+            exit 1
+          fi
+          echo "✅ Schema verified compliant with locked contract."</pre>
+            </div>
+        </section>
+
+        <!-- SECTION 6: Apache Airflow Operator -->
+        <section id="airflow-integration" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🌪️</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Apache Airflow Pre-Ingestion Guard</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Export and drop the native <code>SchemaGuardOperator</code> or <code>SchemaGuardSensor</code> into your Airflow DAGs. It verifies that the source table structure matches the locked contract before starting long-running extraction or ETL jobs:
+            </p>
+
+            <div style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 0.5rem;">Airflow DAG Implementation (dags/orders_etl.py)</div>
+                <pre style="margin: 0; color: #a78bfa; font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.5; overflow-x: auto;">from datetime import datetime, timedelta
+from airflow import DAG
+from airflow_operator import SchemaGuardOperator
+
+default_args = {
+    'owner': 'data-engineering',
+    'retries': 2,
+    'retry_delay': timedelta(minutes=5),
+}
+
+with DAG(
+    dag_id='production_orders_ingestion',
+    default_args=default_args,
+    start_date=datetime(2026, 1, 1),
+    schedule_interval='@daily',
+    catchup=False,
+) as dag:
+
+    # 1. Pre-Ingestion Guard: Blocks ETL if database schema mutated
+    guard_orders = SchemaGuardOperator(
+        task_id='guard_orders_schema',
+        endpoint_url='https://your-domain.com/api/pipelines/orders_pipeline/validate-gate',
+        token='{{ var.value.SCHEMA_GUARD_TOKEN }}',
+    )
+
+    # 2. Downstream tasks only execute if schema passes
+    extract_orders &gt;&gt; transform_orders &gt;&gt; load_warehouse
+    guard_orders &gt;&gt; extract_orders</pre>
+            </div>
+        </section>
+
+        <!-- SECTION 7: dbt Integration -->
+        <section id="dbt-integration" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">📦</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">dbt Contract Sync</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Schema Guard automatically compiles your locked data contracts into native <code>dbt schema.yml</code> model definitions with <code>contract: { enforced: true }</code>.
+            </p>
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                <div style="font-size: 0.85rem; color: #38bdf8; font-weight: 700; margin-bottom: 0.5rem;">Export API Endpoint:</div>
+                <code style="font-size: 0.85rem; color: #ffffff;">GET /api/pipelines/&lt;pipeline_id&gt;/export-dbt</code>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">
+                    Download the YAML directly into your dbt repository’s <code>models/</code> directory to ensure dbt Core/Cloud enforce matching column data types and nullability constraints.
+                </p>
+            </div>
+        </section>
+
+        <!-- SECTION 8: DDL Simulation Sandbox -->
+        <section id="sandbox" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🧪</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">DDL Simulation Sandbox</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Before executing an <code>ALTER TABLE</code> statement on your live database, use the DDL Sandbox at <a href="/sandbox" style="color: #38bdf8; text-decoration: none; font-weight: 600;">/sandbox</a> to calculate blast radius:
+            </p>
+            <ul style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7; padding-left: 1.25rem; margin: 0;">
+                <li><strong>Blast Radius Calculation:</strong> Highlights which downstream dbt models, Airflow tasks, and reports will break.</li>
+                <li><strong>Expand & Contract Guidance:</strong> Generates safe two-phase migration SQL scripts (add column &rarr; backfill &rarr; switch consumers &rarr; drop legacy column).</li>
+            </ul>
+        </section>
+
+        <!-- SECTION 9: Multi-Channel Alerts -->
+        <section id="alerts" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🔔</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Multi-Channel Alerts</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                When a background audit detects a drift or nullability violation, notifications are dispatched in parallel to your configured alert channels:
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="font-weight: 700; color: #38bdf8; margin-bottom: 0.35rem;">💬 Slack Webhooks</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                        Rich BlockKit messages displaying exact column mismatches, table name, and timestamp.
+                    </p>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="font-weight: 700; color: #22c55e; margin-bottom: 0.35rem;">🟢 WhatsApp (CallMeBot)</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                        Instant urgent push notifications directly to on-call data engineers.
+                    </p>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="font-weight: 700; color: #fbbf24; margin-bottom: 0.35rem;">📧 Email (SMTP / Resend)</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                        Formatted HTML incident reports detailing expected vs detected column data types.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 10: Security & Encryption -->
+        <section id="security" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">🔐</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Security, Encryption & RBAC</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Schema Guard is engineered according to strict enterprise security standards:
+            </p>
+
+            <ul style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.7; padding-left: 1.25rem; margin: 0 0 1.5rem 0;">
+                <li><strong>Fernet AES-128 Encryption at Rest:</strong> Database passwords and connection strings stored in <code>core_pipeline</code> and <code>core_connectionprofile</code> are encrypted using Fernet symmetric encryption.</li>
+                <li><strong>Automatic Masking:</strong> Sensitive database connection strings are masked with asterisks (<code>postgresql://user:****@host/db</code>) in all API responses and dashboard tables.</li>
+                <li><strong>SQL Injection Sanitization:</strong> All schema, table, and column names are quoted with dialect-safe delimiters (e.g. <code>"table"</code> for Postgres/Snowflake, <code>`table`</code> for MySQL) before running data quality queries.</li>
+                <li><strong>Cryptographic API Keys:</strong> API keys use an unguessable prefix (<code>sg_live_...</code>) and are stored exclusively as SHA-256 hashes in the database.</li>
+                <li><strong>Immutable Audit Trail:</strong> Every user action (logins, pipeline creations, contract locks, API key creation/revocation, plan changes) is immutably recorded in the <code>AuditLog</code> table.</li>
+            </ul>
+        </section>
+
+        <!-- SECTION 11: REST API Specification -->
+        <section id="api-reference" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">📡</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Complete REST API Specification</h2>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                
+                <!-- Endpoint 1 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #22c55e; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">POST</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/pipelines/&lt;pipeline_id&gt;/validate-gate</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Validates a proposed schema against the locked contract baseline. Requires <code>X-Schema-Guard-Token</code> header.
+                    </p>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                        Response: <code>200 OK {"compatible": true, "violations": []}</code> or <code>422 Unprocessable Entity {"compatible": false, "violations": [...]}</code>
+                    </div>
+                </div>
+
+                <!-- Endpoint 2 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #38bdf8; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">GET</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/pipelines</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Lists all monitored pipelines within the authenticated user's organization with masked credentials.
+                    </p>
+                </div>
+
+                <!-- Endpoint 3 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #22c55e; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">POST</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/pipelines/&lt;pipeline_id&gt;/run</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Forces an immediate live audit check against the target database and dispatches alerts if drift is detected.
+                    </p>
+                </div>
+
+                <!-- Endpoint 4 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #a78bfa; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">POST</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/billing/checkout</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Initiates a Stripe Checkout Session for upgrading plan tier (<code>{"plan": "pro"}</code> or <code>{"plan": "enterprise"}</code>).
+                    </p>
+                </div>
+
+                <!-- Endpoint 5 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #38bdf8; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">GET</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/health</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Returns server health, database connection status, and scheduler state for load balancers.
+                    </p>
+                </div>
+
+                <!-- Endpoint 6 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #38bdf8; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">GET</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/pipelines/&lt;pipeline_id&gt;/badge</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Returns a shields.io-compatible dynamic SVG status badge (<code>passing</code>, <code>drifted</code>, <code>failed</code>) for GitHub repository READMEs.
+                    </p>
+                </div>
+
+                <!-- Endpoint 7 -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span style="background: #38bdf8; color: #020617; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem;">GET</span>
+                        <code style="color: #ffffff; font-size: 0.95rem;">/api/audit-logs/export</code>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                        Exports full immutable audit trails to a downloadable CSV format for SOC2, ISO27001, and compliance audits.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 12: Plans & Stripe Billing -->
+        <section id="billing-plans" class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <span style="font-size: 2rem;">💎</span>
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Plans & Stripe Billing</h2>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                Organizations can upgrade or manage active subscriptions directly from <a href="/pricing" style="color: #38bdf8; text-decoration: none; font-weight: 600;">/pricing</a>:
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;">
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.25rem 0;">Developer (Free)</h4>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin-bottom: 0.5rem;">$0</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                        5 monitored pipelines, daily automated audits, Postgres/MySQL/SQLite extractors.
+                    </p>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid #8b5cf6; border-radius: 0.75rem; padding: 1.25rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.25rem 0;">Team Pro</h4>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #a78bfa; margin-bottom: 0.5rem;">$49 / mo</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                        50 pipelines, 1-min cron audits, Snowflake/Databricks, unlimited CI/CD gate tokens, AI repair engine.
+                    </p>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1.25rem;">
+                    <h4 style="color: #ffffff; margin: 0 0 0.25rem 0;">Enterprise</h4>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #38bdf8; margin-bottom: 0.5rem;">$199 / mo</div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                        1,000 pipelines, dedicated cluster connections, custom validation SLAs, 24/7 dedicated support.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Highlight Active Nav Item on Scroll -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const navLinks = document.querySelectorAll('.docs-nav-link');
+    const sections = Array.from(navLinks).map(link => {
+        const id = link.getAttribute('href').substring(1);
+        return document.getElementById(id);
+    }).filter(Boolean);
+
+    window.addEventListener('scroll', () => {
+        let currentSectionId = '';
+        const scrollPosition = window.scrollY + 120;
+
+        sections.forEach(section => {
+            if (section.offsetTop <= scrollPosition) {
+                currentSectionId = section.getAttribute('id');
+            }
+        });
+
+        navLinks.forEach(link => {
+            const hrefId = link.getAttribute('href').substring(1);
+            if (hrefId === currentSectionId) {
+                link.style.color = '#38bdf8';
+                link.style.background = 'rgba(56, 189, 248, 0.1)';
+                link.style.fontWeight = '700';
+            } else {
+                link.style.color = 'var(--text-secondary)';
+                link.style.background = 'transparent';
+                link.style.fontWeight = '400';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

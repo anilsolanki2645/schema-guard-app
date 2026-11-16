@@ -1,0 +1,307 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Schema Guard - Transparent Pricing & Enterprise Plans{% endblock %}
+
+{% block content %}
+<section class="pricing-showcase" style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem 5rem;">
+    <!-- Pricing Header -->
+    <div style="text-align: center; margin-bottom: 3.5rem;">
+        <span class="hero-badge" style="display: inline-block; margin-bottom: 1rem;">💎 Predictable, Developer-Friendly Pricing</span>
+        <h1 style="font-size: 2.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.2;">
+            Ironclad Schema Governance<br>
+            <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Built For Modern Data Teams
+            </span>
+        </h1>
+        <p style="color: var(--text-secondary); max-width: 680px; margin: 0 auto 2rem; font-size: 1.1rem; line-height: 1.6;">
+            Eliminate silent production pipeline breaks. Protect your analytics and downstream warehouse integrations with cryptographic schema contracts and continuous CI/CD gates.
+        </p>
+
+        {% if org %}
+        <div style="display: inline-flex; align-items: center; gap: 0.75rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.6rem 1.25rem; border-radius: 9999px;">
+            <span style="font-size: 0.85rem; color: #38bdf8; font-weight: 600;">Current Workspace:</span>
+            <span style="font-size: 0.85rem; color: #ffffff; font-weight: 700;">{{ org.name }}</span>
+            <span style="font-size: 0.75rem; background: #38bdf8; color: #020617; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 9999px; text-transform: uppercase;">
+                {{ org.plan|upper }} ({{ org.max_pipelines }} Pipelines)
+            </span>
+            {% if org.plan != 'free' %}
+            <button onclick="openCustomerPortal()" class="btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-left: 0.5rem;">
+                Manage Billing ⚙️
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Pricing Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; margin-bottom: 4.5rem; align-items: stretch;">
+        {% for plan in plans %}
+        <div class="glass-card" style="display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; border-radius: 1.25rem; position: relative; {% if plan.highlight %}border-color: #8b5cf6; box-shadow: 0 0 35px rgba(139, 92, 246, 0.25); transform: scale(1.02); background: linear-gradient(180deg, rgba(30, 27, 75, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);{% endif %}">
+            
+            {% if plan.highlight %}
+            <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.35rem 1rem; border-radius: 9999px; letter-spacing: 0.05em; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);">
+                {{ plan.badge }}
+            </div>
+            {% endif %}
+
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+                    <h3 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); margin: 0;">{{ plan.name }}</h3>
+                    {% if not plan.highlight and plan.badge %}
+                    <span style="font-size: 0.7rem; background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); padding: 0.2rem 0.5rem; border-radius: 0.35rem; font-weight: 600;">
+                        {{ plan.badge }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; min-height: 40px; margin-bottom: 1.5rem;">
+                    {{ plan.description }}
+                </p>
+
+                <div style="display: flex; align-items: baseline; gap: 0.35rem; margin-bottom: 1.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.5rem;">
+                    <span style="font-size: 2.75rem; font-weight: 900; color: #ffffff;">{{ plan.price }}</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem; font-weight: 500;">/ {{ plan.period }}</span>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem;">
+                        Included Capabilities
+                    </div>
+                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.8rem;">
+                        {% for feature in plan.features %}
+                        <li style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.88rem; color: var(--text-primary); line-height: 1.4;">
+                            <span style="color: #22c55e; font-weight: 800; font-size: 1rem;">✓</span>
+                            <span>{{ feature }}</span>
+                        </li>
+                        {% endfor %}
+                        {% for unf in plan.unavailable %}
+                        <li style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.85rem; color: var(--text-muted); opacity: 0.5; line-height: 1.4;">
+                            <span style="color: #64748b; font-weight: 700;">✕</span>
+                            <span style="text-decoration: line-through;">{{ unf }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                {% if is_logged_in %}
+                    {% if current_plan == plan.id %}
+                        <button class="btn-secondary" style="width: 100%; padding: 0.85rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default;">
+                            ✓ Active Plan
+                        </button>
+                    {% elif plan.id == 'free' %}
+                        <button onclick="handleDowngrade()" class="btn-secondary" style="width: 100%; padding: 0.85rem; font-weight: 700;">
+                            Switch to Free
+                        </button>
+                    {% else %}
+                        <button onclick="initiateCheckout('{{ plan.id }}')" id="btn-checkout-{{ plan.id }}" class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}" style="width: 100%; padding: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            {{ plan.cta_text }}
+                        </button>
+                    {% endif %}
+                {% else %}
+                    <button onclick="openAuthModal(true)" class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}" style="width: 100%; padding: 0.85rem; font-weight: 700;">
+                        {% if plan.id == 'free' %}Get Started Free ⚡{% else %}Sign Up to Upgrade 🚀{% endif %}
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Feature Comparison Matrix -->
+    <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 4.5rem; overflow-x: auto;">
+        <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.5rem; text-align: center;">
+            Detailed Plan Comparison
+        </h2>
+        <p style="color: var(--text-secondary); text-align: center; margin-bottom: 2.5rem; font-size: 0.95rem;">
+            Compare features side-by-side to choose the right protection level for your infrastructure.
+        </p>
+
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.12);">
+                    <th style="padding: 1rem; color: var(--text-muted); font-weight: 600; width: 40%;">Core Feature</th>
+                    <th style="padding: 1rem; color: var(--text-primary); font-weight: 700; text-align: center;">Developer (Free)</th>
+                    <th style="padding: 1rem; color: #8b5cf6; font-weight: 800; text-align: center;">Team Pro ($49)</th>
+                    <th style="padding: 1rem; color: #38bdf8; font-weight: 800; text-align: center;">Enterprise ($199)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Monitored Pipelines Quota</td>
+                    <td style="padding: 1rem; text-align: center;">5 Pipelines</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #a78bfa;">50 Pipelines</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1,000 Pipelines</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Supported Database Engines</td>
+                    <td style="padding: 1rem; text-align: center;">Postgres, MySQL, SQLite</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Postgres, MySQL, Snowflake, SQL Server, Databricks</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Engines + Dedicated Cluster Pools</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Contract Integrity Signatures (SHA-256)</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Scheduled Audit Frequency</td>
+                    <td style="padding: 1rem; text-align: center;">Daily</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #a78bfa;">Down to 1 minute</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #38bdf8;">Continuous & Custom Cron</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">CI/CD Gate API Keys & Tokens</td>
+                    <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Unlimited</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Unlimited + RBAC Scoping</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Alert Channels</td>
+                    <td style="padding: 1rem; text-align: center;">Email</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Email, Slack, WhatsApp, Webhooks</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Channels + Custom Webhook Security</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">AI Root-Cause Diagnosis & SQL Repair</td>
+                    <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Priority Engine</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Airflow Operator & dbt Schema Exporter</td>
+                    <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Native Download</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Native Download</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Credential Encryption At Rest (Fernet AES-128)</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
+                    <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Dedicated Key Rotation</td>
+                </tr>
+                <tr>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Support SLA</td>
+                    <td style="padding: 1rem; text-align: center;">Community</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Priority Email (24h)</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1-Hour Dedicated SLA + Slack</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FAQ Section -->
+    <div style="max-width: 850px; margin: 0 auto 3rem;">
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-primary); text-align: center; margin-bottom: 2rem;">
+            Frequently Asked Questions
+        </h2>
+        
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div class="glass-card" style="padding: 1.5rem; border-radius: 0.75rem;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.5rem 0;">
+                    How does Schema Guard block broken database migrations?
+                </h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
+                    Schema Guard acts as a gatekeeper in your CI/CD pipelines (GitHub Actions, GitLab CI, Airflow). Before your DDL migration or pipeline executes, it validates the proposed schema against your locked contract baseline. If breaking changes (such as dropped columns, incompatible type changes, or nullability shifts) are detected, the gate fails immediately with non-zero exit codes.
+                </p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem; border-radius: 0.75rem;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.5rem 0;">
+                    Are our database credentials safe?
+                </h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
+                    Yes. All database connection strings are encrypted at rest using Fernet AES-128 cryptographic keys. Plaintext passwords are automatically masked with asterisks in all UI views and API serialization responses. Additionally, Schema Guard uses lazy connection pooling that disconnects immediately after catalog metadata extraction.
+                </p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem; border-radius: 0.75rem;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.5rem 0;">
+                    Can I cancel or upgrade anytime?
+                </h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
+                    Absolutely. Subscriptions are billed monthly with no lock-in. You can upgrade, downgrade, or cancel directly from your Stripe Billing Customer Portal at any moment.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Frontend Billing Checkout Script -->
+<script>
+async function initiateCheckout(planId) {
+    const btn = document.getElementById(`btn-checkout-${planId}`);
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Connecting to Stripe...`;
+
+    try {
+        const response = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({ plan: planId })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || data.message || 'Failed to initiate Stripe Checkout session.');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (err) {
+        alert('Network error connecting to billing services: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function openCustomerPortal() {
+    try {
+        const response = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            }
+        });
+        const data = await response.json();
+        if (response.ok && data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || 'Could not open billing portal.');
+        }
+    } catch (err) {
+        alert('Billing portal error: ' + err.message);
+    }
+}
+
+function handleDowngrade() {
+    if (confirm('Are you sure you want to switch back to the Developer Free plan? Your pipeline limit will be adjusted to 5.')) {
+        openCustomerPortal();
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

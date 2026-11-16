@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime, timezone
 from django.utils import timezone as dj_timezone
-from core.models import User, Pipeline, Organization
+from core.models import User, Pipeline, Organization, ApiKey, ConnectionProfile
+from core.security import mask_connection_string, encrypt_secret, decrypt_secret
 
 logger = logging.getLogger("schema_guard_db_impl")
 
@@ -50,23 +51,24 @@ def serialize_user(u):
         "created": u.created_at.strftime("%Y-%m-%d %H:%M:%S")
     }
 
-def serialize_pipeline(p):
+def serialize_pipeline(p, mask_credentials=True):
     if not p:
         return None
     
     last_checked_str = ""
     if p.last_checked:
-        # Check if last_checked is naive or aware
         if p.last_checked.tzinfo is not None:
             last_checked_str = p.last_checked.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         else:
             last_checked_str = p.last_checked.strftime("%Y-%m-%d %H:%M:%S")
 
+    conn_str_output = mask_connection_string(p.conn_str) if mask_credentials else p.conn_str
+
     return {
         "id": p.id,
         "name": p.name,
         "dbType": p.db_type,
-        "connStr": p.conn_str,
+        "connStr": conn_str_output,
         "schema": p.schema,
         "table": p.table,
         "cron": p.cron,
@@ -76,6 +78,7 @@ def serialize_pipeline(p):
         "lastChecked": last_checked_str,
         "lockSignature": p.lock_signature,
         "schemaMap": p.schema_map,
+        "contractYaml": getattr(p, "contract_yaml", ""),
         "logs": p.logs,
         "complianceHistory": p.compliance_history,
         "organization_id": p.organization_id,
@@ -113,18 +116,18 @@ def get_user_with_hash(username):
     data["password_hash"] = u.password_hash
     return data
 
-def get_all_pipelines():
-    return [serialize_pipeline(p) for p in Pipeline.objects.select_related('organization').all().order_by('-created_at')]
+def get_all_pipelines(mask_credentials=True):
+    return [serialize_pipeline(p, mask_credentials=mask_credentials) for p in Pipeline.objects.select_related('organization').all().order_by('-created_at')]
 
 # Helper to custom-sort or get pipelines
 class PipelineQuerySetHelper:
     @staticmethod
-    def get_pipelines_for_org(org_id=None, is_admin=False):
+    def get_pipelines_for_org(org_id=None, is_admin=False, mask_credentials=True):
         if is_admin:
             qs = Pipeline.objects.all().order_by('-created_at')
         else:
             qs = Pipeline.objects.filter(organization_id=org_id).order_by('-created_at')
-        return [serialize_pipeline(p) for p in qs]
+        return [serialize_pipeline(p, mask_credentials=mask_credentials) for p in qs]
 
 def pipeline_exists(pipe_id):
     return Pipeline.objects.filter(id=pipe_id).exists()
@@ -143,11 +146,15 @@ def create_pipeline(p):
         except Exception:
             last_checked_val = dj_timezone.now()
 
+    # Encrypt connection string at rest
+    raw_conn = p.get("connStr", "")
+    encrypted_conn = encrypt_secret(raw_conn)
+
     pipe = Pipeline.objects.create(
         id=p["id"],
         name=p["name"],
         db_type=p["dbType"],
-        conn_str=p["connStr"],
+        conn_str=encrypted_conn,
         schema=p["schema"],
         table=p["table"],
         cron=p.get("cron", "0 0 * * *"),
@@ -157,15 +164,20 @@ def create_pipeline(p):
         last_checked=last_checked_val,
         lock_signature=p.get("lockSignature"),
         schema_map=p.get("schemaMap", {"left": [], "right": []}),
+        contract_yaml=p.get("contractYaml") or p.get("contract_yaml") or "",
         logs=p.get("logs", []),
         compliance_history=p.get("complianceHistory", []),
         organization=org
     )
-    return serialize_pipeline(pipe)
+    return serialize_pipeline(pipe, mask_credentials=True)
 
-def get_pipeline(id):
+def get_pipeline(id, mask_credentials=True):
     p = Pipeline.objects.filter(id=id).first()
-    return serialize_pipeline(p)
+    return serialize_pipeline(p, mask_credentials=mask_credentials)
+
+def get_pipeline_raw(id):
+    """Retrieve raw Pipeline model instance (with decrypted conn_str accessible)."""
+    return Pipeline.objects.filter(id=id).first()
 
 def update_pipeline(id, updates):
     pipe = Pipeline.objects.filter(id=id).first()
@@ -173,8 +185,11 @@ def update_pipeline(id, updates):
         return None
     
     # Map updates keys (camelCase or snake_case)
-    if "connStr" in updates:
-        pipe.conn_str = updates["connStr"]
+    if "connStr" in updates and updates["connStr"]:
+        new_conn = updates["connStr"]
+        # Only update if user didn't leave the masked **** string
+        if "****" not in new_conn:
+            pipe.conn_str = encrypt_secret(new_conn)
     if "cron" in updates:
         pipe.cron = updates["cron"]
     if "cronText" in updates:
@@ -192,13 +207,17 @@ def update_pipeline(id, updates):
         pipe.lock_signature = updates["lockSignature"]
     if "schemaMap" in updates:
         pipe.schema_map = updates["schemaMap"]
+    if "contractYaml" in updates:
+        pipe.contract_yaml = updates["contractYaml"]
+    elif "contract_yaml" in updates:
+        pipe.contract_yaml = updates["contract_yaml"]
     if "logs" in updates:
         pipe.logs = updates["logs"]
     if "complianceHistory" in updates:
         pipe.compliance_history = updates["complianceHistory"]
         
     pipe.save()
-    return serialize_pipeline(pipe)
+    return serialize_pipeline(pipe, mask_credentials=True)
 
 def delete_pipeline(id):
     deleted, _ = Pipeline.objects.filter(id=id).delete()
