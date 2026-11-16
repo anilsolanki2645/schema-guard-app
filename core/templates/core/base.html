@@ -21,9 +21,195 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=2.3">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=3.1">
 </head>
 <body>
+    {% if request.session.user %}
+    <!-- ========================================================= -->
+    <!-- AUTHENTICATED WORKSPACE LAYOUT (SIDEBAR + MAIN SHELL)     -->
+    <!-- ========================================================= -->
+    <div class="app-layout">
+        
+        <!-- ENTERPRISE LEFT SIDEBAR -->
+        <aside class="app-sidebar" id="app-sidebar">
+            <div class="sidebar-brand">
+                <a href="{% url 'dashboard' %}" class="sidebar-brand-link">
+                    <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
+                        <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
+                            <defs>
+                                <radialGradient id="sideGlow" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
+                                    <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+                                </radialGradient>
+                                <linearGradient id="sideMetal" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#c084fc"/>
+                                    <stop offset="50%" stop-color="#818cf8"/>
+                                    <stop offset="100%" stop-color="#6366f1"/>
+                                </linearGradient>
+                                <linearGradient id="sideCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#22d3ee"/>
+                                    <stop offset="100%" stop-color="#06b6d4"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="16" cy="16" r="14" fill="url(#sideGlow)" />
+                            <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
+                            <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
+                            <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
+                            <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#sideMetal)" fill-opacity="0.95" />
+                            <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
+                            <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
+                            <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#sideCyan)" />
+                            <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
+                        </svg>
+                    </div>
+                    <div class="sidebar-brand-text">
+                        <h2>Schema <span class="brand-gradient">Guard</span></h2>
+                        <span class="sidebar-env-badge">v1.0.0 PROD</span>
+                    </div>
+                </a>
+                <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">✕</button>
+            </div>
+
+            <!-- SCROLLABLE NAVIGATION -->
+            <nav class="sidebar-nav" id="app-nav">
+                <!-- Group 1: Core Modules -->
+                <div class="nav-group-label">Core Gatekeeper</div>
+                <a href="{% url 'dashboard' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <span class="sidebar-icon">⚡</span>
+                    <span class="sidebar-label">Pipelines Dashboard</span>
+                </a>
+                <a href="{% url 'builder' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}">
+                    <span class="sidebar-icon">📝</span>
+                    <span class="sidebar-label">YAML Contract Builder</span>
+                </a>
+                <a href="{% url 'connection_profiles' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}">
+                    <span class="sidebar-icon">🔌</span>
+                    <span class="sidebar-label">Connection Profiles</span>
+                </a>
+                <a href="{% url 'sandbox_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}">
+                    <span class="sidebar-icon">🧪</span>
+                    <span class="sidebar-label">DDL Sandbox</span>
+                    <span class="sidebar-badge-new">NEW</span>
+                </a>
+
+                <!-- Group 2: Operations & Access -->
+                <div class="nav-group-label">Observability & Access</div>
+                <a href="{% url 'troubleshooting' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}">
+                    <span class="sidebar-icon">🧩</span>
+                    <span class="sidebar-label">Troubleshooting Hub</span>
+                </a>
+                {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
+                <a href="{% url 'admin_panel' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}">
+                    <span class="sidebar-icon">👥</span>
+                    <span class="sidebar-label">User Management</span>
+                </a>
+                {% endif %}
+
+                <!-- Group 3: Resources & Plans -->
+                <div class="nav-group-label">Platform & Developer</div>
+                <a href="{% url 'docs_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}">
+                    <span class="sidebar-icon">📚</span>
+                    <span class="sidebar-label">Documentation</span>
+                </a>
+                <a href="{% url 'pricing_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
+                    <span class="sidebar-icon">💎</span>
+                    <span class="sidebar-label">Pricing & Plans</span>
+                </a>
+
+                <!-- Group 4: Legal & Compliance -->
+                <div class="nav-group-label">Trust & Legal</div>
+                <a href="{% url 'terms_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'terms_page' %}active{% endif %}">
+                    <span class="sidebar-icon">📜</span>
+                    <span class="sidebar-label">Terms of Service</span>
+                </a>
+                <a href="{% url 'privacy_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'privacy_page' %}active{% endif %}">
+                    <span class="sidebar-icon">🔒</span>
+                    <span class="sidebar-label">Privacy Policy</span>
+                </a>
+            </nav>
+
+            <!-- SIDEBAR FOOTER (WORKSPACE & USER BADGE) -->
+            <div class="sidebar-footer">
+                <div class="sidebar-workspace-pill">
+                    <div class="workspace-info">
+                        <span class="workspace-dot"></span>
+                        <span class="workspace-name">{{ request.session.user.organization_name|default:"Production Org" }}</span>
+                    </div>
+                    <a href="{% url 'pricing_page' %}" class="workspace-plan-badge" title="Manage subscription">
+                        PRO
+                    </a>
+                </div>
+
+                <div class="sidebar-user-card" id="user-badge-container">
+                    <div class="sidebar-user-avatar">
+                        <span>👤</span>
+                    </div>
+                    <div class="sidebar-user-details user-meta">
+                        <span class="sidebar-user-name username" id="badge-username">{{ request.session.user.username }}</span>
+                        <span class="sidebar-user-role role-badge" id="badge-role">{{ request.session.user.role|upper }}</span>
+                    </div>
+                    <a href="{% url 'logout' %}" class="sidebar-logout-btn btn-logout" id="logout-button" title="Sign out of account">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- BACKDROP FOR MOBILE -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+        <!-- MAIN SHELL (HEADER + CONTENT + INNER FOOTER) -->
+        <div class="app-main-shell">
+            <header class="app-topbar">
+                <div class="topbar-left">
+                    <button class="mobile-nav-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="topbar-breadcrumbs">
+                        <span class="crumb-root">Schema Guard</span>
+                        <span class="crumb-separator">/</span>
+                        <span class="crumb-active">
+                            {% if request.resolver_match.url_name == 'dashboard' %}Pipelines Dashboard
+                            {% elif request.resolver_match.url_name == 'builder' %}YAML Contract Builder
+                            {% elif request.resolver_match.url_name == 'connection_profiles' %}Connection Profiles
+                            {% elif request.resolver_match.url_name == 'sandbox_page' %}DDL Simulation Sandbox
+                            {% elif request.resolver_match.url_name == 'troubleshooting' %}Troubleshooting Hub
+                            {% elif request.resolver_match.url_name == 'admin_panel' %}User Management
+                            {% elif request.resolver_match.url_name == 'pricing_page' %}Pricing & Plans
+                            {% elif request.resolver_match.url_name == 'docs_page' %}Developer Documentation
+                            {% elif request.resolver_match.url_name == 'terms_page' %}Terms of Service
+                            {% elif request.resolver_match.url_name == 'privacy_page' %}Privacy Policy
+                            {% else %}{{ request.resolver_match.url_name|title }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <a href="{% url 'health_check' %}" target="_blank" class="status-live-pill" title="Live Cluster Health Check">
+                        <span class="status-pulse-dot"></span>
+                        <span>Systems Operational</span>
+                    </a>
+                    <div class="topbar-quick-actions">
+                        <a href="{% url 'docs_page' %}" class="topbar-link-btn" title="Developer Documentation">📚 Docs</a>
+                        <a href="{% url 'pricing_page' %}" class="topbar-link-btn highlight" title="Subscription & Plans">💎 Plans</a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN WORKSPACE CONTENT -->
+            <main class="app-main-content">
+    {% else %}
+    <!-- ========================================================= -->
+    <!-- PUBLIC GUEST LAYOUT (LANDING, DOCS, PRICING, LEGAL)       -->
+    <!-- ========================================================= -->
     <div class="container">
         <!-- HEADER MODULE -->
         <header class="app-header">
@@ -62,60 +248,41 @@
                 </div>
             </div>
             
-            {% if request.session.user %}
-            <!-- Navigation Tabs (Only visible when logged in) -->
-            <nav class="nav-tabs" id="app-nav" style="display: flex;">
-                <a href="{% url 'dashboard' %}" class="tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
-                    ⚡ Pipelines Dashboard
-                </a>
-                <a href="{% url 'builder' %}" class="tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
-                    📝 YAML Contract Builder
-                </a>
-                <a href="{% url 'connection_profiles' %}" class="tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
-                    🔌 Connection Profiles
-                </a>
-                {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
-                <a href="{% url 'admin_panel' %}" class="tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
-                    👥 User Management
-                </a>
-                {% endif %}
-                <a href="{% url 'sandbox_page' %}" class="tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
-                    🧪 DDL Sandbox <span style="font-size: 0.65rem; background: var(--color-warning); color: #020617; font-weight: 800; padding: 0.05rem 0.25rem; border-radius: 0.25rem; text-transform: uppercase;">New</span>
-                </a>
-                <a href="{% url 'troubleshooting' %}" class="tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center;">
-                    🧩 Troubleshooting Hub
-                </a>
-                <a href="{% url 'pricing_page' %}" class="tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center; color: #38bdf8;">
-                    💎 Pricing & Plans
-                </a>
-                <a href="{% url 'docs_page' %}" class="tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}" style="text-decoration: none; display: inline-flex; align-items: center; color: #a78bfa;">
-                    📚 Documentation
-                </a>
-            </nav>
-            
-            <!-- User Info Badge & Session Terminate Button -->
-            <div class="header-user-section">
-                <div class="profile-info" id="user-badge-container">
-                    <span class="user-avatar">👤</span>
-                    <div class="user-meta">
-                        <span class="username" id="badge-username">{{ request.session.user.username }}</span>
-                        <span class="role-badge" id="badge-role">{{ request.session.user.role }}</span>
-                    </div>
-                    <a href="{% url 'logout' %}" class="btn-logout" id="logout-button" style="text-decoration: none;">Logout</a>
-                </div>
-            </div>
-            {% else %}
             <div class="header-user-section" style="display: flex; align-items: center; gap: 1rem;">
                 <a href="{% url 'docs_page' %}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Docs</a>
                 <a href="{% url 'pricing_page' %}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Pricing</a>
                 <button class="btn-primary-sm" onclick="openAuthModal(false)">Log In</button>
             </div>
-            {% endif %}
         </header>
 
         <!-- MAIN LAYOUT SLOTS -->
         <main style="margin-top: 1rem;">
+    {% endif %}
+
             {% block content %}{% endblock %}
+
+    {% if request.session.user %}
+            </main>
+
+            <!-- SLEEK INNER FOOTER -->
+            <footer class="app-inner-footer">
+                <div class="inner-footer-left">
+                    &copy; 2026 Schema Guard Inc. • Continuous Schema Gatekeeper & Data Contract Engine
+                </div>
+                <div class="inner-footer-right">
+                    <a href="{% url 'terms_page' %}">Terms</a>
+                    <span>•</span>
+                    <a href="{% url 'privacy_page' %}">Privacy</a>
+                    <span>•</span>
+                    <a href="{% url 'docs_page' %}">API Docs</a>
+                    <span>•</span>
+                    <span class="footer-sec-badge">🔒 AES-256 Protected</span>
+                </div>
+            </footer>
+        </div>
+
+    </div>
+    {% else %}
         </main>
 
         <!-- GLOBAL APP FOOTER -->
@@ -187,5 +354,16 @@
             </div>
         </footer>
     </div>
+    {% endif %}
+
+    <!-- Global Mobile Sidebar Drawer Script -->
+    <script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('app-sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.toggle('sidebar-open');
+        if (backdrop) backdrop.classList.toggle('active');
+    }
+    </script>
 </body>
 </html>
