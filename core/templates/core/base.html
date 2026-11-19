@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Global Enterprise CSS Styling -->
+    <!-- Global Glassmorphic CSS Styling -->
     <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.0">
 
     <!-- Instant Sidebar Collapse State Restore (Zero Layout Shift) -->
@@ -42,77 +42,190 @@
         <!-- ENTERPRISE LEFT SIDEBAR -->
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-brand">
-                <div class="sidebar-brand-top">
-                    <a href="{% url 'dashboard' %}" class="sidebar-brand-link">
-                        <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
-                            <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M16 2L30 9L16 16L2 9L16 2Z" fill="#3b82f6" />
-                                <path d="M2 13.5L16 20.5L30 13.5" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                                <path d="M2 18L16 25L30 18" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                                <path d="M2 22.5L16 29.5L30 22.5" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                        </div>
-                        <div class="sidebar-brand-text">
-                            <h2>Engi <span class="brand-highlight">Core</span></h2>
-                        </div>
-                    </a>
-                    <div style="display: flex; align-items: center; gap: 0.35rem;">
-                        <button class="sidebar-desktop-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse / Expand Sidebar (Ctrl+B)">
-                            <svg class="toggle-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="15 18 9 12 15 6"></polyline>
-                            </svg>
-                        </button>
-                        <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">✕</button>
+                <a href="{% url 'dashboard' %}" class="sidebar-brand-link">
+                    <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
+                        <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
+                            <defs>
+                                <radialGradient id="sideGlow" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
+                                    <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+                                </radialGradient>
+                                <linearGradient id="sideMetal" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#c084fc"/>
+                                    <stop offset="50%" stop-color="#818cf8"/>
+                                    <stop offset="100%" stop-color="#6366f1"/>
+                                </linearGradient>
+                                <linearGradient id="sideCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#22d3ee"/>
+                                    <stop offset="100%" stop-color="#06b6d4"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="16" cy="16" r="14" fill="url(#sideGlow)" />
+                            <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
+                            <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
+                            <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
+                            <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#sideMetal)" fill-opacity="0.95" />
+                            <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
+                            <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
+                            <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#sideCyan)" />
+                            <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
+                        </svg>
                     </div>
+                    <div class="sidebar-brand-text">
+                        <h2>Schema <span class="brand-gradient">Guard</span></h2>
+                        <span class="sidebar-env-badge">v1.0.0 PROD</span>
+                    </div>
+                </a>
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <button class="sidebar-desktop-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse / Expand Sidebar (Ctrl+B)">
+                        <svg class="toggle-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">✕</button>
                 </div>
-                <div class="sidebar-tagline">AI SUGGESTS. ENGINEERS DECIDE.</div>
             </div>
 
-            <!-- SCROLLABLE NAVIGATION (Clean Engi Core Hierarchy) -->
+            <!-- SCROLLABLE NAVIGATION -->
             <nav class="sidebar-nav" id="app-nav">
-                <a href="{% url 'dashboard' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" data-title="Overview">
-                    <span class="sidebar-label">Overview</span>
+                <!-- Group 1: Core Modules -->
+                <div class="nav-group-label">Core Operations</div>
+                <a href="{% url 'dashboard' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" data-title="Pipelines Dashboard">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
+                            <rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
+                            <rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
+                            <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Pipelines Dashboard</span>
                 </a>
-                <a href="{% url 'connection_profiles' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}" data-title="Integrations">
-                    <span class="sidebar-label">Integrations</span>
+                <a href="{% url 'builder' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" data-title="YAML Contract Builder">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="16 18 22 12 16 6"></polyline>
+                            <polyline points="8 6 2 12 8 18"></polyline>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">YAML Contract Builder</span>
                 </a>
-                <a href="{% url 'builder' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" data-title="Data Assets">
-                    <span class="sidebar-label">Data Assets</span>
+                <a href="{% url 'connection_profiles' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}" data-title="Connection Profiles">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Connection Profiles</span>
                 </a>
-                <a href="{% url 'sandbox_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}" data-title="Lineage & Impact">
-                    <span class="sidebar-label">Lineage & Impact</span>
+                <a href="{% url 'sandbox_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}" data-title="DDL Simulation Sandbox">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" y1="19" x2="20" y2="19"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">DDL Sandbox</span>
+                    <span class="sidebar-badge-new">NEW</span>
                 </a>
-                <a href="{% url 'dashboard' %}#events" class="sidebar-item tab-btn" data-title="Events">
-                    <span class="sidebar-label">Events</span>
-                </a>
-                <a href="{% url 'troubleshooting' %}#investigations" class="sidebar-item tab-btn" data-title="Investigations">
-                    <span class="sidebar-label">Investigations</span>
-                </a>
-                <a href="{% url 'troubleshooting' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" data-title="Notifications">
-                    <span class="sidebar-label">Notifications</span>
+
+                <!-- Group 2: Operations & Access -->
+                <div class="nav-group-label">Diagnostics & Access</div>
+                <a href="{% url 'troubleshooting' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" data-title="Troubleshooting Hub">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Troubleshooting Hub</span>
                 </a>
                 {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
-                <a href="{% url 'admin_panel' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" data-title="Audit & Compliance">
-                    <span class="sidebar-label">Audit & Compliance</span>
+                <a href="{% url 'admin_panel' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" data-title="User Management">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">User Management</span>
                 </a>
                 {% endif %}
-                <a href="{% url 'docs_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}" data-title="Documentation">
+
+                <!-- Group 3: Resources & Plans -->
+                <div class="nav-group-label">Platform & Developer</div>
+                <a href="{% url 'docs_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}" data-title="Developer Documentation">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                    </span>
                     <span class="sidebar-label">Documentation</span>
                 </a>
-                <a href="{% url 'pricing_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}" data-title="Subscription & Plans">
-                    <span class="sidebar-label">Subscription & Plans</span>
+                <a href="{% url 'pricing_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}" data-title="Pricing & Plans">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                            <line x1="1" y1="10" x2="23" y2="10"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Pricing & Plans</span>
+                </a>
+
+                <!-- Group 4: Legal & Compliance -->
+                <div class="nav-group-label">Trust & Compliance</div>
+                <a href="{% url 'terms_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'terms_page' %}active{% endif %}" data-title="Terms of Service">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Terms of Service</span>
+                </a>
+                <a href="{% url 'privacy_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'privacy_page' %}active{% endif %}" data-title="Privacy Policy">
+                    <span class="sidebar-icon">
+                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </span>
+                    <span class="sidebar-label">Privacy Policy</span>
                 </a>
             </nav>
 
-            <!-- SIDEBAR FOOTER (USER PROFILE CARD) -->
+            <!-- SIDEBAR FOOTER (WORKSPACE & USER BADGE) -->
             <div class="sidebar-footer">
-                <div class="sidebar-user-box" id="user-badge-container">
-                    <div class="sidebar-user-info user-meta">
-                        <span class="sidebar-user-name username" id="badge-username">{{ request.session.user.username|default:"admin@engicore.io" }}</span>
-                        <span class="sidebar-user-role role-badge" id="badge-role">{{ request.session.user.organization_name|default:"Acme Enterprise" }}</span>
+                <div class="sidebar-workspace-pill">
+                    <div class="workspace-info">
+                        <span class="workspace-dot"></span>
+                        <span class="workspace-name">{{ request.session.user.organization_name|default:"Production Org" }}</span>
+                    </div>
+                    <a href="{% url 'pricing_page' %}" class="workspace-plan-badge" title="Manage subscription">
+                        PRO
+                    </a>
+                </div>
+
+                <div class="sidebar-user-card" id="user-badge-container">
+                    <div class="sidebar-user-avatar">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                    <div class="sidebar-user-details user-meta">
+                        <span class="sidebar-user-name username" id="badge-username">{{ request.session.user.username }}</span>
+                        <span class="sidebar-user-role role-badge" id="badge-role">{{ request.session.user.role|upper }}</span>
                     </div>
                     <a href="{% url 'logout' %}" class="sidebar-logout-btn btn-logout" id="logout-button" title="Sign out of account">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                             <polyline points="16 17 21 12 16 7"></polyline>
                             <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -142,6 +255,23 @@
                             <line x1="9" y1="3" x2="9" y2="21"></line>
                         </svg>
                     </button>
+                    <div class="topbar-breadcrumbs">
+                        <span class="crumb-root">Schema Guard</span>
+                        <span class="crumb-separator">/</span>
+                        <span class="crumb-active">
+                            {% if request.resolver_match.url_name == 'dashboard' %}Pipelines Dashboard
+                            {% elif request.resolver_match.url_name == 'builder' %}YAML Contract Builder
+                            {% elif request.resolver_match.url_name == 'connection_profiles' %}Connection Profiles
+                            {% elif request.resolver_match.url_name == 'sandbox_page' %}DDL Simulation Sandbox
+                            {% elif request.resolver_match.url_name == 'troubleshooting' %}Troubleshooting Hub
+                            {% elif request.resolver_match.url_name == 'admin_panel' %}User Management
+                            {% elif request.resolver_match.url_name == 'pricing_page' %}Pricing & Plans
+                            {% elif request.resolver_match.url_name == 'docs_page' %}Developer Documentation
+                            {% elif request.resolver_match.url_name == 'terms_page' %}Terms of Service
+                            {% elif request.resolver_match.url_name == 'privacy_page' %}Privacy Policy
+                            {% else %}{{ request.resolver_match.url_name|title }}{% endif %}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="topbar-right">
@@ -149,8 +279,22 @@
                         <span class="status-pulse-dot"></span>
                         <span>Systems Operational</span>
                     </a>
-                </div>
-            </header>
+                    <div class="topbar-quick-actions">
+                        <a href="{% url 'docs_page' %}" class="topbar-link-btn" title="Developer Documentation">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                            </svg>
+                            <span>Docs</span>
+                        </a>
+                        <a href="{% url 'pricing_page' %}" class="topbar-link-btn highlight" title="Subscription & Plans">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                <line x1="1" y1="10" x2="23" y2="10"></line>
+                            </svg>
+                            <span>Plans</span>
+                        </a>
+                    </div>
                 </div>
             </header>
 

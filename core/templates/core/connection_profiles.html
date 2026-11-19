@@ -1,128 +1,106 @@
 {% extends 'core/base.html' %}
 {% load static %}
 
-{% block title %}Engi Core - Integration Hub{% endblock %}
+{% block title %}Schema Guard - Connection Profiles{% endblock %}
 
 {% block content %}
 <section id="connections-view" class="view-section active">
-    <!-- Page Header (Matches Engi Core Reference Screenshot 2) -->
-    <div class="engi-page-header">
-        <div>
-            <h1 class="engi-page-title">Integration Hub</h1>
-            <p class="engi-page-subtitle">Manage connectors for Snowflake, dbt, Apache Airflow, Databricks, Fabric, and AWS Glue.</p>
-        </div>
-        <div>
-            <button class="btn-primary-blue" onclick="openAddIntegrationModal()">+ Add Integration</button>
-        </div>
-    </div>
+  <div class="dashboard-grid grid-builder">
+      <!-- Create Profile Panel -->
+      <div class="glass-card">
+          <h2 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #818cf8;">
+                  <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+              </svg>
+              <span>Add Connection Profile</span>
+          </h2>
+          
+          <form id="create-profile-form" onsubmit="saveConnectionProfile(event)" style="margin-top: 1.25rem;">
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                  <label class="form-label" for="profile-name-input">Profile Name / Token (Unique Identifier)</label>
+                  <input class="form-input" type="text" id="profile-name-input" placeholder="e.g. PROD_POSTGRES_DB" required style="font-family: var(--font-mono); font-size: 0.85rem;">
+                  <p style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">This token will be used in inputs as <code>profile:PROD_POSTGRES_DB</code></p>
+              </div>
 
-    <!-- Integrations Table Card -->
-    <div class="engi-card">
-        <div class="engi-table-container">
-            <table class="engi-table">
-                <thead>
-                    <tr>
-                        <th style="width: 14%;">Provider</th>
-                        <th style="width: 28%;">Name</th>
-                        <th style="width: 15%;">Environment</th>
-                        <th style="width: 12%;">Status</th>
-                        <th style="width: 13%;">Last Sync</th>
-                        <th style="width: 18%; text-align: right; padding-right: 0.5rem;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="profiles-tbody">
-                    <!-- Dynamically Loaded from API / State -->
-                </tbody>
-            </table>
-        </div>
-    </div>
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                  <label class="form-label" for="profile-db-type">Database Engine Type</label>
+                  <select class="form-select" id="profile-db-type">
+                      <option value="postgres" selected>PostgreSQL</option>
+                      <option value="mysql">MySQL</option>
+                      <option value="snowflake">Snowflake</option>
+                      <option value="sqlserver">Microsoft SQL Server</option>
+                      <option value="oracle">Oracle Database</option>
+                      <option value="databricks">Databricks Lakehouse</option>
+                  </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 1.5rem;">
+                  <label class="form-label" for="profile-conn-str">Connection URL / String</label>
+                  <input class="form-input" type="text" id="profile-conn-str" placeholder="postgresql://user:pass@host:port/dbname" required style="font-family: var(--font-mono); font-size: 0.85rem;">
+                  <p style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Or environment references like <code>env:NEON_DB_CONNECTION_STRING</code></p>
+              </div>
+
+              <button type="submit" class="btn-primary" id="btn-save-profile" style="width: 100%; justify-content: center; height: 42px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                      <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                      <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  <span>Save Connection Profile</span>
+              </button>
+          </form>
+          
+          <div id="save-status-message" style="display: none; font-size: 0.8rem; padding: 0.5rem 0.75rem; border-radius: 0.35rem; line-height: 1.4; margin-top: 1rem;"></div>
+      </div>
+
+      <!-- Saved Profiles Panel -->
+      <div class="glass-card">
+          <h2 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #38bdf8;">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Saved Profiles</span>
+          </h2>
+          
+          <div style="overflow-x: auto; margin-top: 1.25rem;">
+              <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.75rem;">
+                          <th style="padding: 0.75rem 0.5rem;">Token Reference</th>
+                          <th style="padding: 0.75rem 0.5rem;">Database Type</th>
+                          <th style="padding: 0.75rem 0.5rem;">Connection String</th>
+                          <th style="width: 40px; padding: 0.75rem 0.5rem;">Action</th>
+                      </tr>
+                  </thead>
+                  <tbody id="profiles-tbody">
+                      <!-- Dynamically Loaded -->
+                  </tbody>
+              </table>
+          </div>
+      </div>
+  </div>
 </section>
-
-<!-- Connect New Integration Modal (Matches Engi Core Reference Screenshot 4) -->
-<div class="engi-modal-backdrop" id="add-integration-modal" onclick="handleBackdropClick(event)">
-    <div class="engi-modal-card" onclick="event.stopPropagation()">
-        <h2 class="engi-modal-title">Connect New Integration</h2>
-        <form id="create-profile-form" onsubmit="saveConnectionProfile(event)">
-            <div class="engi-form-group">
-                <label class="engi-form-label" for="profile-db-type">Provider</label>
-                <select class="engi-form-select" id="profile-db-type">
-                    <option value="postgres" selected>PostgreSQL Relational Database</option>
-                    <option value="snowflake">Snowflake Data Cloud</option>
-                    <option value="mysql">MySQL Database</option>
-                    <option value="dbt">dbt Core / Cloud Analytics</option>
-                    <option value="airflow">Apache Airflow Orchestrator</option>
-                    <option value="databricks">Databricks Analytics Lakehouse</option>
-                    <option value="sqlite">SQLite Local Database</option>
-                </select>
-            </div>
-
-            <div class="engi-form-group">
-                <label class="engi-form-label" for="profile-name-input">Integration Name</label>
-                <input class="engi-form-input" type="text" id="profile-name-input" placeholder="e.g. Primary PostgreSQL Database" required>
-            </div>
-
-            <div class="engi-form-group">
-                <label class="engi-form-label" for="profile-conn-str">Connection String or Endpoint URL</label>
-                <input class="engi-form-input" type="text" id="profile-conn-str" placeholder="postgresql://user:password@host:5432/dbname" required style="font-family: var(--font-mono); font-size: 0.8rem;">
-            </div>
-
-            <div id="save-status-message" style="display: none; font-size: 0.8rem; padding: 0.5rem 0.75rem; border-radius: 0.35rem; line-height: 1.4; margin-top: 0.75rem;"></div>
-
-            <div class="engi-modal-actions">
-                <button type="button" class="btn-modal-cancel" onclick="closeAddIntegrationModal()">Cancel</button>
-                <button type="submit" class="btn-modal-save" id="btn-save-profile">Save & Connect</button>
-            </div>
-        </form>
-    </div>
-</div>
 
 <script>
 let csrfToken = '{{ csrf_token }}';
 let savedProfiles = [];
 
-// Curated default reference integrations matching Screenshot 2
-const defaultMockIntegrations = [
-    { id: 'mock-1', provider: 'SNOWFLAKE', name: 'Production Snowflake Warehouse', env: 'Production', status: 'degraded', lastSync: '5:43:27 PM' },
-    { id: 'mock-2', provider: 'DBT', name: 'dbt Core Analytics Models', env: 'Production', status: 'connected', lastSync: '5:43:29 PM' },
-    { id: 'mock-3', provider: 'AIRFLOW', name: 'Airflow Orchestrator Cluster', env: 'Production', status: 'healthy', lastSync: '5:43:32 PM' },
-    { id: 'mock-4', provider: 'DATABRICKS', name: 'Databricks Analytics', env: 'Production', status: 'healthy', lastSync: '5:43:29 PM' },
-    { id: 'mock-5', provider: 'SNOWFLAKE', name: 'Test 1', env: 'Production', status: 'healthy', lastSync: '5:45:00 PM' }
-];
-
 document.addEventListener("DOMContentLoaded", () => {
     loadSavedProfiles();
 });
-
-function openAddIntegrationModal() {
-    const modal = document.getElementById('add-integration-modal');
-    if (modal) {
-        modal.classList.add('active');
-        document.getElementById('profile-name-input').focus();
-    }
-}
-
-function closeAddIntegrationModal() {
-    const modal = document.getElementById('add-integration-modal');
-    if (modal) {
-        modal.classList.remove('active');
-        const statusMsg = document.getElementById('save-status-message');
-        if (statusMsg) statusMsg.style.display = 'none';
-    }
-}
-
-function handleBackdropClick(e) {
-    if (e.target.id === 'add-integration-modal') {
-        closeAddIntegrationModal();
-    }
-}
 
 function loadSavedProfiles() {
     const tbody = document.getElementById('profiles-tbody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                <div class="loading-spinner" style="margin: 0 auto 0.75rem auto; width: 22px; height: 22px;"></div>
-                Loading integrations...
+            <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                <div class="loading-spinner" style="margin: 0 auto 0.75rem auto; width: 24px; height: 24px;"></div>
+                Loading connection profiles...
             </td>
         </tr>
     `;
@@ -131,131 +109,58 @@ function loadSavedProfiles() {
     .then(res => res.json())
     .then(data => {
         if (data.status === 'success') {
-            savedProfiles = data.profiles || [];
+            savedProfiles = data.profiles;
             renderProfiles();
         } else {
-            savedProfiles = [];
-            renderProfiles();
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--color-error);">Failed to load connection profiles.</td></tr>`;
         }
     })
     .catch(err => {
-        savedProfiles = [];
-        renderProfiles();
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--color-error);">Error fetching profiles: ${err.message}</td></tr>`;
     });
-}
-
-function formatTimeNow() {
-    const d = new Date();
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
 }
 
 function renderProfiles() {
     const tbody = document.getElementById('profiles-tbody');
     tbody.innerHTML = '';
     
-    // Merge real database profiles with curated reference integrations
-    let list = [];
+    if (savedProfiles.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem;">
+                    No connection profiles registered yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
     
-    // Add real database profiles first
     savedProfiles.forEach(p => {
-        const prov = (p.db_type || 'POSTGRES').toUpperCase();
-        list.push({
-            id: p.id,
-            isDb: true,
-            provider: prov,
-            name: p.name,
-            env: 'Production',
-            status: 'healthy',
-            lastSync: formatTimeNow(),
-            raw: p
-        });
-    });
-
-    // Add mock entries if fewer than 5 exist to match reference UI exactly
-    defaultMockIntegrations.forEach(m => {
-        if (!list.some(x => x.name.toLowerCase() === m.name.toLowerCase())) {
-            list.push({ ...m, isDb: false });
-        }
-    });
-
-    list.forEach(item => {
-        let statusBadge = '';
-        if (item.status === 'healthy') {
-            statusBadge = '<span class="badge-status healthy">Healthy</span>';
-        } else if (item.status === 'connected') {
-            statusBadge = '<span class="badge-status connected">Connected</span>';
-        } else if (item.status === 'degraded') {
-            statusBadge = '<span class="badge-status degraded">Degraded</span>';
-        } else {
-            statusBadge = '<span class="badge-status draft">Draft</span>';
-        }
-
+        let displayConn = p.conn_str;
+        try {
+            if (displayConn.includes('://') && displayConn.includes('@')) {
+                const parts = displayConn.split('://');
+                const authRest = parts[1].split('@');
+                const userPass = authRest[0].split(':');
+                const user = userPass[0];
+                const rest = authRest[1];
+                displayConn = `${parts[0]}://${user}:******@${rest}`;
+            }
+        } catch(e) {}
+        
         tbody.innerHTML += `
-            <tr id="row-integration-${item.id}">
-                <td class="col-provider">${item.provider}</td>
-                <td class="col-name">${item.name}</td>
-                <td class="col-env">${item.env}</td>
-                <td id="status-cell-${item.id}">${statusBadge}</td>
-                <td class="col-time" id="sync-cell-${item.id}">${item.lastSync}</td>
-                <td style="text-align: right;">
-                    <div class="engi-actions-group" style="justify-content: flex-end;">
-                        <button class="btn-pill-action btn-pill-test" id="btn-test-${item.id}" onclick="testIntegration('${item.id}', '${item.name}')">Test</button>
-                        <button class="btn-pill-action btn-pill-sync" id="btn-sync-${item.id}" onclick="syncIntegration('${item.id}', '${item.name}')">Sync</button>
-                        <button class="btn-pill-action btn-pill-disconnect" onclick="disconnectIntegration('${item.id}', '${item.name}', ${item.isDb})">Disconnect</button>
-                    </div>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02); font-size: 0.85rem;">
+                <td style="padding: 0.75rem 0.5rem;">
+                    <code style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); padding: 0.2rem 0.4rem; border-radius: 0.25rem; color: #c084fc; font-weight: 700;">profile:${p.name}</code>
+                </td>
+                <td style="padding: 0.75rem 0.5rem; text-transform: capitalize;">${p.db_type}</td>
+                <td style="padding: 0.75rem 0.5rem; color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all;">${displayConn}</td>
+                <td style="padding: 0.75rem 0.5rem; text-align: center;">
+                    <button class="col-delete-btn" onclick="deleteProfile(${p.id}, '${p.name}')" title="Delete connection profile">🗑️</button>
                 </td>
             </tr>
         `;
     });
-}
-
-function testIntegration(id, name) {
-    const btn = document.getElementById(`btn-test-${id}`);
-    const statusCell = document.getElementById(`status-cell-${id}`);
-    if (btn) btn.innerText = 'Testing...';
-
-    setTimeout(() => {
-        if (btn) btn.innerText = 'Test';
-        if (statusCell) {
-            statusCell.innerHTML = '<span class="badge-status healthy">Healthy</span>';
-        }
-    }, 700);
-}
-
-function syncIntegration(id, name) {
-    const btn = document.getElementById(`btn-sync-${id}`);
-    const syncCell = document.getElementById(`sync-cell-${id}`);
-    const statusCell = document.getElementById(`status-cell-${id}`);
-    if (btn) btn.innerText = 'Syncing...';
-
-    setTimeout(() => {
-        if (btn) btn.innerText = 'Sync';
-        if (syncCell) syncCell.innerText = formatTimeNow();
-        if (statusCell) statusCell.innerHTML = '<span class="badge-status healthy">Healthy</span>';
-    }, 800);
-}
-
-function disconnectIntegration(id, name, isDb) {
-    if (!confirm(`Are you sure you want to disconnect '${name}'?`)) {
-        return;
-    }
-
-    if (isDb) {
-        fetch(`/api/connection-profiles/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRFToken': csrfToken }
-        })
-        .then(res => res.json())
-        .then(() => {
-            loadSavedProfiles();
-        })
-        .catch(err => {
-            alert(`Error disconnecting: ${err.message}`);
-        });
-    } else {
-        const row = document.getElementById(`row-integration-${id}`);
-        if (row) row.remove();
-    }
 }
 
 function saveConnectionProfile(e) {
@@ -272,13 +177,13 @@ function saveConnectionProfile(e) {
     const conn_str = connStrInput.value.trim();
     
     saveBtn.disabled = true;
-    saveBtn.innerText = 'Connecting...';
+    saveBtn.innerText = '⚙️ Verifying & Saving...';
     
     statusMsg.style.display = 'block';
-    statusMsg.style.background = 'rgba(37, 99, 235, 0.15)';
-    statusMsg.style.border = '1px solid rgba(37, 99, 235, 0.3)';
+    statusMsg.style.background = 'rgba(59, 130, 246, 0.15)';
+    statusMsg.style.border = '1px solid rgba(59, 130, 246, 0.3)';
     statusMsg.style.color = '#93c5fd';
-    statusMsg.innerText = 'Validating credentials and connecting endpoint...';
+    statusMsg.innerText = '⚡ Validating connection credentials...';
     
     fetch('/api/connection-profiles', {
         method: 'POST',
@@ -287,34 +192,55 @@ function saveConnectionProfile(e) {
     })
     .then(res => {
         if (!res.ok) {
-            return res.json().then(data => { throw new Error(data.detail || 'Connection failed') });
+            return res.json().then(data => { throw new Error(data.detail || 'Failed to save profile') });
         }
         return res.json();
     })
     .then(data => {
         saveBtn.disabled = false;
-        saveBtn.innerText = 'Save & Connect';
+        saveBtn.innerText = '💾 Save Connection Profile';
         
         statusMsg.style.background = 'rgba(16, 185, 129, 0.15)';
         statusMsg.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-        statusMsg.style.color = '#34d399';
-        statusMsg.innerText = `Connected successfully to '${name}'!`;
+        statusMsg.style.color = '#a7f3d0';
+        statusMsg.innerText = `✅ Success! Connection profile 'profile:${name}' created successfully.`;
         
-        setTimeout(() => {
-            nameInput.value = '';
-            connStrInput.value = '';
-            closeAddIntegrationModal();
-            loadSavedProfiles();
-        }, 600);
+        nameInput.value = '';
+        connStrInput.value = '';
+        
+        loadSavedProfiles();
     })
     .catch(err => {
         saveBtn.disabled = false;
-        saveBtn.innerText = 'Save & Connect';
+        saveBtn.innerText = '💾 Save Connection Profile';
         
         statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
         statusMsg.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-        statusMsg.style.color = '#f87171';
-        statusMsg.innerText = `Error: ${err.message}`;
+        statusMsg.style.color = '#fca5a5';
+        statusMsg.innerText = `❌ Error: ${err.message}`;
+    });
+}
+
+function deleteProfile(id, name) {
+    if (!confirm(`Are you sure you want to delete connection profile 'profile:${name}'?`)) {
+        return;
+    }
+    
+    fetch(`/api/connection-profiles/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => { throw new Error(data.detail || 'Failed to delete profile') });
+        }
+        return res.json();
+    })
+    .then(data => {
+        loadSavedProfiles();
+    })
+    .catch(err => {
+        alert(`Error deleting profile: ${err.message}`);
     });
 }
 </script>
