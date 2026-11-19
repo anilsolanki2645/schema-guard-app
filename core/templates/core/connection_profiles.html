@@ -68,13 +68,13 @@
           </h2>
           
           <div style="overflow-x: auto; margin-top: 1.25rem;">
-              <table style="width: 100%; border-collapse: collapse; text-align: left;">
+              <table style="width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 0.82rem;">
                   <thead>
-                      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.75rem;">
-                          <th style="padding: 0.75rem 0.5rem;">Token Reference</th>
-                          <th style="padding: 0.75rem 0.5rem;">Database Type</th>
-                          <th style="padding: 0.75rem 0.5rem;">Connection String</th>
-                          <th style="width: 40px; padding: 0.75rem 0.5rem;">Action</th>
+                      <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Token Reference</th>
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Database Type</th>
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Connection String</th>
+                          <th style="width: 44px; padding: 0.75rem 0.65rem; text-align: center; border-bottom: 1px solid var(--border-color);">Action</th>
                       </tr>
                   </thead>
                   <tbody id="profiles-tbody">
@@ -99,7 +99,7 @@ function loadSavedProfiles() {
     tbody.innerHTML = `
         <tr>
             <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                <div class="loading-spinner" style="margin: 0 auto 0.75rem auto; width: 24px; height: 24px;"></div>
+                <div class="loading-spinner" style="margin: 0 auto 0.75rem auto; width: 22px; height: 22px;"></div>
                 Loading connection profiles...
             </td>
         </tr>
@@ -127,8 +127,8 @@ function renderProfiles() {
     if (savedProfiles.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem;">
-                    No connection profiles registered yet.
+                <td colspan="4" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">
+                    No connection profiles registered yet. Add a profile on the left to get started.
                 </td>
             </tr>
         `;
@@ -149,14 +149,34 @@ function renderProfiles() {
         } catch(e) {}
         
         tbody.innerHTML += `
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02); font-size: 0.85rem;">
-                <td style="padding: 0.75rem 0.5rem;">
-                    <code style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); padding: 0.2rem 0.4rem; border-radius: 0.25rem; color: #c084fc; font-weight: 700;">profile:${p.name}</code>
+            <tr style="border-bottom: 1px solid #142231; font-size: 0.82rem;">
+                <td style="padding: 0.85rem 0.65rem;">
+                    <span class="sf-token-chip">profile:${p.name}</span>
                 </td>
-                <td style="padding: 0.75rem 0.5rem; text-transform: capitalize;">${p.db_type}</td>
-                <td style="padding: 0.75rem 0.5rem; color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all;">${displayConn}</td>
-                <td style="padding: 0.75rem 0.5rem; text-align: center;">
-                    <button class="col-delete-btn" onclick="deleteProfile(${p.id}, '${p.name}')" title="Delete connection profile">🗑️</button>
+                <td style="padding: 0.85rem 0.65rem;">
+                    <span class="sf-db-badge">
+                        <span class="sf-db-dot"></span>
+                        <span style="font-weight: 600; text-transform: capitalize;">${p.db_type}</span>
+                    </span>
+                </td>
+                <td style="padding: 0.85rem 0.65rem;">
+                    <div class="sf-conn-str-wrap">
+                        <span class="sf-conn-str-text" title="${p.conn_str}">${displayConn}</span>
+                        <button type="button" class="sf-copy-btn" onclick="navigator.clipboard.writeText('${p.conn_str}'); alert('Connection string copied to clipboard!');" title="Copy full connection string">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
+                <td style="padding: 0.85rem 0.65rem; text-align: center;">
+                    <button type="button" class="sf-action-btn" onclick="deleteProfile(${p.id}, '${p.name}')" title="Delete connection profile">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
                 </td>
             </tr>
         `;
@@ -177,13 +197,16 @@ function saveConnectionProfile(e) {
     const conn_str = connStrInput.value.trim();
     
     saveBtn.disabled = true;
-    saveBtn.innerText = '⚙️ Verifying & Saving...';
+    saveBtn.innerHTML = `
+        <div class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>
+        <span>Verifying & Saving...</span>
+    `;
     
     statusMsg.style.display = 'block';
-    statusMsg.style.background = 'rgba(59, 130, 246, 0.15)';
-    statusMsg.style.border = '1px solid rgba(59, 130, 246, 0.3)';
-    statusMsg.style.color = '#93c5fd';
-    statusMsg.innerText = '⚡ Validating connection credentials...';
+    statusMsg.style.background = 'rgba(41, 181, 232, 0.1)';
+    statusMsg.style.border = '1px solid rgba(41, 181, 232, 0.25)';
+    statusMsg.style.color = '#29b5e8';
+    statusMsg.innerText = 'Validating connection credentials...';
     
     fetch('/api/connection-profiles', {
         method: 'POST',
@@ -198,12 +221,19 @@ function saveConnectionProfile(e) {
     })
     .then(data => {
         saveBtn.disabled = false;
-        saveBtn.innerText = '💾 Save Connection Profile';
+        saveBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>Save Connection Profile</span>
+        `;
         
-        statusMsg.style.background = 'rgba(16, 185, 129, 0.15)';
-        statusMsg.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-        statusMsg.style.color = '#a7f3d0';
-        statusMsg.innerText = `✅ Success! Connection profile 'profile:${name}' created successfully.`;
+        statusMsg.style.background = 'rgba(46, 160, 67, 0.12)';
+        statusMsg.style.border = '1px solid rgba(46, 160, 67, 0.3)';
+        statusMsg.style.color = '#3fb950';
+        statusMsg.innerText = `Connection profile 'profile:${name}' created successfully.`;
         
         nameInput.value = '';
         connStrInput.value = '';
@@ -212,13 +242,21 @@ function saveConnectionProfile(e) {
     })
     .catch(err => {
         saveBtn.disabled = false;
-        saveBtn.innerText = '💾 Save Connection Profile';
+        saveBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>Save Connection Profile</span>
+        `;
         
-        statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
-        statusMsg.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-        statusMsg.style.color = '#fca5a5';
-        statusMsg.innerText = `❌ Error: ${err.message}`;
+        statusMsg.style.background = 'rgba(248, 81, 73, 0.12)';
+        statusMsg.style.border = '1px solid rgba(248, 81, 73, 0.3)';
+        statusMsg.style.color = '#f85149';
+        statusMsg.innerText = `Error: ${err.message}`;
     });
+}
 }
 
 function deleteProfile(id, name) {
