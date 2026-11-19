@@ -2300,23 +2300,49 @@ def download_airflow_operator(request):
 
 @require_login
 def connection_profiles_page(request):
-    user_info = request.session.get('user')
+    from core.models import ConnectionProfile
+    from django.db.models import Q
+    user_info = request.session.get('user') or {}
+    org_id = user_info.get('organization_id')
+    
+    if user_info.get('role') in ['admin', 'subadmin']:
+        profiles_qs = ConnectionProfile.objects.all()
+    elif org_id:
+        profiles_qs = ConnectionProfile.objects.filter(Q(organization_id=org_id) | Q(organization_id__isnull=True))
+    else:
+        profiles_qs = ConnectionProfile.objects.all()
+
+    profiles_data = []
+    for p in profiles_qs:
+        profiles_data.append({
+            "id": p.id,
+            "name": p.name,
+            "db_type": p.db_type,
+            "conn_str": mask_connection_string(p.conn_str),
+            "created_at": p.created_at.isoformat()
+        })
+
     return render(request, 'core/connection_profiles.html', {
         'user': user_info,
+        'profiles': profiles_data,
+        'initial_profiles_json': json.dumps(profiles_data),
     })
 
 
 @require_login
 def connection_profiles_api(request):
     from core.models import ConnectionProfile
-    user_info = request.session.get('user')
+    from django.db.models import Q
+    user_info = request.session.get('user') or {}
     org_id = user_info.get('organization_id')
     
     if request.method == "GET":
-        if user_info.get('role') == 'admin':
+        if user_info.get('role') in ['admin', 'subadmin']:
             profiles = ConnectionProfile.objects.all()
+        elif org_id:
+            profiles = ConnectionProfile.objects.filter(Q(organization_id=org_id) | Q(organization_id__isnull=True))
         else:
-            profiles = ConnectionProfile.objects.filter(organization_id=org_id)
+            profiles = ConnectionProfile.objects.all()
             
         profiles_list = []
         for p in profiles:

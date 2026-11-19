@@ -9,7 +9,7 @@
       <!-- Create Profile Panel -->
       <div class="glass-card">
           <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #818cf8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #29b5e8;">
                   <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
                   <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
                   <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
@@ -19,13 +19,13 @@
           
           <form id="create-profile-form" onsubmit="saveConnectionProfile(event)" style="margin-top: 1.25rem;">
               <div class="form-group" style="margin-bottom: 1.25rem;">
-                  <label class="form-label" for="profile-name-input">Profile Name / Token (Unique Identifier)</label>
+                  <label class="form-label" for="profile-name-input">PROFILE NAME / TOKEN (UNIQUE IDENTIFIER)</label>
                   <input class="form-input" type="text" id="profile-name-input" placeholder="e.g. PROD_POSTGRES_DB" required style="font-family: var(--font-mono); font-size: 0.85rem;">
                   <p style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">This token will be used in inputs as <code>profile:PROD_POSTGRES_DB</code></p>
               </div>
 
               <div class="form-group" style="margin-bottom: 1.25rem;">
-                  <label class="form-label" for="profile-db-type">Database Engine Type</label>
+                  <label class="form-label" for="profile-db-type">DATABASE ENGINE TYPE</label>
                   <select class="form-select" id="profile-db-type">
                       <option value="postgres" selected>PostgreSQL</option>
                       <option value="mysql">MySQL</option>
@@ -37,7 +37,7 @@
               </div>
 
               <div class="form-group" style="margin-bottom: 1.5rem;">
-                  <label class="form-label" for="profile-conn-str">Connection URL / String</label>
+                  <label class="form-label" for="profile-conn-str">CONNECTION URL / STRING</label>
                   <input class="form-input" type="text" id="profile-conn-str" placeholder="postgresql://user:pass@host:port/dbname" required style="font-family: var(--font-mono); font-size: 0.85rem;">
                   <p style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">Or environment references like <code>env:NEON_DB_CONNECTION_STRING</code></p>
               </div>
@@ -58,7 +58,7 @@
       <!-- Saved Profiles Panel -->
       <div class="glass-card">
           <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #38bdf8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #29b5e8;">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                   <polyline points="14 2 14 8 20 8"></polyline>
                   <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -71,14 +71,51 @@
               <table style="width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 0.82rem;">
                   <thead>
                       <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;">
-                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Token Reference</th>
-                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Database Type</th>
-                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">Connection String</th>
-                          <th style="width: 44px; padding: 0.75rem 0.65rem; text-align: center; border-bottom: 1px solid var(--border-color);">Action</th>
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">TOKEN REFERENCE</th>
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">DATABASE TYPE</th>
+                          <th style="padding: 0.75rem 0.65rem; border-bottom: 1px solid var(--border-color);">CONNECTION STRING</th>
+                          <th style="width: 50px; padding: 0.75rem 0.65rem; text-align: center; border-bottom: 1px solid var(--border-color);">ACTION</th>
                       </tr>
                   </thead>
                   <tbody id="profiles-tbody">
-                      <!-- Dynamically Loaded -->
+                      {% for p in profiles %}
+                      <tr id="profile-row-{{ p.id }}" style="border-bottom: 1px solid #142231; font-size: 0.82rem;">
+                          <td style="padding: 0.85rem 0.65rem;">
+                              <span class="sf-token-chip">profile:{{ p.name }}</span>
+                          </td>
+                          <td style="padding: 0.85rem 0.65rem;">
+                              <span class="sf-db-badge">
+                                  <span class="sf-db-dot"></span>
+                                  <span style="font-weight: 600; text-transform: capitalize;">{{ p.db_type }}</span>
+                              </span>
+                          </td>
+                          <td style="padding: 0.85rem 0.65rem;">
+                              <div class="sf-conn-str-wrap">
+                                  <span class="sf-conn-str-text" id="conn-str-val-{{ forloop.counter0 }}" title="{{ p.conn_str }}">{{ p.conn_str }}</span>
+                                  <button type="button" class="sf-copy-btn" onclick="copyConnString('conn-str-val-{{ forloop.counter0 }}', this)" title="Copy connection string">
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                      </svg>
+                                  </button>
+                              </div>
+                          </td>
+                          <td style="padding: 0.85rem 0.65rem; text-align: center;">
+                              <button type="button" class="sf-action-btn" onclick="deleteProfile({{ p.id }}, '{{ p.name }}')" title="Delete connection profile">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                      <polyline points="3 6 5 6 21 6"></polyline>
+                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                  </svg>
+                              </button>
+                          </td>
+                      </tr>
+                      {% empty %}
+                      <tr id="empty-row">
+                          <td colspan="4" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">
+                              No connection profiles registered yet. Add a profile on the left to get started.
+                          </td>
+                      </tr>
+                      {% endfor %}
                   </tbody>
               </table>
           </div>
@@ -86,47 +123,67 @@
   </div>
 </section>
 
+<!-- Safely inject JSON without parsing or escaping issues -->
+<script id="initial-profiles-data" type="application/json">
+{{ initial_profiles_json|default:"[]"|safe }}
+</script>
+
 <script>
 let csrfToken = '{{ csrf_token }}';
 let savedProfiles = [];
 
-document.addEventListener("DOMContentLoaded", () => {
-    loadSavedProfiles();
-});
+try {
+    const rawData = document.getElementById('initial-profiles-data').textContent.trim();
+    if (rawData) {
+        savedProfiles = JSON.parse(rawData);
+    }
+} catch(e) {
+    console.error("Error reading initial profiles JSON:", e);
+}
 
-function loadSavedProfiles() {
-    const tbody = document.getElementById('profiles-tbody');
-    tbody.innerHTML = `
-        <tr>
-            <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                <div class="loading-spinner" style="margin: 0 auto 0.75rem auto; width: 22px; height: 22px;"></div>
-                Loading connection profiles...
-            </td>
-        </tr>
-    `;
-    
-    fetch('/api/connection-profiles')
-    .then(res => res.json())
-    .then(data => {
-        if (data.status === 'success') {
-            savedProfiles = data.profiles;
-            renderProfiles();
-        } else {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--color-error);">Failed to load connection profiles.</td></tr>`;
+function copyConnString(elementId, btn) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const text = el.getAttribute('title') || el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+            btn.style.color = '#29b5e8';
+            setTimeout(() => { btn.style.color = ''; }, 1200);
         }
-    })
-    .catch(err => {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--color-error);">Error fetching profiles: ${err.message}</td></tr>`;
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (btn) {
+            btn.style.color = '#29b5e8';
+            setTimeout(() => { btn.style.color = ''; }, 1200);
+        }
     });
+}
+
+function copyByIndex(idx, btn) {
+    if (savedProfiles && savedProfiles[idx] && savedProfiles[idx].conn_str) {
+        const text = savedProfiles[idx].conn_str;
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                btn.style.color = '#29b5e8';
+                setTimeout(() => { btn.style.color = ''; }, 1200);
+            }
+        });
+    }
 }
 
 function renderProfiles() {
     const tbody = document.getElementById('profiles-tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     
-    if (savedProfiles.length === 0) {
+    if (!savedProfiles || savedProfiles.length === 0) {
         tbody.innerHTML = `
-            <tr>
+            <tr id="empty-row">
                 <td colspan="4" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">
                     No connection profiles registered yet. Add a profile on the left to get started.
                 </td>
@@ -135,51 +192,57 @@ function renderProfiles() {
         return;
     }
     
-    savedProfiles.forEach(p => {
-        let displayConn = p.conn_str;
-        try {
-            if (displayConn.includes('://') && displayConn.includes('@')) {
-                const parts = displayConn.split('://');
-                const authRest = parts[1].split('@');
-                const userPass = authRest[0].split(':');
-                const user = userPass[0];
-                const rest = authRest[1];
-                displayConn = `${parts[0]}://${user}:******@${rest}`;
-            }
-        } catch(e) {}
-        
-        tbody.innerHTML += `
-            <tr style="border-bottom: 1px solid #142231; font-size: 0.82rem;">
-                <td style="padding: 0.85rem 0.65rem;">
-                    <span class="sf-token-chip">profile:${p.name}</span>
-                </td>
-                <td style="padding: 0.85rem 0.65rem;">
-                    <span class="sf-db-badge">
-                        <span class="sf-db-dot"></span>
-                        <span style="font-weight: 600; text-transform: capitalize;">${p.db_type}</span>
-                    </span>
-                </td>
-                <td style="padding: 0.85rem 0.65rem;">
-                    <div class="sf-conn-str-wrap">
-                        <span class="sf-conn-str-text" title="${p.conn_str}">${displayConn}</span>
-                        <button type="button" class="sf-copy-btn" onclick="navigator.clipboard.writeText('${p.conn_str}'); alert('Connection string copied to clipboard!');" title="Copy full connection string">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </td>
-                <td style="padding: 0.85rem 0.65rem; text-align: center;">
-                    <button type="button" class="sf-action-btn" onclick="deleteProfile(${p.id}, '${p.name}')" title="Delete connection profile">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    savedProfiles.forEach((p, idx) => {
+        const displayConn = p.conn_str || '';
+        const row = document.createElement('tr');
+        row.id = `profile-row-${p.id}`;
+        row.style.borderBottom = '1px solid #142231';
+        row.style.fontSize = '0.82rem';
+        row.innerHTML = `
+            <td style="padding: 0.85rem 0.65rem;">
+                <span class="sf-token-chip">profile:${p.name}</span>
+            </td>
+            <td style="padding: 0.85rem 0.65rem;">
+                <span class="sf-db-badge">
+                    <span class="sf-db-dot"></span>
+                    <span style="font-weight: 600; text-transform: capitalize;">${p.db_type}</span>
+                </span>
+            </td>
+            <td style="padding: 0.85rem 0.65rem;">
+                <div class="sf-conn-str-wrap">
+                    <span class="sf-conn-str-text" id="conn-str-val-${idx}" title="${displayConn}">${displayConn}</span>
+                    <button type="button" class="sf-copy-btn" onclick="copyConnString('conn-str-val-${idx}', this)" title="Copy connection string">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
                     </button>
-                </td>
-            </tr>
+                </div>
+            </td>
+            <td style="padding: 0.85rem 0.65rem; text-align: center;">
+                <button type="button" class="sf-action-btn" onclick="deleteProfile(${p.id}, '${p.name}')" title="Delete connection profile">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </td>
         `;
+        tbody.appendChild(row);
+    });
+}
+
+function loadSavedProfiles() {
+    fetch('/api/connection-profiles')
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            savedProfiles = data.profiles || [];
+            renderProfiles();
+        }
+    })
+    .catch(err => {
+        console.error("Error fetching profiles:", err);
     });
 }
 
@@ -256,7 +319,6 @@ function saveConnectionProfile(e) {
         statusMsg.style.color = '#f85149';
         statusMsg.innerText = `Error: ${err.message}`;
     });
-}
 }
 
 function deleteProfile(id, name) {
