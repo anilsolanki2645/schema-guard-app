@@ -1092,15 +1092,16 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(2, 6, 23, 0.85);
-    backdrop-filter: blur(8px);
+    background-color: rgba(2, 6, 23, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     display: none;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
     overflow-y: auto;
-    padding: 2rem 1rem;
+    padding: 3rem 1rem;
     box-sizing: border-box;
-    z-index: 200;
+    z-index: 2500; /* ALWAYS ON TOP OF NAVBAR (1000) */
 }
 
 .modal-overlay.active {
@@ -1108,14 +1109,15 @@ body {
 }
 
 .modal-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 1rem;
+    background: #0d1322;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1.25rem;
     width: 100%;
-    max-width: 420px;
-    box-shadow: var(--card-shadow);
+    max-width: 440px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(139, 92, 246, 0.2);
     overflow: hidden;
-    animation: zoomIn 0.3s ease-out;
+    margin: auto;
+    animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes zoomIn {

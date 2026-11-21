@@ -1,0 +1,161 @@
+<!-- AUTH MODAL OVERLAY (AVAILABLE GLOBALLY ON ALL PUBLIC PAGES) -->
+<div id="auth-modal" class="modal-overlay {% if error_message %}active{% endif %}" style="display: {% if error_message %}flex{% else %}none{% endif %};" onclick="if(event.target===this)closeAuthModal();">
+  <div class="modal-card">
+      <div class="modal-header">
+          <h2 id="auth-title">Account Login</h2>
+          <button class="modal-close" onclick="closeAuthModal()" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+          <p id="auth-subtitle" style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+              Access the Schema Guard compliance dashboard.
+          </p>
+          
+          {% if success_message %}
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--color-success); color: #a7f3d0; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+              {{ success_message }}
+          </div>
+          {% endif %}
+
+          {% if error_message %}
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--color-error); color: #fecaca; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+              {{ error_message }}
+          </div>
+          {% endif %}
+
+          <!-- 1-Click OAuth Buttons -->
+          <div style="display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 1.5rem;">
+              <a href="{% url 'oauth_github' %}" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.75rem; background: #24292e; color: #ffffff; padding: 0.75rem 1rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.9rem; border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.2s ease;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                  Continue with GitHub
+              </a>
+              <a href="{% url 'oauth_google' %}" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.75rem; background: rgba(255, 255, 255, 0.05); color: #ffffff; padding: 0.75rem 1rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.9rem; border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.2s ease;">
+                  <svg width="18" height="18" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  Continue with Google
+              </a>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+              <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1);"></div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Or continue with email</span>
+              <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1);"></div>
+          </div>
+
+          <form action="{% url 'login_or_register' %}" method="POST">
+              {% csrf_token %}
+              <input type="hidden" id="auth-mode-input" name="action" value="{% if is_signup_mode %}register{% else %}login{% endif %}">
+              
+              <div class="form-group">
+                  <label class="form-label" for="auth-username">Username or Email</label>
+                  <input class="form-input" type="text" id="auth-username" required placeholder="Enter username or email" name="username" value="{{ saved_username|default:'' }}">
+              </div>
+              <div class="form-group">
+                  <label class="form-label" for="auth-password">Password</label>
+                  <input class="form-input" type="password" id="auth-password" required placeholder="Enter secure password" name="password">
+                  <div style="text-align: right; margin-top: 0.35rem;">
+                      <a href="{% url 'forgot_password' %}" style="font-size: 0.8rem; color: var(--text-secondary); text-decoration: none; font-weight: 500;">Forgot Password?</a>
+                  </div>
+              </div>
+              <div class="form-group" id="email-group" style="display: {% if is_signup_mode %}block{% else %}none{% endif %};">
+                  <label class="form-label" for="auth-email">Email Address</label>
+                  <input class="form-input" type="email" id="auth-email" placeholder="Enter your email address" name="email" value="{{ saved_email|default:'' }}">
+              </div>
+              <div class="form-group" id="org-group" style="display: {% if is_signup_mode %}block{% else %}none{% endif %};">
+                  <label class="form-label" for="auth-org">Organization Name <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">(Optional - for teams)</span></label>
+                  <input class="form-input" type="text" id="auth-org" placeholder="Enter organization name or leave empty for personal workspace" name="organization_name" value="{{ saved_org_name|default:'' }}">
+              </div>
+              
+              <button type="submit" class="btn-primary" id="auth-submit-btn" style="width: 100%;">
+                  {% if is_signup_mode %}Create Account & Login{% else %}Verify Credentials ⚡{% endif %}
+              </button>
+          </form>
+          
+          <div style="margin-top: 1.25rem; text-align: center; font-size: 0.9rem;">
+              <span id="auth-toggle-prompt" style="color: var(--text-secondary);">
+                  {% if is_signup_mode %}Already have an account?{% else %}New to Schema Guard?{% endif %}
+              </span> 
+              <a href="javascript:void(0)" id="auth-toggle-btn" onclick="toggleAuthMode()" style="color: var(--color-primary-hover); font-weight: 600;">
+                  {% if is_signup_mode %}Login here{% else %}Create an account{% endif %}
+              </a>
+          </div>
+      </div>
+  </div>
+</div>
+
+<script>
+function openAuthModal(signup = false) {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+    
+    if (signup) {
+        setSignupMode();
+    } else {
+        setLoginMode();
+    }
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => modal.style.display = 'none', 300);
+}
+
+function toggleAuthMode() {
+    const actionInput = document.getElementById('auth-mode-input');
+    if (!actionInput) return;
+    if (actionInput.value === 'login') {
+        setSignupMode();
+    } else {
+        setLoginMode();
+    }
+}
+
+function setSignupMode() {
+    const actionInput = document.getElementById('auth-mode-input');
+    const authTitle = document.getElementById('auth-title');
+    const authSubtitle = document.getElementById('auth-subtitle');
+    const emailGroup = document.getElementById('email-group');
+    const orgGroup = document.getElementById('org-group');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const promptSpan = document.getElementById('auth-toggle-prompt');
+    const toggleBtn = document.getElementById('auth-toggle-btn');
+    
+    if (actionInput) actionInput.value = 'register';
+    if (authTitle) authTitle.innerText = 'Organization Registration & Signup';
+    if (authSubtitle) authSubtitle.innerText = 'Register a new organization and subadmin account to enforce schema policies.';
+    if (emailGroup) emailGroup.style.display = 'block';
+    if (orgGroup) orgGroup.style.display = 'block';
+    if (submitBtn) submitBtn.innerText = 'Create Account & Login';
+    if (promptSpan) promptSpan.innerText = 'Already have an account?';
+    if (toggleBtn) toggleBtn.innerText = 'Login here';
+}
+
+function setLoginMode() {
+    const actionInput = document.getElementById('auth-mode-input');
+    const authTitle = document.getElementById('auth-title');
+    const authSubtitle = document.getElementById('auth-subtitle');
+    const emailGroup = document.getElementById('email-group');
+    const orgGroup = document.getElementById('org-group');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const promptSpan = document.getElementById('auth-toggle-prompt');
+    const toggleBtn = document.getElementById('auth-toggle-btn');
+    
+    if (actionInput) actionInput.value = 'login';
+    if (authTitle) authTitle.innerText = 'Account Login';
+    if (authSubtitle) authSubtitle.innerText = 'Access the Schema Guard compliance dashboard.';
+    if (emailGroup) emailGroup.style.display = 'none';
+    if (orgGroup) orgGroup.style.display = 'none';
+    if (submitBtn) submitBtn.innerText = 'Verify Credentials ⚡';
+    if (promptSpan) promptSpan.innerText = 'New to Schema Guard?';
+    if (toggleBtn) toggleBtn.innerText = 'Create an account';
+}
+</script>

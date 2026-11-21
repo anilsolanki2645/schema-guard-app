@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.0">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.1">
 </head>
 <body>
     <!-- ========================================================= -->
@@ -326,8 +326,16 @@
             if (drawer) drawer.classList.remove('open');
             if (backdrop) backdrop.classList.remove('open');
             if (hamburger) hamburger.classList.remove('active');
+            if (typeof closeAuthModal === 'function') {
+                closeAuthModal();
+            }
         }
     });
     </script>
+
+    <!-- Global Auth Modal for Unauthenticated Pages -->
+    {% if not request.session.user %}
+        {% include 'core/includes/auth_modal.html' %}
+    {% endif %}
 </body>
 </html>
