@@ -21,496 +21,311 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=5.0">
-
-    <!-- Instant Sidebar Collapse State Restore (Zero Layout Shift) -->
-    <script>
-    try {
-        if (localStorage.getItem('sg_sidebar_collapsed') === 'true') {
-            document.documentElement.classList.add('sidebar-collapsed');
-        }
-    } catch(e) {}
-    </script>
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.0">
 </head>
 <body>
-    {% if request.session.user %}
     <!-- ========================================================= -->
-    <!-- AUTHENTICATED WORKSPACE LAYOUT (SIDEBAR + MAIN SHELL)     -->
+    <!-- ENTERPRISE FULL-WIDTH DYNAMIC NAVBAR                      -->
     <!-- ========================================================= -->
-    <div class="app-layout" id="app-layout">
-        
-        <!-- ENTERPRISE LEFT SIDEBAR -->
-        <aside class="app-sidebar" id="app-sidebar">
-            <div class="sidebar-brand">
-                <a href="{% url 'dashboard' %}" class="sidebar-brand-link">
-                    <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 6px rgba(41, 181, 232, 0.5)); transition: all 0.3s ease;">
+    <header class="sg-navbar">
+        <div class="sg-nav-container">
+            <!-- BRAND LOGO & BADGE -->
+            <div class="sg-nav-brand">
+                <a href="{% url 'dashboard' %}" class="sg-brand-link" title="Schema Guard Dashboard">
+                    <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center;">
+                        <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
                             <defs>
-                                <radialGradient id="sideGlow" cx="50%" cy="50%" r="50%">
-                                    <stop offset="0%" stop-color="#29b5e8" stop-opacity="0.3"/>
-                                    <stop offset="100%" stop-color="#0f2537" stop-opacity="0"/>
+                                <radialGradient id="navGlow" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
+                                    <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
                                 </radialGradient>
-                                <linearGradient id="sideMetal" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#38bdf8"/>
-                                    <stop offset="50%" stop-color="#29b5e8"/>
-                                    <stop offset="100%" stop-color="#11567f"/>
+                                <linearGradient id="navMetal" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#c084fc"/>
+                                    <stop offset="50%" stop-color="#818cf8"/>
+                                    <stop offset="100%" stop-color="#6366f1"/>
                                 </linearGradient>
-                                <linearGradient id="sideCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#29b5e8"/>
-                                    <stop offset="100%" stop-color="#0284c7"/>
+                                <linearGradient id="navCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#22d3ee"/>
+                                    <stop offset="100%" stop-color="#06b6d4"/>
                                 </linearGradient>
                             </defs>
-                            <circle cx="16" cy="16" r="14" fill="url(#sideGlow)" />
-                            <circle cx="16" cy="16" r="13" stroke="rgba(41, 181, 232, 0.25)" stroke-width="1" stroke-dasharray="4 2" />
-                            <circle cx="16" cy="3" r="1.5" fill="#29b5e8" />
-                            <circle cx="16" cy="29" r="1.5" fill="#29b5e8" />
-                            <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#sideMetal)" fill-opacity="0.95" />
-                            <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#0c4a6e" fill-opacity="0.9" />
-                            <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#080e17" />
-                            <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#sideCyan)" />
-                            <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 3px #29b5e8);" />
+                            <circle cx="16" cy="16" r="14" fill="url(#navGlow)" />
+                            <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
+                            <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
+                            <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
+                            <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#navMetal)" fill-opacity="0.95" />
+                            <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
+                            <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
+                            <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#navCyan)" />
+                            <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
                         </svg>
                     </div>
-                    <div class="sidebar-brand-text">
-                        <h2>Schema <span class="brand-gradient">Guard</span></h2>
-                        <span class="sidebar-env-badge">v1.0.0 PROD</span>
+                    <div class="sg-brand-info">
+                        <span class="sg-brand-title">Schema <span class="brand-gradient">Guard</span></span>
+                        <span class="sg-brand-badge">v1.0.0 PROD</span>
                     </div>
                 </a>
-                <div style="display: flex; align-items: center; gap: 0.35rem;">
-                    <button class="sidebar-desktop-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse / Expand Sidebar (Ctrl+B)">
-                        <svg class="toggle-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="15 18 9 12 15 6"></polyline>
-                        </svg>
-                    </button>
-                    <button class="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close sidebar">✕</button>
-                </div>
             </div>
 
-            <!-- SCROLLABLE NAVIGATION -->
-            <nav class="sidebar-nav" id="app-nav">
-                <!-- Group 1: Core Modules -->
-                <div class="nav-group-label">Core Operations</div>
-                <a href="{% url 'dashboard' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" data-title="Pipelines Dashboard">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
-                            <rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
-                            <rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
-                            <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Pipelines Dashboard</span>
-                </a>
-                <a href="{% url 'builder' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}" data-title="YAML Contract Builder">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="16 18 22 12 16 6"></polyline>
-                            <polyline points="8 6 2 12 8 18"></polyline>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">YAML Contract Builder</span>
-                </a>
-                <a href="{% url 'connection_profiles' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}" data-title="Connection Profiles">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Connection Profiles</span>
-                </a>
-                <a href="{% url 'sandbox_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}" data-title="DDL Simulation Sandbox">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="4 17 10 11 4 5"></polyline>
-                            <line x1="12" y1="19" x2="20" y2="19"></line>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">DDL Sandbox</span>
-                    <span class="sidebar-badge-new">NEW</span>
+            {% if request.session.user %}
+            <!-- DESKTOP NAV LINKS (PREVENT TRUNCATION BY GROUPING) -->
+            <nav class="sg-nav-links" id="app-nav">
+                <!-- 1. Pipelines Dashboard -->
+                <a href="{% url 'dashboard' %}" class="sg-nav-item tab-btn {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <span>⚡ Pipelines</span>
                 </a>
 
-                <!-- Group 2: Operations & Access -->
-                <div class="nav-group-label">Diagnostics & Access</div>
-                <a href="{% url 'troubleshooting' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}" data-title="Troubleshooting Hub">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Troubleshooting Hub</span>
-                </a>
-                {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
-                <a href="{% url 'admin_panel' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}" data-title="User Management">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">User Management</span>
-                </a>
-                {% endif %}
-
-                <!-- Group 3: Resources & Plans -->
-                <div class="nav-group-label">Platform & Developer</div>
-                <a href="{% url 'docs_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}" data-title="Developer Documentation">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Documentation</span>
-                </a>
-                <a href="{% url 'pricing_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}" data-title="Pricing & Plans">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                            <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Pricing & Plans</span>
+                <!-- 2. YAML Contract Builder -->
+                <a href="{% url 'builder' %}" class="sg-nav-item tab-btn {% if request.resolver_match.url_name == 'builder' %}active{% endif %}">
+                    <span>📝 Contract Builder</span>
                 </a>
 
-                <!-- Group 4: Legal & Compliance -->
-                <div class="nav-group-label">Trust & Compliance</div>
-                <a href="{% url 'terms_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'terms_page' %}active{% endif %}" data-title="Terms of Service">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Terms of Service</span>
+                <!-- 3. DDL Sandbox -->
+                <a href="{% url 'sandbox_page' %}" class="sg-nav-item tab-btn {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}">
+                    <span>🧪 DDL Sandbox</span>
+                    <span class="sg-pill-badge">NEW</span>
                 </a>
-                <a href="{% url 'privacy_page' %}" class="sidebar-item tab-btn {% if request.resolver_match.url_name == 'privacy_page' %}active{% endif %}" data-title="Privacy Policy">
-                    <span class="sidebar-icon">
-                        <svg class="sidebar-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                    </span>
-                    <span class="sidebar-label">Privacy Policy</span>
-                </a>
-            </nav>
 
-            <!-- SIDEBAR FOOTER (WORKSPACE & USER BADGE) -->
-            <div class="sidebar-footer">
-                <div class="sidebar-workspace-pill">
-                    <div class="workspace-info">
-                        <span class="workspace-dot"></span>
-                        <span class="workspace-name">{{ request.session.user.organization_name|default:"Production Org" }}</span>
+                <!-- 4. Tools Dropdown -->
+                <div class="sg-dropdown" id="tools-dropdown">
+                    <button class="sg-dropdown-trigger {% if request.resolver_match.url_name in 'connection_profiles,troubleshooting,admin_panel' %}active{% endif %}" onclick="toggleNavDropdown('tools-dropdown')" type="button">
+                        <span>🛠️ Tools</span>
+                        <svg class="sg-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="sg-dropdown-menu">
+                        <a href="{% url 'connection_profiles' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}">
+                            <span class="dropdown-icon">🔌</span>
+                            <div class="dropdown-text">
+                                <strong>Connection Profiles</strong>
+                                <small>Postgres, Snowflake & MySQL</small>
+                            </div>
+                        </a>
+                        <a href="{% url 'troubleshooting' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}">
+                            <span class="dropdown-icon">🧩</span>
+                            <div class="dropdown-text">
+                                <strong>Troubleshooting Hub</strong>
+                                <small>Automated drift self-healer</small>
+                            </div>
+                        </a>
+                        {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
+                        <a href="{% url 'admin_panel' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}">
+                            <span class="dropdown-icon">👥</span>
+                            <div class="dropdown-text">
+                                <strong>User Management</strong>
+                                <small>Role permissions & team access</small>
+                            </div>
+                        </a>
+                        {% endif %}
                     </div>
-                    <a href="{% url 'pricing_page' %}" class="workspace-plan-badge" title="Manage subscription">
-                        PRO
-                    </a>
                 </div>
 
-                <div class="sidebar-user-card" id="user-badge-container">
-                    <div class="sidebar-user-avatar">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
+                <!-- 5. Resources Dropdown -->
+                <div class="sg-dropdown" id="resources-dropdown">
+                    <button class="sg-dropdown-trigger {% if request.resolver_match.url_name in 'docs_page,pricing_page,terms_page,privacy_page' %}active{% endif %}" onclick="toggleNavDropdown('resources-dropdown')" type="button">
+                        <span>📚 Resources</span>
+                        <svg class="sg-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="sg-dropdown-menu">
+                        <a href="{% url 'docs_page' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}">
+                            <span class="dropdown-icon">📖</span>
+                            <div class="dropdown-text">
+                                <strong>Documentation</strong>
+                                <small>API reference, guides & SDK</small>
+                            </div>
+                        </a>
+                        <a href="{% url 'pricing_page' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
+                            <span class="dropdown-icon">💎</span>
+                            <div class="dropdown-text">
+                                <strong>Pricing & Plans</strong>
+                                <small>Tier upgrades & billing limits</small>
+                            </div>
+                        </a>
+                        <a href="{% url 'terms_page' %}" class="sg-dropdown-item tab-btn">
+                            <span class="dropdown-icon">📜</span>
+                            <div class="dropdown-text">
+                                <strong>Terms of Service</strong>
+                                <small>Zero-row customer data policy</small>
+                            </div>
+                        </a>
+                        <a href="{% url 'privacy_page' %}" class="sg-dropdown-item tab-btn">
+                            <span class="dropdown-icon">🔒</span>
+                            <div class="dropdown-text">
+                                <strong>Privacy Policy</strong>
+                                <small>AES-256 data protection</small>
+                            </div>
+                        </a>
                     </div>
-                    <div class="sidebar-user-details user-meta">
-                        <span class="sidebar-user-name username" id="badge-username">{{ request.session.user.username }}</span>
-                        <span class="sidebar-user-role role-badge" id="badge-role">{{ request.session.user.role|upper }}</span>
-                    </div>
-                    <a href="{% url 'logout' %}" class="sidebar-logout-btn btn-logout" id="logout-button" title="Sign out of account">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                </div>
+            </nav>
+
+            <!-- RIGHT ACTION AREA -->
+            <div class="sg-nav-actions">
+                <a href="{% url 'health_check' %}" target="_blank" class="sg-live-status" title="Live Cluster Health Check">
+                    <span class="sg-pulse-dot"></span>
+                    <span>Operational</span>
+                </a>
+
+                <div class="sg-org-pill" title="Active Organization Workspace">
+                    <span class="sg-pulse-dot" style="background: #a78bfa; box-shadow: 0 0 6px #a78bfa;"></span>
+                    <span>{{ request.session.user.organization_name|default:"Production Org" }}</span>
+                    <span class="sg-plan-badge">PRO</span>
+                </div>
+
+                <div class="sg-user-badge" id="user-badge-container">
+                    <span class="user-avatar-circle">👤</span>
+                    <span class="sg-username" id="badge-username">{{ request.session.user.username }}</span>
+                    <span class="sg-user-role" id="badge-role">{{ request.session.user.role|upper }}</span>
+                    <a href="{% url 'logout' %}" class="sg-nav-logout btn-logout" id="logout-button" title="Sign out of account">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                             <polyline points="16 17 21 12 16 7"></polyline>
                             <line x1="21" y1="12" x2="9" y2="12"></line>
                         </svg>
                     </a>
                 </div>
+
+                <!-- Hamburger Button for Mobile / Tablet -->
+                <button class="sg-hamburger-btn" id="sg-hamburger-btn" onclick="toggleMobileNav()" aria-label="Toggle navigation menu">
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                </button>
             </div>
-        </aside>
-
-        <!-- BACKDROP FOR MOBILE -->
-        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
-
-        <!-- MAIN SHELL (HEADER + CONTENT + INNER FOOTER) -->
-        <div class="app-main-shell">
-            <header class="app-topbar">
-                <div class="topbar-left">
-                    <button class="mobile-nav-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation menu">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
-                        </svg>
-                    </button>
-                    <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" aria-label="Toggle sidebar" title="Toggle Sidebar Collapse (Ctrl+B)">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="9" y1="3" x2="9" y2="21"></line>
-                        </svg>
-                    </button>
-                    <div class="topbar-breadcrumbs">
-                        <span class="crumb-root">Schema Guard</span>
-                        <span class="crumb-separator">/</span>
-                        <span class="crumb-active">
-                            {% if request.resolver_match.url_name == 'dashboard' %}Pipelines Dashboard
-                            {% elif request.resolver_match.url_name == 'builder' %}YAML Contract Builder
-                            {% elif request.resolver_match.url_name == 'connection_profiles' %}Connection Profiles
-                            {% elif request.resolver_match.url_name == 'sandbox_page' %}DDL Simulation Sandbox
-                            {% elif request.resolver_match.url_name == 'troubleshooting' %}Troubleshooting Hub
-                            {% elif request.resolver_match.url_name == 'admin_panel' %}User Management
-                            {% elif request.resolver_match.url_name == 'pricing_page' %}Pricing & Plans
-                            {% elif request.resolver_match.url_name == 'docs_page' %}Developer Documentation
-                            {% elif request.resolver_match.url_name == 'terms_page' %}Terms of Service
-                            {% elif request.resolver_match.url_name == 'privacy_page' %}Privacy Policy
-                            {% else %}{{ request.resolver_match.url_name|title }}{% endif %}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="topbar-right">
-                    <a href="{% url 'health_check' %}" target="_blank" class="status-live-pill" title="Live Cluster Health Check">
-                        <span class="status-pulse-dot"></span>
-                        <span>Systems Operational</span>
-                    </a>
-                    <div class="topbar-quick-actions">
-                        <a href="{% url 'docs_page' %}" class="topbar-link-btn" title="Developer Documentation">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                            </svg>
-                            <span>Docs</span>
-                        </a>
-                        <a href="{% url 'pricing_page' %}" class="topbar-link-btn highlight" title="Subscription & Plans">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                                <line x1="1" y1="10" x2="23" y2="10"></line>
-                            </svg>
-                            <span>Plans</span>
-                        </a>
-                    </div>
-                </div>
-            </header>
-
-            <!-- MAIN WORKSPACE CONTENT -->
-            <main class="app-main-content">
-    {% else %}
-    <!-- ========================================================= -->
-    <!-- PUBLIC GUEST LAYOUT (LANDING, DOCS, PRICING, LEGAL)       -->
-    <!-- ========================================================= -->
-    <div class="container">
-        <!-- HEADER MODULE -->
-        <header class="app-header">
-            <div class="logo-area">
-                <div class="logo-shield" style="display: flex; align-items: center; justify-content: center;">
-                    <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
-                        <defs>
-                            <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-                                <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
-                                <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
-                            </radialGradient>
-                            <linearGradient id="metalGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                                <stop offset="0%" stop-color="#c084fc"/>
-                                <stop offset="50%" stop-color="#818cf8"/>
-                                <stop offset="100%" stop-color="#6366f1"/>
-                            </linearGradient>
-                            <linearGradient id="cyberCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
-                                <stop offset="0%" stop-color="#22d3ee"/>
-                                <stop offset="100%" stop-color="#06b6d4"/>
-                            </linearGradient>
-                        </defs>
-                        <circle cx="16" cy="16" r="14" fill="url(#glow)" />
-                        <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
-                        <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
-                        <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
-                        <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#metalGrad)" fill-opacity="0.95" />
-                        <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
-                        <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
-                        <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#cyberCyan)" />
-                        <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
-                    </svg>
-                </div>
-                <div class="logo-text">
-                    <h1>Schema <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Guard</span></h1>
-                    <p>Continuous Schema Gatekeeper & Compliance Engine</p>
-                </div>
-            </div>
-            
-            <div class="header-user-section" style="display: flex; align-items: center; gap: 1rem;">
-                <a href="{% url 'docs_page' %}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Docs</a>
-                <a href="{% url 'pricing_page' %}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Pricing</a>
+            {% else %}
+            <!-- Unauthenticated Topbar Actions -->
+            <div class="sg-nav-actions">
+                <a href="{% url 'docs_page' %}" class="sg-nav-item">📚 Docs</a>
+                <a href="{% url 'pricing_page' %}" class="sg-nav-item" style="color: #38bdf8;">💎 Pricing</a>
                 <button class="btn-primary-sm" onclick="openAuthModal(false)">Log In</button>
             </div>
-        </header>
-
-        <!-- MAIN LAYOUT SLOTS -->
-        <main style="margin-top: 1rem;">
-    {% endif %}
-
-            {% block content %}{% endblock %}
-
-    {% if request.session.user %}
-            </main>
-
-            <!-- SLEEK INNER FOOTER -->
-            <footer class="app-inner-footer">
-                <div class="inner-footer-left">
-                    &copy; 2026 Schema Guard Inc. • Continuous Schema Gatekeeper & Data Contract Engine
-                </div>
-                <div class="inner-footer-right">
-                    <a href="{% url 'terms_page' %}">Terms</a>
-                    <span>•</span>
-                    <a href="{% url 'privacy_page' %}">Privacy</a>
-                    <span>•</span>
-                    <a href="{% url 'docs_page' %}">API Docs</a>
-                    <span>•</span>
-                    <span class="footer-sec-badge">🔒 AES-256 Protected</span>
-                </div>
-            </footer>
+            {% endif %}
         </div>
 
-    </div>
-    {% else %}
-        </main>
+        <!-- MOBILE OFFCANVAS DRAWER -->
+        {% if request.session.user %}
+        <div class="sg-mobile-drawer" id="sg-mobile-drawer">
+            <div class="sg-mobile-drawer-inner">
+                <div class="sg-mobile-section-label">Core Operations</div>
+                <a href="{% url 'dashboard' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <span>⚡ Pipelines Dashboard</span>
+                </a>
+                <a href="{% url 'builder' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'builder' %}active{% endif %}">
+                    <span>📝 YAML Contract Builder</span>
+                </a>
+                <a href="{% url 'sandbox_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'sandbox_page' %}active{% endif %}">
+                    <span>🧪 DDL Simulation Sandbox</span>
+                </a>
 
-        <!-- GLOBAL APP FOOTER -->
-        <footer class="app-footer glass-card" style="margin-top: 4rem; padding: 2.5rem 2rem 1.5rem; border-radius: 1.25rem; border-color: rgba(255, 255, 255, 0.08);">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
-                <!-- Brand Column -->
-                <div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                        <span style="font-size: 1.4rem;">🛡️</span>
-                        <span style="font-size: 1.15rem; font-weight: 800; color: #ffffff;">Schema <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Guard</span></span>
+                <div class="sg-mobile-section-label">Tools & Diagnostics</div>
+                <a href="{% url 'connection_profiles' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'connection_profiles' %}active{% endif %}">
+                    <span>🔌 Connection Profiles</span>
+                </a>
+                <a href="{% url 'troubleshooting' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'troubleshooting' %}active{% endif %}">
+                    <span>🧩 Troubleshooting Hub</span>
+                </a>
+                {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' %}
+                <a href="{% url 'admin_panel' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}">
+                    <span>👥 User Management</span>
+                </a>
+                {% endif %}
+
+                <div class="sg-mobile-section-label">Resources & Trust</div>
+                <a href="{% url 'docs_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}">
+                    <span>📖 Developer Documentation</span>
+                </a>
+                <a href="{% url 'pricing_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
+                    <span>💎 Pricing & Plans</span>
+                </a>
+                <a href="{% url 'terms_page' %}" class="sg-mobile-link">
+                    <span>📜 Terms of Service</span>
+                </a>
+                <a href="{% url 'privacy_page' %}" class="sg-mobile-link">
+                    <span>🔒 Privacy Policy</span>
+                </a>
+
+                <!-- Mobile User Footer -->
+                <div class="sg-mobile-user-footer">
+                    <div class="sg-mobile-user-info">
+                        <span class="user-avatar-circle">👤</span>
+                        <div>
+                            <div style="font-weight: 700; color: #fff; font-size: 0.9rem;">{{ request.session.user.username }}</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8;">{{ request.session.user.role|upper }} • {{ request.session.user.organization_name|default:"Production Org" }}</div>
+                        </div>
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 1rem 0;">
-                        Continuous database schema gatekeeper & data contract compliance engine. Block breaking DDL mutations before merge.
-                    </p>
-                    <a href="{% url 'health_check' %}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; padding: 0.25rem 0.6rem; border-radius: 9999px; text-decoration: none; font-weight: 600;">
-                        <span style="width: 7px; height: 7px; background: #4ade80; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #4ade80;"></span>
-                        All Systems Operational
-                    </a>
-                </div>
-
-                <!-- Product Column -->
-                <div>
-                    <h4 style="font-size: 0.85rem; text-transform: uppercase; color: #ffffff; letter-spacing: 0.05em; margin: 0 0 0.75rem 0;">Product</h4>
-                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                        <li><a href="{% url 'dashboard' %}" style="color: var(--text-secondary); text-decoration: none;">⚡ Pipelines Dashboard</a></li>
-                        <li><a href="{% url 'builder' %}" style="color: var(--text-secondary); text-decoration: none;">📝 YAML Contract Builder</a></li>
-                        <li><a href="{% url 'connection_profiles' %}" style="color: var(--text-secondary); text-decoration: none;">🔌 Connection Profiles</a></li>
-                        <li><a href="{% url 'sandbox_page' %}" style="color: var(--text-secondary); text-decoration: none;">🧪 DDL Simulation Sandbox</a></li>
-                        <li><a href="{% url 'troubleshooting' %}" style="color: var(--text-secondary); text-decoration: none;">🧩 Troubleshooting Hub</a></li>
-                    </ul>
-                </div>
-
-                <!-- Developer Resources -->
-                <div>
-                    <h4 style="font-size: 0.85rem; text-transform: uppercase; color: #ffffff; letter-spacing: 0.05em; margin: 0 0 0.75rem 0;">Developers</h4>
-                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                        <li><a href="{% url 'docs_page' %}" style="color: var(--text-secondary); text-decoration: none;">📚 Documentation</a></li>
-                        <li><a href="{% url 'docs_page' %}#api-reference" style="color: var(--text-secondary); text-decoration: none;">📡 REST API Specification</a></li>
-                        <li><a href="{% url 'docs_page' %}#cicd-gates" style="color: var(--text-secondary); text-decoration: none;">🤖 GitHub Actions Gate</a></li>
-                        <li><a href="{% url 'pricing_page' %}" style="color: var(--text-secondary); text-decoration: none;">💎 Pricing & Plans</a></li>
-                        <li><a href="{% url 'health_check' %}" style="color: var(--text-secondary); text-decoration: none;">🔍 System Health API</a></li>
-                    </ul>
-                </div>
-
-                <!-- Trust & Legal -->
-                <div>
-                    <h4 style="font-size: 0.85rem; text-transform: uppercase; color: #ffffff; letter-spacing: 0.05em; margin: 0 0 0.75rem 0;">Trust & Legal</h4>
-                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
-                        <li><a href="{% url 'terms_page' %}" style="color: var(--text-secondary); text-decoration: none;">📜 Terms of Service</a></li>
-                        <li><a href="{% url 'privacy_page' %}" style="color: var(--text-secondary); text-decoration: none;">🔒 Privacy Policy</a></li>
-                        <li><a href="{% url 'docs_page' %}#security" style="color: var(--text-secondary); text-decoration: none;">🔐 Security & Cryptography</a></li>
-                        <li><a href="mailto:support@schemaguard.io" style="color: var(--text-secondary); text-decoration: none;">💬 Developer Support</a></li>
-                    </ul>
+                    <a href="{% url 'logout' %}" class="btn-danger-sm" style="text-decoration: none; padding: 0.45rem 0.85rem; border-radius: 0.45rem; font-size: 0.82rem; font-weight: 600;">Log Out</a>
                 </div>
             </div>
+        </div>
+        <div class="sg-mobile-backdrop" id="sg-mobile-backdrop" onclick="toggleMobileNav()"></div>
+        {% endif %}
+    </header>
 
-            <!-- Bottom Copyright Bar -->
-            <div style="padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.06); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem; color: var(--text-muted);">
-                <div>
-                    &copy; 2026 Schema Guard Inc. All rights reserved. Cryptographic data contracts engine.
-                </div>
-                <div style="display: flex; gap: 1rem;">
-                    <span>AES-256 Protected</span>
-                    <span>•</span>
-                    <span>Zero Customer Row Ingestion</span>
-                    <span>•</span>
-                    <span>v1.0.0 Production</span>
-                </div>
-            </div>
-        </footer>
-    </div>
-    {% endif %}
+    <!-- ========================================================= -->
+    <!-- MAIN WORKSPACE CONTENT CONTAINER                          -->
+    <!-- ========================================================= -->
+    <main class="app-workspace-shell">
+        {% block content %}{% endblock %}
+    </main>
 
-    <!-- Global Sidebar & Mobile Drawer Scripts -->
+    <!-- ========================================================= -->
+    <!-- GLOBAL FOOTER                                             -->
+    <!-- ========================================================= -->
+    <footer class="app-inner-footer">
+        <div class="inner-footer-left">
+            &copy; 2026 Schema Guard Inc. • Continuous Schema Gatekeeper & Data Contract Engine
+        </div>
+        <div class="inner-footer-right">
+            <a href="{% url 'terms_page' %}">Terms</a>
+            <span>•</span>
+            <a href="{% url 'privacy_page' %}">Privacy</a>
+            <span>•</span>
+            <a href="{% url 'docs_page' %}">API Docs</a>
+            <span>•</span>
+            <a href="{% url 'health_check' %}" target="_blank" style="color: #4ade80;">● API Online</a>
+            <span>•</span>
+            <span class="footer-sec-badge">🔒 AES-256 Protected</span>
+        </div>
+    </footer>
+
+    <!-- Global Navigation Scripts -->
     <script>
-    function toggleSidebarCollapse() {
-        const html = document.documentElement;
-        const layout = document.getElementById('app-layout');
-        
-        // Determine current collapsed state
-        const isCollapsed = html.classList.contains('sidebar-collapsed') || (layout && layout.classList.contains('sidebar-collapsed'));
-        const nextCollapsed = !isCollapsed;
+    function toggleMobileNav() {
+        const drawer = document.getElementById('sg-mobile-drawer');
+        const backdrop = document.getElementById('sg-mobile-backdrop');
+        const hamburger = document.getElementById('sg-hamburger-btn');
+        if (drawer) drawer.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('open');
+        if (hamburger) hamburger.classList.toggle('active');
+    }
 
-        if (nextCollapsed) {
-            html.classList.add('sidebar-collapsed');
-            if (layout) layout.classList.add('sidebar-collapsed');
-            try { localStorage.setItem('sg_sidebar_collapsed', 'true'); } catch(e) {}
-        } else {
-            html.classList.remove('sidebar-collapsed');
-            html.classList.remove('sg-collapsed-preload');
-            if (layout) layout.classList.remove('sidebar-collapsed');
-            try { localStorage.setItem('sg_sidebar_collapsed', 'false'); } catch(e) {}
+    function toggleNavDropdown(id) {
+        const target = document.getElementById(id);
+        if (!target) return;
+        const wasOpen = target.classList.contains('open');
+        // Close all dropdowns first
+        document.querySelectorAll('.sg-dropdown').forEach(d => d.classList.remove('open'));
+        if (!wasOpen) {
+            target.classList.add('open');
         }
-
-        // Update titles on all toggle buttons
-        const allToggleBtns = document.querySelectorAll('.sidebar-desktop-collapse-btn, .sidebar-toggle-btn');
-        allToggleBtns.forEach(btn => {
-            btn.setAttribute('title', nextCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)');
-        });
     }
 
-    function toggleSidebar() {
-        const sidebar = document.getElementById('app-sidebar');
-        const backdrop = document.getElementById('sidebar-backdrop');
-        if (sidebar) sidebar.classList.toggle('sidebar-open');
-        if (backdrop) backdrop.classList.toggle('active');
-    }
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.sg-dropdown')) {
+            document.querySelectorAll('.sg-dropdown').forEach(d => d.classList.remove('open'));
+        }
+    });
 
-    // Synchronize initial state across DOM elements
-    (function() {
-        try {
-            const isCollapsed = localStorage.getItem('sg_sidebar_collapsed') === 'true';
-            const html = document.documentElement;
-            const layout = document.getElementById('app-layout');
-            if (isCollapsed) {
-                html.classList.add('sidebar-collapsed');
-                if (layout) layout.classList.add('sidebar-collapsed');
-            } else {
-                html.classList.remove('sidebar-collapsed');
-                html.classList.remove('sg-collapsed-preload');
-                if (layout) layout.classList.remove('sidebar-collapsed');
-            }
-            const allToggleBtns = document.querySelectorAll('.sidebar-desktop-collapse-btn, .sidebar-toggle-btn');
-            allToggleBtns.forEach(btn => {
-                btn.setAttribute('title', isCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)');
-            });
-        } catch(e) {}
-    })();
-
-    // Keyboard shortcut: Ctrl+B or Cmd+B to toggle sidebar
+    // Close on Escape key
     document.addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
-            e.preventDefault();
-            toggleSidebarCollapse();
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.sg-dropdown').forEach(d => d.classList.remove('open'));
+            const drawer = document.getElementById('sg-mobile-drawer');
+            const backdrop = document.getElementById('sg-mobile-backdrop');
+            const hamburger = document.getElementById('sg-hamburger-btn');
+            if (drawer) drawer.classList.remove('open');
+            if (backdrop) backdrop.classList.remove('open');
+            if (hamburger) hamburger.classList.remove('active');
         }
     });
     </script>

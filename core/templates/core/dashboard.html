@@ -5,101 +5,48 @@
 
 {% block content %}
 <section id="dashboard-view" class="view-section active">
-  <div class="dashboard-header-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+  <div class="dashboard-header-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
       <div>
-          <h2 class="view-title" style="margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;">Database Schema Pipelines</h2>
-          <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.35rem;">Real-time drift detection, automated schema contracts, and CI/CD gatekeeper enforcement.</p>
+          <h2 class="view-title" style="margin: 0; font-size: 1.5rem; font-weight: 800;">⚡ Database Schema Pipelines</h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Track, configure, and force compliance checks across all database instances.</p>
       </div>
-       <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
-           <button class="btn-secondary" onclick="openApiKeysModal()">
-               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                   <path d="M21 2l-2 2m-2-2l2 2m-2 2l2-2m-7 7l-3 3-2-2-4 4 2 2 4-4-2-2 3-3"></path>
-                   <circle cx="7.5" cy="16.5" r="3.5"></circle>
-               </svg>
-               <span>API Keys & CI/CD</span>
-           </button>
-           <a href="{% url 'audit_logs_export_csv' %}" class="btn-secondary" title="Export SOC2-compliant schema audit trail">
-               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                   <polyline points="7 10 12 15 17 10"></polyline>
-                   <line x1="12" y1="15" x2="12" y2="3"></line>
-               </svg>
-               <span>Export Audit CSV</span>
-           </a>
+       <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+           <button class="btn-secondary" onclick="openApiKeysModal()" style="border-color: var(--color-primary); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem;">🔑 API Keys & CI/CD</button>
+           <a href="{% url 'audit_logs_export_csv' %}" class="btn-secondary" style="border-color: rgba(255,255,255,0.15); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none; color: var(--text-secondary);" title="Export SOC2-compliant schema audit trail">📥 Export Audit CSV</a>
            {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or request.session.user.permissions.create %}
-           <button class="btn-primary" onclick="openWizardModal()">
-               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                   <line x1="12" y1="5" x2="12" y2="19"></line>
-                   <line x1="5" y1="12" x2="19" y2="12"></line>
-               </svg>
-               <span>Connect DB & Create Pipeline</span>
-           </button>
+           <button class="btn-primary-sm" onclick="openWizardModal()">➕ Connect DB & Create Pipeline</button>
            {% endif %}
        </div>
   </div>
 
   <!-- Pipelines Summary Counters -->
-  <div class="summary-counters">
-      <div class="counter-card card-metric">
-          <div class="counter-header">
-              <span class="counter-label">Total Pipelines</span>
-              <div class="counter-icon-wrap" style="color: #818cf8; background: rgba(99, 102, 241, 0.1);">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
-                      <rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
-                      <rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
-                      <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
-                  </svg>
-              </div>
-          </div>
-          <div class="counter-val" id="cnt-total">0</div>
-          <div class="counter-status-text" style="color: var(--text-muted);">Registered gatekeeper targets</div>
+  <div class="summary-counters" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <div class="counter-card card-blue" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-total" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-primary-hover);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Total Pipelines</span>
       </div>
-
-      <div class="counter-card card-metric">
-          <div class="counter-header">
-              <span class="counter-label">Active / Passing</span>
-              <div class="counter-icon-wrap" style="color: #34d399; background: rgba(16, 185, 129, 0.1);">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-              </div>
-          </div>
-          <div class="counter-val" id="cnt-clean" style="color: var(--color-success);">0</div>
-          <div class="counter-status-text" style="color: #34d399;">100% compliant with contracts</div>
+      <div class="counter-card card-green" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-clean" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-success);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Active / Passing</span>
       </div>
-
-      <div class="counter-card card-metric">
-          <div class="counter-header">
-              <span class="counter-label">Schema Drift Detected</span>
-              <div class="counter-icon-wrap" style="color: #f87171; background: rgba(239, 68, 68, 0.1);">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                  </svg>
-              </div>
-          </div>
-          <div class="counter-val" id="cnt-drifted" style="color: var(--color-error);">0</div>
-          <div class="counter-status-text" style="color: var(--text-muted);">Requiring engineer approval</div>
+      <div class="counter-card card-red" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column;">
+          <span class="counter-val" id="cnt-drifted" style="font-size: 2.25rem; font-weight: 800; font-family: var(--font-mono); color: var(--color-error);">0</span>
+          <span class="counter-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600; text-transform: uppercase;">Schema Drift Detected</span>
       </div>
-
-      <div class="counter-card card-metric card-quota">
-          <div class="counter-header">
-              <span class="counter-label">Workspace Plan</span>
-              <span id="cnt-plan-name" class="plan-pill">{{ plan|upper }}</span>
+      <div class="counter-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(167, 139, 250, 0.3); padding: 1.5rem; border-radius: 0.75rem; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <span id="cnt-plan-name" style="font-size: 1.4rem; font-weight: 800; color: #a78bfa; text-transform: uppercase;">{{ plan|upper }}</span>
+                  <a href="{% url 'pricing_page' %}" style="font-size: 0.75rem; color: #38bdf8; text-decoration: none; font-weight: 700;">Change 💎</a>
+              </div>
+              <span id="cnt-quota-label" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.35rem; display: block; font-weight: 600;">
+                  <span id="quota-used">0</span> / {{ max_pipelines }} Pipelines Used
+              </span>
           </div>
-          <div class="counter-val" style="font-size: 1.5rem; display: flex; align-items: baseline; gap: 0.35rem;">
-              <span id="quota-used">0</span>
-              <span style="font-size: 0.95rem; color: var(--text-muted); font-weight: 500;">/ {{ max_pipelines }} Pipelines</span>
-          </div>
-          <div class="quota-progress-track" style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 9999px; margin-top: 0.5rem; overflow: hidden;">
-              <div id="quota-progress-fill" style="width: 15%; height: 100%; background: linear-gradient(90deg, #6366f1, #38bdf8); border-radius: 9999px;"></div>
-          </div>
-          <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 0.75rem; color: var(--text-muted);">Need more pipelines?</span>
-              <a href="{% url 'pricing_page' %}" class="link-upgrade">Upgrade Plan &rarr;</a>
+          <div style="margin-top: 0.75rem;">
+              <a href="{% url 'pricing_page' %}" class="btn-primary-sm" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; width: 100%; font-size: 0.8rem; padding: 0.4rem 0.6rem;">
+                  Upgrade Quota 🚀
+              </a>
           </div>
       </div>
   </div>
