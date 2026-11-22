@@ -20,8 +20,7 @@
             <a href="{% url 'audit_logs_export_csv' %}" class="btn-secondary"
                 style="border-color: rgba(255,255,255,0.15); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none; color: var(--text-secondary);"
                 title="Export SOC2-compliant schema audit trail">📥 Export Audit CSV</a>
-            {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or
-            request.session.user.permissions.create %}
+            {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or request.session.user.permissions.create %}
             <button class="btn-primary-sm" onclick="openWizardModal()">➕ Connect DB & Create Pipeline</button>
             {% endif %}
         </div>
@@ -1080,11 +1079,11 @@
     }
     const userRole = "{{ request.session.user.role }}";
     const userPermissions = {
-        see: {{ request.session.user.permissions.see| yesno: "true,false" }},
-    create: { { request.session.user.permissions.create | yesno: "true,false" } },
-    edit: { { request.session.user.permissions.edit | yesno: "true,false" } },
-    delete: { { request.session.user.permissions.delete | yesno: "true,false" } }
-};
+        see: {{ request.session.user.permissions.see|yesno:"true,false" }},
+        create: {{ request.session.user.permissions.create|yesno:"true,false" }},
+        edit: {{ request.session.user.permissions.edit|yesno:"true,false" }},
+        delete: {{ request.session.user.permissions.delete|yesno:"true,false" }}
+    };
     const canSee = userRole === 'admin' || userRole === 'subadmin' || userPermissions.see;
     const canCreate = userRole === 'admin' || userRole === 'subadmin' || userPermissions.create;
     const canEdit = userRole === 'admin' || userRole === 'subadmin' || userPermissions.edit;
