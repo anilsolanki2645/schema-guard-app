@@ -1720,11 +1720,12 @@ with DAG(
             method: 'POST',
             headers: { 'X-CSRFToken': csrfToken }
         })
-            .then(res => {
+            .then(async res => {
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                    throw new Error(res.statusText);
+                    throw new Error(data.detail || data.message || `Server error (${res.status})`);
                 }
-                return res.json();
+                return data;
             })
             .then(updated => {
                 let lineIdx = 0;
@@ -1833,15 +1834,6 @@ with DAG(
             updateWizCronHelper();
         }
         if (step === 3) {
-            const orgPlan = (typeof userOrgPlan !== 'undefined' ? userOrgPlan : 'free').toLowerCase();
-            const preset = document.getElementById('wiz-cron-preset').value;
-            const cronVal = document.getElementById('wiz-cron').value.trim();
-            const parts = cronVal.split(/\s+/);
-            const isSubDaily = parts.length === 5 && (parts[0] === '*' || parts[0].includes('/') || parts[1] === '*' || parts[1].includes('/') || parts[1].includes(','));
-            if (orgPlan === 'free' && (preset === 'hourly' || isSubDaily)) {
-                document.getElementById('wiz-cron-preset').value = 'daily';
-                updateWizCronPreset();
-            }
             runWizardDryRun();
         }
     }

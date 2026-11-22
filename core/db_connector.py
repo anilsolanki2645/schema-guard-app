@@ -100,8 +100,17 @@ def create_db_engine(db_type: str, conn_str: str, timeout: int = 8) -> Tuple[Eng
     if "postgres" in normalized_url or db_clean in ("postgres", "postgresql"):
         connect_args["connect_timeout"] = timeout
         # Special handling for Neon pooler DNS lookup on Windows
-        if "ep-steep-mouse-ate9birf-pooler" in normalized_url:
-            connect_args["hostaddr"] = "52.45.105.76"
+        try:
+            from urllib.parse import urlparse
+            import socket
+            parsed_u = urlparse(normalized_url)
+            h = parsed_u.hostname
+            if h and ("neon.tech" in h or "aws" in h or "pooler" in h):
+                resolved_ip = socket.gethostbyname(h)
+                if resolved_ip:
+                    connect_args["hostaddr"] = resolved_ip
+        except Exception:
+            pass
 
     elif "mysql" in normalized_url or db_clean in ("mysql", "mariadb"):
         connect_args["connect_timeout"] = timeout

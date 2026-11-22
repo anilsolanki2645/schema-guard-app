@@ -104,39 +104,32 @@ def ensure_contract_and_snapshot_files(pipeline_obj):
         if os.path.exists(legacy_path):
             contract_path = legacy_path
             
-    # Rehydrate snapshot from DB if missing on disk
-    if not os.path.exists(snapshot_path):
-        from core.models import SchemaSnapshot
-        latest_snap = SchemaSnapshot.objects.filter(pipeline=pipeline_obj).order_by('-version').first()
-        if latest_snap and latest_snap.schema_data:
-            snap_payload = {
-                "captured_at": latest_snap.captured_at.isoformat(),
-                "hash": latest_snap.hash or pipeline_obj.lock_signature or "synced_hash",
-                "schema": latest_snap.schema_data
-            }
-            with open(snapshot_path, "w", encoding="utf-8") as f:
-                json.dump(snap_payload, f, indent=2)
-        else:
-            legacy_snap = os.path.join(SNAPSHOTS_DIR, f"{pipeline_obj.table}.json")
-            if os.path.exists(legacy_snap):
-                snapshot_path = legacy_snap
-                
+    # Rehydrate snapshot from DB if missing on disk or if hash needs validation
+    from core.models import SchemaSnapshot
+    from schema_guard.snapshot import _compute_hash
+    latest_snap = SchemaSnapshot.objects.filter(pipeline=pipeline_obj).order_by('-version').first()
+    if latest_snap and latest_snap.schema_data:
+        snap_hash = _compute_hash(latest_snap.schema_data)
+        snap_payload = {
+            "captured_at": latest_snap.captured_at.isoformat(),
+            "hash": snap_hash,
+            "schema": latest_snap.schema_data
+        }
+        with open(snapshot_path, "w", encoding="utf-8") as f:
+            json.dump(snap_payload, f, indent=2)
+    elif not os.path.exists(snapshot_path):
+        legacy_snap = os.path.join(SNAPSHOTS_DIR, f"{pipeline_obj.table}.json")
+        if os.path.exists(legacy_snap):
+            snapshot_path = legacy_snap
+            
     return contract_path, snapshot_path
 
 def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, schema_columns):
-    from sqlalchemy import create_engine, text
-    import os
+    from sqlalchemy import text
+    from core.db_connector import create_db_engine
     
-    conn_url = resolve_connection_string(conn_str)
-    
-    if db_type.lower() == "sqlite" and not conn_url.startswith("sqlite:///"):
-        from django.conf import settings
-        db_path = conn_url.replace("sqlite://", "").strip()
-        if not os.path.isabs(db_path):
-            db_path = os.path.join(settings.BASE_DIR, db_path)
-        conn_url = f"sqlite:///{db_path}"
-        
-    engine = create_engine(conn_url)
+    resolved_conn = resolve_connection_string(conn_str, db_type)
+    engine, _ = create_db_engine(db_type, resolved_conn, timeout=10)
     checks = []
     status = "PASS"
     
@@ -473,9 +466,9 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
 
         if not contract_path or not os.path.exists(contract_path) or not snapshot_path or not os.path.exists(snapshot_path):
             logs.append("[INFO] Running baseline check on target database...")
-            resolved_conn = resolve_connection_string(p["connStr"])
-            extractor = get_extractor(p["dbType"])
-            live_schema = extractor.get_schema(resolved_conn, p["schema"], p["table"])
+            from core.db_connector import get_db_columns
+            resolved_conn = resolve_connection_string(p["connStr"], p.get("dbType"))
+            live_schema = get_db_columns(p["dbType"], resolved_conn, p.get("schema"), p["table"])
             
             # Auto-initialize baseline if not already captured
             os.makedirs(CONTRACTS_DIR, exist_ok=True)
@@ -511,12 +504,19 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
             raise ex
 
         cfg = load_contract(contract_path)
-        snapshot = load_snapshot(snapshot_path)
+        try:
+            snapshot = load_snapshot(snapshot_path)
+        except ValueError as snap_err:
+            logs.append(f"[WARNING] Snapshot verification issue: {snap_err}. Resynchronizing snapshot hash...")
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snap_raw = json.load(f)
+            from schema_guard.snapshot import capture_snapshot
+            snapshot = capture_snapshot(snap_raw.get("schema", {}), snapshot_path)
 
         logs.append("[INFO] Fetching schema catalog lists from database...")
-        resolved_conn = resolve_connection_string(p["connStr"])
-        extractor = get_extractor(p["dbType"])
-        live_schema = extractor.get_schema(resolved_conn, p["schema"], p["table"])
+        from core.db_connector import get_db_columns
+        resolved_conn = resolve_connection_string(p["connStr"], p.get("dbType"))
+        live_schema = get_db_columns(p["dbType"], resolved_conn, p.get("schema"), p["table"])
         logs.append(f"[INFO] Successfully extracted schema details: {len(live_schema['columns'])} columns.")
 
         # Run live data quality metrics validation
@@ -654,11 +654,12 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
             p_obj_snap = Pipeline.objects.filter(id=pipeline_id).first()
             if p_obj_snap:
                 last_ver = SchemaSnapshot.objects.filter(pipeline=p_obj_snap).aggregate(models.Max('version'))['version__max'] or 0
+                from schema_guard.snapshot import _compute_hash
                 SchemaSnapshot.objects.create(
                     pipeline=p_obj_snap,
                     version=last_ver + 1,
                     schema_data=live_schema,
-                    hash=p.get("lockSignature", ""),
+                    hash=_compute_hash(live_schema),
                     status=status_str,
                     violations_count=len(violations),
                     captured_by='system_check'
@@ -1156,11 +1157,7 @@ def create_pipeline_api(request):
 
             allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
             if not allowed:
-                if org.plan == 'free':
-                    data['cron'] = '0 0 * * *'
-                    data['cronText'] = 'Every Day at Midnight (Daily)'
-                else:
-                    return JsonResponse({"detail": err}, status=403)
+                return JsonResponse({"detail": err}, status=403)
 
             allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
             if not allowed:
@@ -1257,12 +1254,13 @@ def create_pipeline_api(request):
     
     # Persist initial SchemaSnapshot record in DB
     from core.models import SchemaSnapshot
+    from schema_guard.snapshot import _compute_hash
     try:
         SchemaSnapshot.objects.create(
             pipeline_id=pipe_id,
             version=1,
             schema_data=live_schema,
-            hash=lock_signature,
+            hash=_compute_hash(live_schema),
             status="Clean",
             violations_count=0,
             captured_by=user_info.get('username', 'system')
@@ -1309,11 +1307,7 @@ def edit_pipeline_api(request, id):
             if "cron" in data:
                 allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
                 if not allowed:
-                    if org.plan == 'free':
-                        data['cron'] = '0 0 * * *'
-                        data['cronText'] = 'Every Day at Midnight (Daily)'
-                    else:
-                        return JsonResponse({"detail": err}, status=403)
+                    return JsonResponse({"detail": err}, status=403)
             if "alerts" in data:
                 allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
                 if not allowed:
