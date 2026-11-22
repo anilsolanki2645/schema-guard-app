@@ -1156,7 +1156,11 @@ def create_pipeline_api(request):
 
             allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
             if not allowed:
-                return JsonResponse({"detail": err}, status=403)
+                if org.plan == 'free':
+                    data['cron'] = '0 0 * * *'
+                    data['cronText'] = 'Every Day at Midnight (Daily)'
+                else:
+                    return JsonResponse({"detail": err}, status=403)
 
             allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
             if not allowed:
@@ -1305,7 +1309,11 @@ def edit_pipeline_api(request, id):
             if "cron" in data:
                 allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
                 if not allowed:
-                    return JsonResponse({"detail": err}, status=403)
+                    if org.plan == 'free':
+                        data['cron'] = '0 0 * * *'
+                        data['cronText'] = 'Every Day at Midnight (Daily)'
+                    else:
+                        return JsonResponse({"detail": err}, status=403)
             if "alerts" in data:
                 allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
                 if not allowed:
