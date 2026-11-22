@@ -62,7 +62,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     except Exception:
         return False
 
-def resolve_connection_string(conn_str: str) -> str:
+def resolve_connection_string(conn_str: str, db_type: str = None) -> str:
     # Decrypt if stored encrypted at rest
     decrypted = decrypt_secret(conn_str)
     if decrypted.startswith("env:"):
@@ -70,15 +70,19 @@ def resolve_connection_string(conn_str: str) -> str:
         resolved = os.getenv(var_name)
         if not resolved:
             raise RuntimeError(f"Environment variable '{var_name}' is not set.")
-        return decrypt_secret(resolved)
-    if decrypted.startswith("profile:"):
+        decrypted = decrypt_secret(resolved)
+    elif decrypted.startswith("profile:"):
         profile_name = decrypted.split(":", 1)[1]
         from core.models import ConnectionProfile
         prof = ConnectionProfile.objects.filter(name=profile_name).first()
         if not prof:
             raise RuntimeError(f"Connection profile '{profile_name}' not found.")
-        return decrypt_secret(prof.conn_str)
-    return decrypted
+        decrypted = decrypt_secret(prof.conn_str)
+        if not db_type and prof.db_type:
+            db_type = prof.db_type
+
+    from core.db_connector import normalize_connection_url
+    return normalize_connection_url(db_type, decrypted)
 
 def ensure_contract_and_snapshot_files(pipeline_obj):
     """
@@ -1369,9 +1373,10 @@ def list_tables_api(request):
     
     data = json.loads(request.body)
     try:
-        resolved_conn = resolve_connection_string(data.get("connStr"))
-        extractor = get_extractor(data.get("dbType"))
-        tables = extractor.get_tables(resolved_conn, data.get("schema"))
+        db_type = data.get("dbType")
+        resolved_conn = resolve_connection_string(data.get("connStr"), db_type)
+        from core.db_connector import get_db_tables
+        tables = get_db_tables(db_type, resolved_conn, data.get("schema"))
         return JsonResponse({"tables": tables})
     except Exception as e:
         return JsonResponse({"detail": str(e)}, status=400)
@@ -1384,9 +1389,10 @@ def list_schemas_api(request):
     
     data = json.loads(request.body)
     try:
-        resolved_conn = resolve_connection_string(data.get("connStr"))
-        extractor = get_extractor(data.get("dbType"))
-        schemas = extractor.get_schemas(resolved_conn)
+        db_type = data.get("dbType")
+        resolved_conn = resolve_connection_string(data.get("connStr"), db_type)
+        from core.db_connector import get_db_schemas
+        schemas = get_db_schemas(db_type, resolved_conn)
         return JsonResponse({"schemas": schemas})
     except Exception as e:
         return JsonResponse({"detail": str(e)}, status=400)
@@ -1398,10 +1404,19 @@ def test_connection_api(request):
         
     data = json.loads(request.body)
     try:
-        resolved_conn = resolve_connection_string(data.get("connStr"))
-        extractor = get_extractor(data.get("dbType"))
-        schema_info = extractor.get_schema(resolved_conn, data.get("schema"), data.get("table"))
-        return JsonResponse({"status": "success", "columns": schema_info["columns"]})
+        db_type = data.get("dbType")
+        resolved_conn = resolve_connection_string(data.get("connStr"), db_type)
+        from core.db_connector import test_db_connection, get_db_columns
+        ok, msg = test_db_connection(db_type, resolved_conn)
+        if not ok:
+            return JsonResponse({"status": "failed", "message": f"Connection test failed: {msg}"})
+        
+        schema = data.get("schema")
+        table = data.get("table")
+        if schema and table:
+            schema_info = get_db_columns(db_type, resolved_conn, schema, table)
+            return JsonResponse({"status": "success", "columns": schema_info["columns"]})
+        return JsonResponse({"status": "success", "message": "Connection verified successfully."})
     except Exception as e:
         return JsonResponse({"status": "failed", "message": str(e)})
 
@@ -2454,10 +2469,11 @@ def connection_profiles_api(request):
             return JsonResponse({"detail": f"A connection profile with name '{name}' already exists in your workspace."}, status=400)
             
         try:
-            resolved_conn = resolve_connection_string(conn_str)
-            extractor = get_extractor(db_type)
-            # Test schema list/tables
-            extractor.get_tables(resolved_conn, "public")
+            resolved_conn = resolve_connection_string(conn_str, db_type)
+            from core.db_connector import test_db_connection
+            ok, msg = test_db_connection(db_type, resolved_conn)
+            if not ok and not conn_str.startswith("env:"):
+                return JsonResponse({"detail": f"Connection test failed: {msg}"}, status=400)
         except Exception as conn_err:
             if not conn_str.startswith("env:"):
                 return JsonResponse({"detail": f"Connection test failed: {conn_err}"}, status=400)
