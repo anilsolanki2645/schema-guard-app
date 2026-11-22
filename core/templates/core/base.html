@@ -13,7 +13,7 @@
     <meta property="og:type" content="website">
 
     <!-- High-Resolution Shield Favicon (Purple & Cyan Theme) -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2.5 L5 7 V15.5 C5 22.3 9.7 27.6 16 29.5 V17 L10.5 13.5 L16 10 V2.5 Z' fill='%2338bdf8'/><path d='M16 2.5 L27 7 V15.5 C27 22.3 22.3 27.6 16 29.5 V17 L21.5 13.5 L16 10 V2.5 Z' fill='%23818cf8'/><circle cx='16' cy='13.5' r='2' fill='%23ffffff'/></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M7 6.5 C10 4.5 13 3.5 16 3.5 C19 3.5 22 4.5 25 6.5 C25.6 6.9 26 7.6 26 8.3 V10 H6 V8.3 C6 7.6 6.4 6.9 7 6.5 Z' fill='%2338bdf8'/><path d='M6 12 H26 V18 H6 Z' fill='%23818cf8'/><path d='M6 20 H26 V21 C26 24.8 21.8 28 16 29.5 C10.2 28 6 24.8 6 21 Z' fill='%23c084fc'/></svg>">
 
     <!-- Premium Fonts Inclusions -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,24 +32,36 @@
             <!-- BRAND LOGO & BADGE -->
             <div class="sg-nav-brand">
                 <a href="{% url 'dashboard' %}" class="sg-brand-link" title="Schema Guard Dashboard">
-                    <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(129, 140, 248, 0.25); box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);">
+                    <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: #080d1a; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);">
                         <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <defs>
-                                <linearGradient id="shieldLeft" x1="5" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+                                <linearGradient id="sgRow1" x1="6" y1="3" x2="26" y2="10" gradientUnits="userSpaceOnUse">
                                     <stop offset="0%" stop-color="#38bdf8"/>
-                                    <stop offset="100%" stop-color="#2563eb"/>
+                                    <stop offset="100%" stop-color="#0284c7"/>
                                 </linearGradient>
-                                <linearGradient id="shieldRight" x1="16" y1="4" x2="27" y2="28" gradientUnits="userSpaceOnUse">
+                                <linearGradient id="sgRow2" x1="6" y1="12" x2="26" y2="19" gradientUnits="userSpaceOnUse">
                                     <stop offset="0%" stop-color="#818cf8"/>
-                                    <stop offset="100%" stop-color="#c084fc"/>
+                                    <stop offset="100%" stop-color="#4f46e5"/>
+                                </linearGradient>
+                                <linearGradient id="sgRow3" x1="6" y1="21" x2="26" y2="29" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#c084fc"/>
+                                    <stop offset="100%" stop-color="#7c3aed"/>
                                 </linearGradient>
                             </defs>
-                            <!-- Razor Crisp Faceted Shield Wings -->
-                            <path d="M16 2.5 L5 7 V15.5 C5 22.3 9.7 27.6 16 29.5 V17 L10.5 13.5 L16 10 V2.5 Z" fill="url(#shieldLeft)"/>
-                            <path d="M16 2.5 L27 7 V15.5 C27 22.3 22.3 27.6 16 29.5 V17 L21.5 13.5 L16 10 V2.5 Z" fill="url(#shieldRight)"/>
-                            <!-- Core Pulse Particle -->
-                            <circle cx="16" cy="13.5" r="2.2" fill="#38bdf8"/>
-                            <circle cx="16" cy="13.5" r="1" fill="#ffffff"/>
+                            <!-- Schema Header Row (Top of Shield) -->
+                            <path d="M7 6.5 C10 4.5 13 3.5 16 3.5 C19 3.5 22 4.5 25 6.5 C25.6 6.9 26 7.6 26 8.3 V10 H6 V8.3 C6 7.6 6.4 6.9 7 6.5 Z" fill="url(#sgRow1)"/>
+                            <circle cx="10" cy="7" r="1" fill="#ffffff" fill-opacity="0.9"/>
+                            <rect x="13" y="6.2" width="7" height="1.6" rx="0.8" fill="#ffffff" fill-opacity="0.75"/>
+                            <circle cx="22" cy="7" r="1" fill="#38bdf8"/>
+
+                            <!-- Schema Data Row (Middle of Shield) with Verified Contract Check -->
+                            <path d="M6 12 H26 V18 H6 Z" fill="url(#sgRow2)"/>
+                            <rect x="9" y="14.2" width="8" height="1.6" rx="0.8" fill="#ffffff" fill-opacity="0.85"/>
+                            <path d="M20 15 L21.5 16.5 L23.5 13.5" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+                            <!-- Schema Contract Base (Taper of Shield) -->
+                            <path d="M6 20 H26 V21 C26 24.8 21.8 28 16 29.5 C10.2 28 6 24.8 6 21 Z" fill="url(#sgRow3)"/>
+                            <rect x="12" y="22.5" width="8" height="1.6" rx="0.8" fill="#ffffff" fill-opacity="0.6"/>
                         </svg>
                     </div>
                     <div class="sg-brand-info">
