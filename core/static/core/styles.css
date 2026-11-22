@@ -1755,6 +1755,10 @@ body {
 .dashboard-grid.grid-builder {
     grid-template-columns: 1.25fr 0.75fr;
 }
+.dashboard-grid.grid-connections {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.75rem;
+}
 .dashboard-grid.grid-sandbox {
     grid-template-columns: 1fr 1.25fr;
     gap: 2rem;
@@ -1801,6 +1805,7 @@ body {
     /* Main Layout Grid collapses to single column */
     .dashboard-grid, 
     .dashboard-grid.grid-builder, 
+    .dashboard-grid.grid-connections,
     .dashboard-grid.grid-sandbox {
         grid-template-columns: 1fr;
         gap: 1.5rem;
