@@ -6,7 +6,8 @@
 {% block content %}
 <div style="max-width: 960px; margin: 2rem auto; padding: 0 1.5rem 4rem;">
     <!-- Header Hero -->
-    <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2rem; border-color: rgba(56, 189, 248, 0.3);">
+    <div class="glass-card"
+        style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 2rem; border-color: rgba(56, 189, 248, 0.3);">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
             <span style="font-size: 2rem;">🔒</span>
             <h1 style="font-size: 2.25rem; font-weight: 800; color: #ffffff; margin: 0;">Privacy Policy</h1>
@@ -17,83 +18,114 @@
     </div>
 
     <!-- Content Sections -->
-    <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; display: flex; flex-direction: column; gap: 2rem; line-height: 1.7; color: var(--text-secondary);">
-        
+    <div class="glass-card"
+        style="padding: 2.5rem; border-radius: 1.25rem; display: flex; flex-direction: column; gap: 2rem; line-height: 1.7; color: var(--text-secondary);">
+
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">1.</span> Overview & Commitment
             </h2>
             <p>
-                At Schema Guard Inc. ("Schema Guard", "we", "our"), protecting the confidentiality and integrity of your technical infrastructure is our highest priority. This Privacy Policy details how we collect, store, encrypt, and handle information when you interact with our platform, website, and APIs.
+                At Schema Guard Inc. ("Schema Guard", "we", "our"), protecting the confidentiality and integrity of your
+                technical infrastructure is our highest priority. This Privacy Policy details how we collect, store,
+                encrypt, and handle information when you interact with our platform, website, and APIs.
             </p>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">2.</span> Information We Collect
             </h2>
             <ul style="padding-left: 1.5rem; margin: 0.5rem 0;">
-                <li><strong>Account Credentials:</strong> Username, email address, password hashes (salted PBKDF2/SHA-256), and optional OAuth identity tokens (GitHub/Google).</li>
-                <li><strong>Connection Profiles:</strong> Database connection strings, database engine type, host, and port. All connection strings are strictly encrypted at rest using AES-256 Fernet encryption before being written to our database.</li>
-                <li><strong>Schema Metadata:</strong> Table names, column identifiers, data types, nullability, primary key constraints, and foreign key relations extracted during schema audits.</li>
-                <li><strong>Audit & Telemetry Logs:</strong> Timestamp, IP address, user agent, action identifier, and validation results generated during CI/CD checks.</li>
+                <li><strong>Account Credentials:</strong> Username, email address, password hashes (salted
+                    PBKDF2/SHA-256), and optional OAuth identity tokens (GitHub/Google).</li>
+                <li><strong>Connection Profiles:</strong> Database connection strings, database engine type, host, and
+                    port. All connection strings are strictly encrypted at rest using AES-256 Fernet encryption before
+                    being written to our database.</li>
+                <li><strong>Schema Metadata:</strong> Table names, column identifiers, data types, nullability, primary
+                    key constraints, and foreign key relations extracted during schema audits.</li>
+                <li><strong>Audit & Telemetry Logs:</strong> Timestamp, IP address, user agent, action identifier, and
+                    validation results generated during CI/CD checks.</li>
             </ul>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">3.</span> What We Never Collect (Zero Customer Row Data)
             </h2>
-            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1.25rem;">
+            <div
+                style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1.25rem;">
                 <p style="margin: 0; color: #ffffff;">
-                    <strong>Schema Guard never reads, queries, stores, or processes customer payload rows.</strong> When inspecting a table, our extractors query database system information schemas (e.g. <code>information_schema.columns</code> in PostgreSQL or <code>SHOW COLUMNS</code> in MySQL). Your sensitive business records never leave your network boundary.
+                    <strong>Schema Guard never reads, queries, stores, or processes customer payload rows.</strong> When
+                    inspecting a table, our extractors query database system information schemas (e.g.
+                    <code>information_schema.columns</code> in PostgreSQL or <code>SHOW COLUMNS</code> in MySQL). Your
+                    sensitive business records never leave your network boundary.
                 </p>
             </div>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">4.</span> Security & Cryptographic Standards
             </h2>
             <p>
                 We enforce industry-standard security protocols across every layer of the application:
             </p>
             <ul style="padding-left: 1.5rem; margin: 0.5rem 0;">
-                <li><strong>Transport Layer:</strong> All traffic is encrypted in transit using TLS 1.3 with automated HTTPS redirection and HSTS preload headers.</li>
-                <li><strong>Storage Layer:</strong> Sensitive credentials (database passwords, webhook secrets) utilize AES-256 authenticated Fernet symmetric encryption.</li>
-                <li><strong>Contract Integrity:</strong> Data contracts are cryptographically sealed with SHA-256 checksums to ensure tamper-proof validation in CI/CD.</li>
-                <li><strong>Signed Cookie Sessions:</strong> Browser sessions are cryptographically signed to prevent session hijacking and database dependency.</li>
+                <li><strong>Transport Layer:</strong> All traffic is encrypted in transit using TLS 1.3 with automated
+                    HTTPS redirection and HSTS preload headers.</li>
+                <li><strong>Storage Layer:</strong> Sensitive credentials (database passwords, webhook secrets) utilize
+                    AES-256 authenticated Fernet symmetric encryption.</li>
+                <li><strong>Contract Integrity:</strong> Data contracts are cryptographically sealed with SHA-256
+                    checksums to ensure tamper-proof validation in CI/CD.</li>
+                <li><strong>Signed Cookie Sessions:</strong> Browser sessions are cryptographically signed to prevent
+                    session hijacking and database dependency.</li>
             </ul>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">5.</span> Third-Party Sub-Processors
             </h2>
             <p>We work with trusted infrastructure providers that comply with SOC2, ISO27001, and GDPR standards:</p>
             <ul style="padding-left: 1.5rem; margin: 0.5rem 0;">
-                <li><strong>Stripe:</strong> Payment processing and billing portal services (PCI-DSS Level 1 certified).</li>
-                <li><strong>Neon PostgreSQL / AWS:</strong> Scalable serverless database hosting with automatic point-in-time recovery.</li>
+                <li><strong>Stripe:</strong> Payment processing and billing portal services (PCI-DSS Level 1 certified).
+                </li>
+                <li><strong>Neon PostgreSQL / AWS:</strong> Scalable serverless database hosting with automatic
+                    point-in-time recovery.</li>
                 <li><strong>Google / GitHub:</strong> Optional developer OAuth authentication.</li>
                 <li><strong>Resend / SMTP:</strong> Transactional security alert and verification email delivery.</li>
             </ul>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">6.</span> Your Rights (GDPR & CCPA)
             </h2>
             <p>
-                Regardless of your location, you have the right to request access to the personal data we hold about you, request rectification of inaccurate records, or request complete deletion of your organization and associated connection profiles ("Right to be Forgotten"). You can execute account deletion directly from the Admin Panel or by emailing our privacy team.
+                Regardless of your location, you have the right to request access to the personal data we hold about
+                you, request rectification of inaccurate records, or request complete deletion of your organization and
+                associated connection profiles ("Right to be Forgotten"). You can execute account deletion directly from
+                the Admin Panel or by emailing our privacy team at <a href="mailto:anusolanki2645@gmail.com"
+                    style="color: #38bdf8; text-decoration: none;">anusolanki2645@gmail.com</a>.
             </p>
         </section>
 
         <section>
-            <h2 style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <h2
+                style="color: #ffffff; font-size: 1.35rem; margin-top: 0; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span style="color: #38bdf8;">7.</span> Contact Us
             </h2>
             <p>
-                If you have questions, feedback, or requests regarding this Privacy Policy, please contact our Data Protection Officer at <a href="mailto:privacy@schemaguard.io" style="color: #38bdf8; text-decoration: none;">privacy@schemaguard.io</a>.
+                If you have questions, feedback, or requests regarding this Privacy Policy, please contact our Data
+                Protection Officer at <a href="mailto:anusolanki2645@gmail.com"
+                    style="color: #38bdf8; text-decoration: none;">anusolanki2645@gmail.com</a>.
             </p>
         </section>
 
