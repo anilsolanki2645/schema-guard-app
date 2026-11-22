@@ -13,7 +13,7 @@
     <meta property="og:type" content="website">
 
     <!-- High-Resolution Shield Favicon (Purple & Cyan Theme) -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230f172a'/><path d='M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z' fill='%238b5cf6'/><path d='M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z' fill='%236366f1'/><circle cx='16' cy='16' r='3' fill='%2322d3ee'/></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%230b1120' stroke='%2338bdf8' stroke-width='1.5'/><ellipse cx='18' cy='11.5' rx='7.5' ry='2.6' fill='%231e1b4b' stroke='%23818cf8' stroke-width='1.4'/><path d='M10.5 11.5 V14.5 C10.5 15.9 13.9 17.1 18 17.1 C22.1 17.1 25.5 15.9 25.5 14.5 V11.5 M10.5 17 V20 C10.5 21.4 13.9 22.6 18 22.6 C22.1 22.6 25.5 21.4 25.5 20 V17 M10.5 22.5 V25.5 C10.5 26.9 13.9 28.1 18 28.1 C22.1 28.1 25.5 26.9 25.5 25.5 V22.5' stroke='%23818cf8' stroke-width='1.4' fill='none'/><circle cx='18' cy='19.8' r='2' fill='%2322d3ee'/></svg>">
 
     <!-- Premium Fonts Inclusions -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,31 +33,39 @@
             <div class="sg-nav-brand">
                 <a href="{% url 'dashboard' %}" class="sg-brand-link" title="Schema Guard Dashboard">
                     <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center;">
-                        <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.7)); transition: all 0.3s ease;">
+                        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45)); transition: transform 0.3s ease;">
                             <defs>
-                                <radialGradient id="navGlow" cx="50%" cy="50%" r="50%">
-                                    <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
-                                    <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
-                                </radialGradient>
-                                <linearGradient id="navMetal" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#c084fc"/>
+                                <linearGradient id="gateHexGrad" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#38bdf8"/>
                                     <stop offset="50%" stop-color="#818cf8"/>
-                                    <stop offset="100%" stop-color="#6366f1"/>
+                                    <stop offset="100%" stop-color="#c084fc"/>
                                 </linearGradient>
-                                <linearGradient id="navCyan" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#22d3ee"/>
-                                    <stop offset="100%" stop-color="#06b6d4"/>
-                                </linearGradient>
+                                <radialGradient id="gateAura" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+                                    <stop offset="60%" stop-color="#818cf8" stop-opacity="0.08"/>
+                                    <stop offset="100%" stop-color="#0b0f19" stop-opacity="0"/>
+                                </radialGradient>
                             </defs>
-                            <circle cx="16" cy="16" r="14" fill="url(#navGlow)" />
-                            <circle cx="16" cy="16" r="13" stroke="rgba(167, 139, 250, 0.2)" stroke-width="1" stroke-dasharray="4 2" />
-                            <circle cx="16" cy="3" r="1.5" fill="#22d3ee" />
-                            <circle cx="16" cy="29" r="1.5" fill="#22d3ee" />
-                            <path d="M16 6.5 L7.5 9.5 V15.5 C7.5 19.8 11.5 24 16 25.5 Z" fill="url(#navMetal)" fill-opacity="0.95" />
-                            <path d="M16 6.5 L24.5 9.5 V15.5 C24.5 19.8 20.5 24 16 25.5 Z" fill="#4f46e5" fill-opacity="0.9" />
-                            <path d="M16 8.5 L9.5 10.9 V15.5 C9.5 18.8 12.5 22.2 16 23.5 L22.5 15.5 C22.5 18.8 19.5 22.2 16 23.5 Z" fill="#0b0f19" />
-                            <path d="M16 10 C13 10 11.5 12 11.5 14.5 C11.5 17 13.5 18.5 16 18.5 C17.5 18.5 18.5 18 19 17 L16 15 H20.5 V14 H16 Z" fill="url(#navCyan)" />
-                            <circle cx="16" cy="14" r="1.5" fill="#ffffff" style="filter: drop-shadow(0 0 4px #22d3ee);" />
+                            <!-- Outer Protective Gatekeeper Ring with dashed circuit path -->
+                            <circle cx="18" cy="18" r="16" fill="#0b1120" stroke="rgba(129, 140, 248, 0.25)" stroke-width="1.2"/>
+                            <circle cx="18" cy="18" r="16" stroke="url(#gateHexGrad)" stroke-width="1.2" stroke-dasharray="14 6 8 4 12 6" stroke-linecap="round"/>
+                            <circle cx="18" cy="18" r="14.5" fill="url(#gateAura)"/>
+                            <!-- Circuit Data Nodes & Traces -->
+                            <path d="M18 2 V6 M18 30 V34 M2 18 H6 M30 18 H34" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="18" cy="3.5" r="1.5" fill="#38bdf8" style="filter: drop-shadow(0 0 4px #38bdf8);"/>
+                            <circle cx="18" cy="32.5" r="1.5" fill="#818cf8"/>
+                            <circle cx="3.5" cy="18" r="1.5" fill="#38bdf8"/>
+                            <circle cx="32.5" cy="18" r="1.5" fill="#c084fc"/>
+                            <path d="M7 7 L9.5 9.5 M29 7 L26.5 9.5 M7 29 L9.5 26.5 M29 29 L26.5 26.5" stroke="rgba(129, 140, 248, 0.6)" stroke-width="1.2" stroke-linecap="round"/>
+                            <!-- Layered Database Rings -->
+                            <ellipse cx="18" cy="11.5" rx="7.5" ry="2.6" fill="#1e1b4b" stroke="url(#gateHexGrad)" stroke-width="1.4"/>
+                            <path d="M10.5 11.5 V14.5 C10.5 15.9 13.9 17.1 18 17.1 C22.1 17.1 25.5 15.9 25.5 14.5 V11.5" stroke="url(#gateHexGrad)" stroke-width="1.4" fill="none"/>
+                            <path d="M10.5 17 V20 C10.5 21.4 13.9 22.6 18 22.6 C22.1 22.6 25.5 21.4 25.5 20 V17" stroke="url(#gateHexGrad)" stroke-width="1.4" fill="none"/>
+                            <path d="M10.5 22.5 V25.5 C10.5 26.9 13.9 28.1 18 28.1 C22.1 28.1 25.5 26.9 25.5 25.5 V22.5" stroke="url(#gateHexGrad)" stroke-width="1.4" fill="none"/>
+                            <!-- Center Data Pulse & Core Node -->
+                            <line x1="18" y1="9" x2="18" y2="17" stroke="#22d3ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 1.5"/>
+                            <circle cx="18" cy="19.8" r="2.2" fill="#22d3ee" style="filter: drop-shadow(0 0 6px #06b6d4);"/>
+                            <circle cx="18" cy="19.8" r="1" fill="#ffffff"/>
                         </svg>
                     </div>
                     <div class="sg-brand-info">
