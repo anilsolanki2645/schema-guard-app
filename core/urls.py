@@ -99,4 +99,8 @@ urlpatterns = [
     path('connections', views.connection_profiles_page, name='connection_profiles'),
     path('api/connection-profiles', views.connection_profiles_api, name='connection_profiles_api'),
     path('api/connection-profiles/<int:id>', views.connection_profile_detail_api, name='connection_profile_detail_api'),
+
+    # User Profile & Avatar endpoints
+    path('api/user/profile', views.user_profile_api, name='user_profile_api'),
+    path('api/user/avatar/<str:username>', views.user_avatar_api, name='user_avatar_api'),
 ]

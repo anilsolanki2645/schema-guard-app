@@ -1018,14 +1018,7 @@ def login_or_register_view(request):
                     'saved_username': username
                 })
             
-            clean_user = {
-                "username": user_obj.username,
-                "email": user_obj.email,
-                "role": user_obj.role,
-                "permissions": user_obj.permissions,
-                "organization_id": user_obj.organization_id,
-                "is_verified": user_obj.is_verified
-            }
+            clean_user = build_user_session_dict(user_obj)
             request.session['user'] = clean_user
             
             if not user_obj.is_verified:
@@ -2938,14 +2931,7 @@ def _complete_oauth_login(request, provider: str, profile: dict):
                 user.is_verified = True
                 user.save(update_fields=['is_verified'])
 
-        request.session['user'] = {
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "permissions": user.permissions,
-            "organization_id": user.organization_id,
-            "is_verified": user.is_verified
-        }
+        request.session['user'] = build_user_session_dict(user)
 
         log_action(request, 'user.oauth_login', 'user', user.username, {
             'provider': provider, 'email': user.email
@@ -3157,6 +3143,173 @@ def audit_logs_export_csv(request):
             json.dumps(l.details) if l.details else ''
         ])
 
+    return response
+
+
+def build_user_session_dict(user_obj):
+    """Helper to construct rich user session dictionary with profile details."""
+    full_name = getattr(user_obj, 'full_name', '') or user_obj.username
+    org_name = user_obj.organization.name if user_obj.organization else "Production Org"
+    return {
+        "username": user_obj.username,
+        "email": user_obj.email,
+        "role": user_obj.role,
+        "permissions": user_obj.permissions,
+        "organization_id": user_obj.organization_id,
+        "organization_name": org_name,
+        "is_verified": user_obj.is_verified,
+        "full_name": full_name,
+        "job_title": getattr(user_obj, 'job_title', ''),
+        "bio": getattr(user_obj, 'bio', ''),
+        "avatar_url": f"/api/user/avatar/{user_obj.username}"
+    }
+
+
+@require_login
+def user_profile_api(request):
+    """GET/POST endpoint for viewing and updating user profile data and avatar."""
+    import base64
+    from core.models import User
+    session_user = request.session.get('user', {})
+    username = session_user.get('username')
+    user_obj = User.objects.filter(username=username).first()
+    if not user_obj:
+        return JsonResponse({"error": "User account not found"}, status=404)
+        
+    if request.method == "GET":
+        return JsonResponse({
+            "success": True,
+            "user": {
+                "username": user_obj.username,
+                "email": user_obj.email,
+                "full_name": user_obj.full_name or user_obj.username,
+                "job_title": user_obj.job_title,
+                "bio": user_obj.bio,
+                "role": user_obj.role,
+                "organization_name": user_obj.organization.name if user_obj.organization else "Production Org",
+                "avatar_url": f"/api/user/avatar/{user_obj.username}",
+                "has_custom_avatar": bool(user_obj.avatar_data)
+            }
+        })
+        
+    elif request.method == "POST":
+        try:
+            if request.content_type == 'application/json':
+                data = json.loads(request.body.decode('utf-8'))
+            else:
+                data = request.POST.dict()
+        except Exception:
+            data = {}
+
+        # 1. Update Full Name
+        if 'full_name' in data:
+            user_obj.full_name = data['full_name'].strip()
+            
+        # 2. Update Job Title & Bio
+        if 'job_title' in data:
+            user_obj.job_title = data['job_title'].strip()
+        if 'bio' in data:
+            user_obj.bio = data['bio'].strip()
+            
+        # 3. Update Email (if unique)
+        new_email = data.get('email', '').strip()
+        if new_email and new_email != user_obj.email:
+            existing = User.objects.filter(email=new_email).exclude(username=user_obj.username).first()
+            if existing:
+                return JsonResponse({"error": "This email address is already in use by another account."}, status=400)
+            user_obj.email = new_email
+
+        # 4. Update Avatar (file or base64)
+        if 'avatar_data' in data:
+            user_obj.avatar_data = data['avatar_data']
+        elif 'avatar_file' in request.FILES:
+            avatar_file = request.FILES['avatar_file']
+            if avatar_file.size > 5 * 1024 * 1024:
+                return JsonResponse({"error": "Image file too large (max 5MB)"}, status=400)
+            encoded = base64.b64encode(avatar_file.read()).decode('utf-8')
+            mime = avatar_file.content_type or 'image/png'
+            user_obj.avatar_data = f"data:{mime};base64,{encoded}"
+
+        # 5. Optional Password Change
+        new_pw = data.get('new_password')
+        current_pw = data.get('current_password')
+        if new_pw:
+            if not current_pw or not verify_password(current_pw, user_obj.password_hash):
+                return JsonResponse({"error": "Current password is required and was incorrect."}, status=400)
+            if len(new_pw) < 6:
+                return JsonResponse({"error": "New password must be at least 6 characters."}, status=400)
+            user_obj.password_hash = hash_password(new_pw)
+
+        user_obj.save()
+        
+        # Update session
+        request.session['user'] = build_user_session_dict(user_obj)
+        log_action(request, 'user.profile_update', 'user', user_obj.username)
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Profile updated successfully!",
+            "user": {
+                "username": user_obj.username,
+                "email": user_obj.email,
+                "full_name": user_obj.full_name or user_obj.username,
+                "job_title": user_obj.job_title,
+                "bio": user_obj.bio,
+                "avatar_url": f"/api/user/avatar/{user_obj.username}",
+                "has_custom_avatar": bool(user_obj.avatar_data)
+            }
+        })
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+def user_avatar_api(request, username):
+    """Dynamic avatar serving endpoint with custom photo base64 decoding and SVG initials fallback."""
+    import base64
+    from core.models import User
+    
+    # If explicit reset requested, skip custom avatar
+    skip_custom = request.GET.get('reset') == '1'
+    user = User.objects.filter(username=username).first()
+    
+    if user and user.avatar_data and not skip_custom:
+        avatar = user.avatar_data.strip()
+        if avatar.startswith('data:image/'):
+            try:
+                header, encoded = avatar.split(',', 1)
+                mime_type = header.split(';')[0].replace('data:', '')
+                image_data = base64.b64decode(encoded)
+                response = HttpResponse(image_data, content_type=mime_type)
+                response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                return response
+            except Exception as e:
+                logger.warning(f"Failed to decode base64 avatar for {username}: {e}")
+        elif avatar.startswith('http://') or avatar.startswith('https://'):
+            return redirect(avatar)
+            
+    # Fallback: Dynamic SVG avatar with user's initials
+    initials = ""
+    if user and user.full_name:
+        parts = user.full_name.strip().split()
+        initials = "".join([p[0].upper() for p in parts[:2]])
+    elif username:
+        initials = username[:2].upper()
+    else:
+        initials = "SG"
+        
+    svg = f"""<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="avGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="32" fill="url(#avGrad)"/>
+  <text x="32" y="39" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#ffffff" letter-spacing="0.5">{initials}</text>
+</svg>"""
+    response = HttpResponse(svg, content_type="image/svg+xml")
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
 

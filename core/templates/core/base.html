@@ -32,7 +32,7 @@
             <!-- BRAND LOGO & BADGE -->
             <div class="sg-nav-brand">
                 <a href="{% url 'dashboard' %}" class="sg-brand-link" title="Schema Guard Dashboard">
-                    <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: #080d1a; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);">
+                    <div class="sg-logo-shield" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: #080d1a; border: 1px solid rgba(56, 189, 248, 0.35);">
                         <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                                 <linearGradient id="sgRow1" x1="6" y1="3" x2="26" y2="10" gradientUnits="userSpaceOnUse">
@@ -164,22 +164,19 @@
 
             <!-- RIGHT ACTION AREA -->
             <div class="sg-nav-actions">
-                <a href="{% url 'health_check' %}" target="_blank" class="sg-live-status" title="Live Cluster Health Check">
-                    <span class="sg-pulse-dot"></span>
-                    <span>Operational</span>
-                </a>
-
                 <div class="sg-org-pill" title="Active Organization Workspace">
                     <span class="sg-pulse-dot" style="background: #a78bfa; box-shadow: 0 0 6px #a78bfa;"></span>
                     <span>{{ request.session.user.organization_name|default:"Production Org" }}</span>
                     <span class="sg-plan-badge">PRO</span>
                 </div>
 
-                <div class="sg-user-badge" id="user-badge-container">
-                    <span class="user-avatar-circle">👤</span>
-                    <span class="sg-username" id="badge-username">{{ request.session.user.username }}</span>
+                <div class="sg-user-badge" id="user-badge-container" onclick="openProfileModal(event)" title="Click to view & edit your profile">
+                    <div class="user-avatar-circle" style="overflow: hidden; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.2); border: 1.5px solid #818cf8; flex-shrink: 0;">
+                        <img src="/api/user/avatar/{{ request.session.user.username }}" id="nav-user-avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="{{ request.session.user.username }}">
+                    </div>
+                    <span class="sg-username" id="badge-username">{{ request.session.user.full_name|default:request.session.user.username }}</span>
                     <span class="sg-user-role" id="badge-role">{{ request.session.user.role|upper }}</span>
-                    <a href="{% url 'logout' %}" class="sg-nav-logout btn-logout" id="logout-button" title="Sign out of account">
+                    <a href="{% url 'logout' %}" class="sg-nav-logout btn-logout" id="logout-button" title="Sign out of account" onclick="event.stopPropagation();">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                             <polyline points="16 17 21 12 16 7"></polyline>
@@ -338,6 +335,11 @@
         }
     });
     </script>
+
+    <!-- Global Profile Modal for Authenticated Users -->
+    {% if request.session.user %}
+        {% include 'core/includes/profile_modal.html' %}
+    {% endif %}
 
     <!-- Global Auth Modal for Unauthenticated Pages -->
     {% if not request.session.user %}

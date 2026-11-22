@@ -1,0 +1,307 @@
+<!-- ========================================================= -->
+<!-- USER PROFILE & ACCOUNT SETTINGS MODAL                     -->
+<!-- ========================================================= -->
+<div id="editProfileModal" class="sg-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 2500; align-items: center; justify-content: center; padding: 1rem; overflow-y: auto;" onclick="if(event.target === this) closeProfileModal();">
+    <div class="glass-card" style="width: 100%; max-width: 580px; margin: auto; padding: 2rem; border-radius: 1.25rem; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(129, 140, 248, 0.3); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85); position: relative; animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+        
+        <!-- Modal Header -->
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.4); padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+            <div>
+                <h3 style="font-size: 1.25rem; font-weight: 800; color: #ffffff; margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                    <span>👤</span> Account Profile Settings
+                </h3>
+                <p style="font-size: 0.82rem; color: #94a3b8; margin: 0.35rem 0 0 0;">
+                    Manage your personal credentials, custom avatar photo, and organization role.
+                </p>
+            </div>
+            <button type="button" onclick="closeProfileModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0.25rem; transition: color 0.15s ease;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='#94a3b8'">
+                &times;
+            </button>
+        </div>
+
+        <!-- Alert Banner -->
+        <div id="profile-modal-alert" style="display: none; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;"></div>
+
+        <!-- Modal Form -->
+        <form id="profile-edit-form" onsubmit="saveProfileChanges(event)">
+            <!-- AVATAR MANAGEMENT SECTION -->
+            <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1.5rem;">
+                <div style="position: relative; width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2.5px solid #818cf8; background: #080d1a; flex-shrink: 0; box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);">
+                    <img id="modal-avatar-preview" src="/api/user/avatar/{{ request.session.user.username|default:'user' }}" alt="Profile Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <input type="file" id="profile-file-input" accept="image/*" style="display: none;" onchange="handleAvatarFileSelect(event)">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('profile-file-input').click()" style="padding: 0.4rem 0.85rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            📷 Upload Photo
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="resetAvatarToDefault()" style="padding: 0.4rem 0.85rem; font-size: 0.8rem; color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
+                            🗑️ Reset
+                        </button>
+                    </div>
+
+                    <!-- Quick Preset Avatars -->
+                    <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.25rem;">
+                        <span style="font-size: 0.72rem; color: #94a3b8;">Presets:</span>
+                        <button type="button" onclick="selectPresetEmoji('👨‍💻')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Developer">👨‍💻</button>
+                        <button type="button" onclick="selectPresetEmoji('👩‍💻')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Engineer">👩‍💻</button>
+                        <button type="button" onclick="selectPresetEmoji('🛡️')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Gatekeeper">🛡️</button>
+                        <button type="button" onclick="selectPresetEmoji('⚡')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Lightning">⚡</button>
+                        <button type="button" onclick="selectPresetEmoji('🚀')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Rocket">🚀</button>
+                        <button type="button" onclick="selectPresetEmoji('🤖')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="AI Bot">🤖</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM FIELDS GRID -->
+            <div class="responsive-grid-2" style="gap: 1.15rem; margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label" for="profile-input-fullname" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Full Name</label>
+                    <input type="text" id="profile-input-fullname" class="form-input" placeholder="e.g. Anil Solanki" style="width: 100%; box-sizing: border-box;">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="profile-input-jobtitle" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Job Title / Specialty</label>
+                    <input type="text" id="profile-input-jobtitle" class="form-input" placeholder="e.g. Lead Data Engineer, DBA" style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div class="responsive-grid-2" style="gap: 1.15rem; margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label" for="profile-input-username" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Username (Account ID)</label>
+                    <input type="text" id="profile-input-username" class="form-input" readonly style="width: 100%; box-sizing: border-box; opacity: 0.65; cursor: not-allowed; background: rgba(0,0,0,0.25);">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="profile-input-email" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Email Address</label>
+                    <input type="email" id="profile-input-email" class="form-input" placeholder="name@company.com" required style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label" for="profile-input-bio" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Bio & Scope</label>
+                <textarea id="profile-input-bio" class="form-input" rows="2" placeholder="e.g. Overseeing Snowflake & PostgreSQL data contracts and CI/CD drift automation..." style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+            </div>
+
+            <!-- SECURITY / PASSWORD ACCORDION -->
+            <div style="border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 1rem; margin-top: 1rem;">
+                <button type="button" onclick="togglePasswordSection()" style="background: none; border: none; color: #38bdf8; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; padding: 0;">
+                    <span id="pw-toggle-chevron">▶</span> Change Password (Optional)
+                </button>
+                
+                <div id="profile-pw-section" style="display: none; margin-top: 0.85rem; padding: 0.85rem; border-radius: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
+                    <div class="responsive-grid-2" style="gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" style="font-size: 0.75rem;">Current Password</label>
+                            <input type="password" id="profile-current-pw" class="form-input" placeholder="••••••••" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="font-size: 0.75rem;">New Password</label>
+                            <input type="password" id="profile-new-pw" class="form-input" placeholder="Min. 6 chars" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; margin-top: 1.75rem; border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">Cancel</button>
+                <button type="submit" id="profile-save-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                    <span>💾</span> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentAvatarData = null; // null means keep existing; string means new avatar; "" means clear
+
+function openProfileModal(e) {
+    if (e) e.stopPropagation();
+    const modal = document.getElementById('editProfileModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    // Fetch fresh user profile details
+    fetch('/api/user/profile')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.user) {
+                const u = data.user;
+                document.getElementById('profile-input-username').value = u.username || '';
+                document.getElementById('profile-input-fullname').value = u.full_name || '';
+                document.getElementById('profile-input-email').value = u.email || '';
+                document.getElementById('profile-input-jobtitle').value = u.job_title || '';
+                document.getElementById('profile-input-bio').value = u.bio || '';
+                
+                // Set preview avatar with cache buster
+                const previewImg = document.getElementById('modal-avatar-preview');
+                if (previewImg) {
+                    previewImg.src = u.avatar_url + '?t=' + Date.now();
+                }
+                currentAvatarData = null;
+            }
+        })
+        .catch(err => console.error("Could not fetch profile:", err));
+}
+
+function closeProfileModal() {
+    const modal = document.getElementById('editProfileModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    const alertBox = document.getElementById('profile-modal-alert');
+    if (alertBox) alertBox.style.display = 'none';
+    currentAvatarData = null;
+}
+
+function handleAvatarFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 5 * 1024 * 1024) {
+        showProfileAlert("Image file is too large (maximum 5MB).", "error");
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Url = e.target.result;
+        currentAvatarData = base64Url;
+        const previewImg = document.getElementById('modal-avatar-preview');
+        if (previewImg) previewImg.src = base64Url;
+        showProfileAlert("Photo preview ready. Click 'Save Changes' to update.", "info");
+    };
+    reader.readAsDataURL(file);
+}
+
+function resetAvatarToDefault() {
+    currentAvatarData = ""; // empty string clears custom avatar to initial SVG
+    const username = document.getElementById('profile-input-username').value || 'user';
+    const previewImg = document.getElementById('modal-avatar-preview');
+    if (previewImg) {
+        previewImg.src = '/api/user/avatar/' + username + '?reset=1&t=' + Date.now();
+    }
+    showProfileAlert("Avatar reset to default initials. Click 'Save Changes' to apply.", "info");
+}
+
+function selectPresetEmoji(emoji) {
+    // Generate inline SVG data URI with selected emoji
+    const svg = `<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="emGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="50%" stop-color="#6366f1"/>
+          <stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+      </defs>
+      <circle cx="40" cy="40" r="39" fill="url(#emGrad)"/>
+      <text x="40" y="52" text-anchor="middle" font-size="38">${emoji}</text>
+    </svg>`;
+    const dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    currentAvatarData = dataUri;
+    const previewImg = document.getElementById('modal-avatar-preview');
+    if (previewImg) previewImg.src = dataUri;
+    showProfileAlert("Preset avatar selected. Click 'Save Changes' to apply.", "info");
+}
+
+function togglePasswordSection() {
+    const sec = document.getElementById('profile-pw-section');
+    const chev = document.getElementById('pw-toggle-chevron');
+    if (sec.style.display === 'none' || !sec.style.display) {
+        sec.style.display = 'block';
+        if (chev) chev.innerText = '▼';
+    } else {
+        sec.style.display = 'none';
+        if (chev) chev.innerText = '▶';
+    }
+}
+
+function showProfileAlert(msg, type) {
+    const box = document.getElementById('profile-modal-alert');
+    if (!box) return;
+    box.style.display = 'block';
+    box.innerText = msg;
+    if (type === 'error') {
+        box.style.background = 'rgba(239, 68, 68, 0.15)';
+        box.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+        box.style.color = '#fca5a5';
+    } else if (type === 'success') {
+        box.style.background = 'rgba(16, 185, 129, 0.15)';
+        box.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+        box.style.color = '#6ee7b7';
+    } else {
+        box.style.background = 'rgba(56, 189, 248, 0.15)';
+        box.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+        box.style.color = '#7dd3fc';
+    }
+}
+
+function saveProfileChanges(e) {
+    e.preventDefault();
+    const saveBtn = document.getElementById('profile-save-btn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<span>⏳</span> Saving...';
+    saveBtn.disabled = true;
+
+    const payload = {
+        full_name: document.getElementById('profile-input-fullname').value,
+        email: document.getElementById('profile-input-email').value,
+        job_title: document.getElementById('profile-input-jobtitle').value,
+        bio: document.getElementById('profile-input-bio').value
+    };
+
+    if (currentAvatarData !== null) {
+        payload.avatar_data = currentAvatarData;
+    }
+
+    const currentPw = document.getElementById('profile-current-pw').value;
+    const newPw = document.getElementById('profile-new-pw').value;
+    if (newPw) {
+        payload.current_password = currentPw;
+        payload.new_password = newPw;
+    }
+
+    fetch('/api/user/profile', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+        if (data.error) {
+            showProfileAlert(data.error, 'error');
+        } else if (data.success) {
+            showProfileAlert("Profile updated successfully!", "success");
+            
+            // Update navbar elements in real-time
+            const navName = document.getElementById('badge-username');
+            if (navName) navName.innerText = data.user.full_name || data.user.username;
+            
+            const navAvatar = document.getElementById('nav-user-avatar');
+            if (navAvatar) {
+                navAvatar.src = data.user.avatar_url + '?t=' + Date.now();
+            }
+
+            setTimeout(() => {
+                closeProfileModal();
+            }, 1000);
+        }
+    })
+    .catch(err => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+        showProfileAlert("Network error saving profile: " + err, 'error');
+    });
+}
+</script>

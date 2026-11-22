@@ -538,6 +538,14 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 0.55rem;
     padding: 0.3rem 0.5rem 0.3rem 0.35rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.sg-user-badge:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(56, 189, 248, 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .user-avatar-circle {

@@ -19,6 +19,10 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     password_hash = models.CharField(max_length=255)
     role = models.CharField(max_length=50, default='operator')  # 'admin', 'subadmin', 'operator', 'viewer'
+    full_name = models.CharField(max_length=255, blank=True, default='')
+    avatar_data = models.TextField(blank=True, default='')
+    job_title = models.CharField(max_length=150, blank=True, default='')
+    bio = models.TextField(blank=True, default='')
     permissions = models.JSONField(default=dict)  # e.g., {"see": True, "create": True, "edit": True, "delete": True}
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name='users')
     is_verified = models.BooleanField(default=False)
