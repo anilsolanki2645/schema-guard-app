@@ -189,8 +189,11 @@ class PaymentTransaction(models.Model):
     plan = models.CharField(max_length=50)  # 'pro', 'enterprise'
     amount = models.CharField(max_length=50, default='')
     payment_method = models.CharField(max_length=50, default='UPI_QR')
-    status = models.CharField(max_length=50, default='verified')  # 'pending', 'verified', 'rejected'
+    status = models.CharField(max_length=50, default='pending')  # 'pending', 'approved', 'rejected'
+    screenshot_data = models.TextField(blank=True, default='')  # Base64 image
+    approval_token = models.CharField(max_length=64, blank=True, default='')
     notes = models.TextField(blank=True, default='')
+    approved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

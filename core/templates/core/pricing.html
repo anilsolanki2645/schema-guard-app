@@ -283,6 +283,18 @@
                 </span>
             </div>
 
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
+                    Upload Transaction Screenshot <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="file" id="qr-screenshot-input" accept="image/*" required onchange="handleScreenshotUpload(event)"
+                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #94a3b8; font-size: 0.85rem; cursor: pointer;">
+                <div id="screenshot-preview-container" style="display: none; margin-top: 0.5rem; text-align: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.5rem;">
+                    <img id="screenshot-preview-img" style="max-height: 120px; max-width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);" />
+                    <span style="display: block; font-size: 0.75rem; color: #22c55e; margin-top: 0.25rem;">✓ Screenshot attached</span>
+                </div>
+            </div>
+
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
                     Notes / Organization Name (Optional)
@@ -291,12 +303,28 @@
                        style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #ffffff; font-size: 0.85rem;">
             </div>
 
-            <div id="qr-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
-            <div id="qr-success-msg" style="display: none; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+            <div id="qr-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+            
+            <div id="qr-success-card" style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: left;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; color: #4ade80; font-weight: 800; font-size: 1rem; margin-bottom: 0.6rem;">
+                    <span style="font-size: 1.3rem;">✅</span> Payment Proof Submitted!
+                </div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">
+                    your request is confirm in 1 hour
+                </div>
+                <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;">
+                    If you need access now please contact on this mail <a href="mailto:anusolanki2645@gmail.com" style="color: #38bdf8; font-weight: 700; text-decoration: underline;">anusolanki2645@gmail.com</a>
+                </div>
+                <div style="margin-top: 1rem; text-align: right;">
+                    <button type="button" onclick="closeQrPaymentModal()" class="btn-secondary" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Close Window</button>
+                </div>
+            </div>
 
-            <button type="submit" id="btn-submit-qr" class="btn-primary" style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
-                ⚡ Verify & Activate Plan Immediately
-            </button>
+            <div id="qr-action-buttons">
+                <button type="submit" id="btn-submit-qr" class="btn-primary" style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
+                    📤 Submit Payment Proof
+                </button>
+            </div>
         </form>
     </div>
 </div>
@@ -311,6 +339,46 @@ function initiateCheckout(planId) {
     openQrPaymentModal(planId);
 }
 
+let uploadedScreenshotBase64 = '';
+
+function handleScreenshotUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Client-side canvas compression to keep upload fast & under 150KB
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 900;
+
+            if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                    height = Math.round((height * maxDim) / width);
+                    width = maxDim;
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            uploadedScreenshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('screenshot-preview-img').src = uploadedScreenshotBase64;
+            document.getElementById('screenshot-preview-container').style.display = 'block';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
 function openQrPaymentModal(planId) {
     const modal = document.getElementById('qrPaymentModal');
     document.getElementById('qr-selected-plan').value = planId;
@@ -321,21 +389,26 @@ function openQrPaymentModal(planId) {
     const btn = document.getElementById('btn-submit-qr');
     
     document.getElementById('qr-error-msg').style.display = 'none';
-    document.getElementById('qr-success-msg').style.display = 'none';
+    document.getElementById('qr-success-card').style.display = 'none';
+    document.getElementById('qr-action-buttons').style.display = 'block';
     document.getElementById('qr-txn-id').value = '';
+    document.getElementById('qr-txn-notes').value = '';
+    document.getElementById('qr-screenshot-input').value = '';
+    document.getElementById('screenshot-preview-container').style.display = 'none';
+    uploadedScreenshotBase64 = '';
     
     if (planId === 'pro') {
         badge.innerText = 'Team Pro Upgrade';
         badge.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
         title.innerText = 'Upgrade to Team Pro (50 Pipelines)';
         price.innerText = '₹3,999 / month ($49)';
-        btn.innerText = '⚡ Verify & Activate Team Pro (50 Pipelines)';
+        btn.innerText = '📤 Submit Payment Proof (Team Pro)';
     } else if (planId === 'enterprise') {
         badge.innerText = 'Enterprise Upgrade';
         badge.style.background = 'linear-gradient(135deg, #0ea5e9, #2563eb)';
         title.innerText = 'Upgrade to Enterprise (1,000 Pipelines)';
         price.innerText = '₹15,999 / month ($199)';
-        btn.innerText = '👑 Verify & Activate Enterprise (1,000 Pipelines)';
+        btn.innerText = '📤 Submit Payment Proof (Enterprise)';
     }
     
     modal.style.display = 'flex';
@@ -358,11 +431,12 @@ async function submitQrPayment() {
     const txnId = document.getElementById('qr-txn-id').value.trim();
     const notes = document.getElementById('qr-txn-notes').value.trim();
     const errBox = document.getElementById('qr-error-msg');
-    const succBox = document.getElementById('qr-success-msg');
+    const succCard = document.getElementById('qr-success-card');
+    const actionBtns = document.getElementById('qr-action-buttons');
     const btn = document.getElementById('btn-submit-qr');
     
     errBox.style.display = 'none';
-    succBox.style.display = 'none';
+    succCard.style.display = 'none';
     
     if (!txnId || txnId.length < 6) {
         errBox.innerText = 'Please enter a valid 12-digit UPI UTR / Transaction Reference number.';
@@ -370,9 +444,15 @@ async function submitQrPayment() {
         return;
     }
     
+    if (!uploadedScreenshotBase64) {
+        errBox.innerText = 'Please upload a screenshot of your successful transaction.';
+        errBox.style.display = 'block';
+        return;
+    }
+    
     const originalText = btn.innerText;
     btn.disabled = true;
-    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Verifying payment & activating workspace...`;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Submitting payment proof & notifying admin...`;
     
     try {
         const response = await fetch('/api/billing/qr-submit', {
@@ -385,26 +465,24 @@ async function submitQrPayment() {
                 plan: planId,
                 transaction_id: txnId,
                 amount: planId === 'pro' ? '₹3,999 ($49/mo)' : '₹15,999 ($199/mo)',
+                screenshot_data: uploadedScreenshotBase64,
                 notes: notes
             })
         });
         
         const data = await response.json();
         
-        if (response.ok && data.status === 'success') {
-            succBox.innerText = `🎉 ${data.message} Redirecting to Dashboard...`;
-            succBox.style.display = 'block';
-            setTimeout(() => {
-                window.location.href = '/dashboard';
-            }, 1800);
+        if (response.ok && (data.status === 'pending' || data.status === 'success')) {
+            actionBtns.style.display = 'none';
+            succCard.style.display = 'block';
         } else {
-            errBox.innerText = data.detail || 'Could not verify transaction. Please check your Reference ID.';
+            errBox.innerText = data.detail || 'Could not submit payment proof. Please check your transaction ID.';
             errBox.style.display = 'block';
             btn.disabled = false;
             btn.innerText = originalText;
         }
     } catch (err) {
-        errBox.innerText = 'Network error connecting to activation service: ' + err.message;
+        errBox.innerText = 'Network error connecting to verification service: ' + err.message;
         errBox.style.display = 'block';
         btn.disabled = false;
         btn.innerText = originalText;

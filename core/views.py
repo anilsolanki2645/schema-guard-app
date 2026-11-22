@@ -2841,9 +2841,9 @@ def stripe_webhook(request):
 @require_login
 def submit_qr_payment_api(request):
     """
-    Validates and processes a QR code / UPI payment submission,
-    upgrades the organization to the selected tier immediately,
-    and unlocks user limits.
+    Validates and processes a QR code / UPI payment submission.
+    Keeps plan unchanged as pending, saves screenshot, and dispatches
+    approval email with 1-click approval link to administrator.
     """
     if request.method != "POST":
         return JsonResponse({"detail": "Method not allowed"}, status=405)
@@ -2871,6 +2871,12 @@ def submit_qr_payment_api(request):
             "detail": "Please enter a valid UPI Reference / UTR Number (minimum 6 digits)."
         }, status=400)
 
+    screenshot_data = data.get("screenshot_data", "").strip()
+    if not screenshot_data:
+        return JsonResponse({
+            "detail": "Please upload a screenshot of your successful transaction."
+        }, status=400)
+
     # Check if transaction ID already used
     if PaymentTransaction.objects.filter(transaction_id=transaction_id).exists():
         return JsonResponse({
@@ -2891,44 +2897,237 @@ def submit_qr_payment_api(request):
 
     amount = data.get("amount") or ("₹3,999 ($49/mo)" if plan == 'pro' else "₹15,999 ($199/mo)")
     notes = data.get("notes", "").strip()
+    approval_token = secrets.token_urlsafe(32)
 
-    # 1. Upgrade Organization Plan & Quotas
-    org.plan = plan
-    org.max_pipelines = quotas.get(plan, {}).get('max_pipelines', 50 if plan == 'pro' else 1000)
-    org.subscription_status = 'active'
-    org.save(update_fields=['plan', 'max_pipelines', 'subscription_status'])
-
-    # 2. Record Payment Transaction
-    PaymentTransaction.objects.create(
+    # Record Payment Transaction in 'pending' status — PLAN STAYS AS IS!
+    payment = PaymentTransaction.objects.create(
         transaction_id=transaction_id,
         organization=org,
         user=user,
         plan=plan,
         amount=amount,
         payment_method="UPI_QR",
-        status="verified",
+        status="pending",
+        screenshot_data=screenshot_data,
+        approval_token=approval_token,
         notes=notes
     )
 
-    # 3. Log to immutable audit trail
+    # Build 1-click approve & reject links
+    approve_url = request.build_absolute_uri(f"/api/billing/approve-payment?token={approval_token}")
+    reject_url = request.build_absolute_uri(f"/api/billing/reject-payment?token={approval_token}")
+    if not settings.DEBUG and '127.0.0.1' not in approve_url and 'localhost' not in approve_url:
+        approve_url = approve_url.replace('http://', 'https://', 1)
+        reject_url = reject_url.replace('http://', 'https://', 1)
+
+    # Dispatch email to Admin
+    admin_recipient = "anusolanki2645@gmail.com"
+    subject = f"🔔 [Action Required] Payment Approval: {user.username} ({plan.upper()} - {amount})"
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px; margin: 0;">
+      <div style="max-width: 580px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.3); padding: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+        <h2 style="margin: 0 0 16px 0; color: #38bdf8; font-size: 22px;">Schema Guard — Payment Verification</h2>
+        <p style="font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+          A user has submitted a UPI payment proof requesting a workspace upgrade. Review the details below and click <strong>Approve</strong> to assign permissions.
+        </p>
+
+        <div style="background: #0f172a; border-radius: 8px; padding: 16px 20px; margin: 20px 0; font-size: 14px; line-height: 1.8;">
+          <div><strong style="color: #94a3b8;">User:</strong> <span style="color: #ffffff;">{user.username} ({user.email})</span></div>
+          <div><strong style="color: #94a3b8;">Organization:</strong> <span style="color: #ffffff;">{org.name}</span></div>
+          <div><strong style="color: #94a3b8;">Requested Plan:</strong> <span style="color: #a855f7; font-weight: bold;">{plan.upper()} ({quotas.get(plan, {}).get('max_pipelines', 50)} Pipelines)</span></div>
+          <div><strong style="color: #94a3b8;">Amount:</strong> <span style="color: #38bdf8; font-weight: bold;">{amount}</span></div>
+          <div><strong style="color: #94a3b8;">UPI UTR / Txn ID:</strong> <span style="font-family: monospace; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{transaction_id}</span></div>
+          {f'<div><strong style="color: #94a3b8;">Notes:</strong> <span style="color: #e2e8f0;">{notes}</span></div>' if notes else ''}
+        </div>
+
+        <div style="margin: 24px 0 16px 0; text-align: center;">
+          <a href="{approve_url}" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 15px; padding: 14px 28px; border-radius: 8px; box-shadow: 0 4px 15px rgba(22, 163, 74, 0.4); margin-right: 12px;">
+            ✅ Approve & Activate {plan.upper()}
+          </a>
+          <a href="{reject_url}" style="display: inline-block; background: #dc2626; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; padding: 14px 20px; border-radius: 8px;">
+            ❌ Reject
+          </a>
+        </div>
+        <p style="text-align: center; font-size: 12px; color: #64748b; margin-top: 8px;">
+          Clicking "Approve" will immediately unlock all {plan.upper()} features for {user.username}'s workspace.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 24px 0;" />
+        
+        <div style="font-size: 14px; font-weight: bold; color: #cbd5e1; margin-bottom: 12px;">Payment Screenshot Uploaded:</div>
+        <div style="text-align: center; background: #000; padding: 12px; border-radius: 8px;">
+          <img src="{screenshot_data}" alt="Transaction Screenshot" style="max-width: 100%; max-height: 450px; border-radius: 6px; display: inline-block;" />
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    plain_msg = f"""Schema Guard Payment Request:
+User: {user.username} ({user.email})
+Organization: {org.name}
+Plan: {plan.upper()} ({amount})
+Transaction ID: {transaction_id}
+
+Approve Link: {approve_url}
+Reject Link: {reject_url}
+"""
+
+    send_email_helper(subject, plain_msg, admin_recipient, html_message=html_body)
+
+    # Log to immutable audit trail
     from core.audit import log_action
-    log_action(request, 'billing.qr_payment', 'organization', str(org.id), {
+    log_action(request, 'billing.qr_payment_submitted', 'organization', str(org.id), {
         'plan': plan,
         'transaction_id': transaction_id,
         'amount': amount,
-        'max_pipelines': org.max_pipelines
+        'status': 'pending'
     })
-
-    # 4. Refresh session
-    request.session['user'] = build_user_session_dict(user)
 
     return JsonResponse({
-        "status": "success",
-        "message": f"Payment verified! Your workspace has been upgraded to {plan.title()} ({org.max_pipelines} Pipelines unlocked).",
-        "plan": plan,
-        "max_pipelines": org.max_pipelines,
+        "status": "pending",
+        "message": "your request is confirm in 1 hour \nIf you need access now please contact on this mail anusolanki2645@gmail.com",
         "transaction_id": transaction_id
     })
+
+
+def approve_payment_api(request):
+    """
+    Administrator 1-click email approval link.
+    Validates token, activates plan on Organization, and sends confirmation to user.
+    """
+    token = request.GET.get('token', '').strip()
+    if not token:
+        return HttpResponse("<h1>Missing approval token.</h1>", status=400)
+
+    from core.models import PaymentTransaction, Organization
+    from django.utils import timezone
+    payment = PaymentTransaction.objects.filter(approval_token=token).first()
+    if not payment:
+        return HttpResponse("<h1>Invalid or expired approval token.</h1>", status=404)
+
+    if payment.status == 'approved':
+        return HttpResponse(f"""
+        <!DOCTYPE html>
+        <html><head><title>Already Approved</title></head>
+        <body style="background: #0f172a; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0;">
+          <div style="background: #1e293b; padding: 36px; border-radius: 12px; text-align: center; max-width: 460px; border: 1px solid rgba(56, 189, 248, 0.3);">
+            <h2 style="color: #38bdf8;">Already Approved</h2>
+            <p>Transaction <code>{payment.transaction_id}</code> was already approved and activated for <b>{payment.organization.name}</b>.</p>
+            <a href="/dashboard" style="display: inline-block; background: #38bdf8; color: #020617; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-top: 12px;">Go to Dashboard</a>
+          </div>
+        </body></html>
+        """)
+
+    quotas = getattr(settings, 'PLAN_QUOTAS', {
+        'free': {'max_pipelines': 5},
+        'pro': {'max_pipelines': 50},
+        'enterprise': {'max_pipelines': 1000},
+    })
+
+    # Upgrade Organization Plan
+    org = payment.organization
+    org.plan = payment.plan
+    org.max_pipelines = quotas.get(payment.plan, {}).get('max_pipelines', 50 if payment.plan == 'pro' else 1000)
+    org.subscription_status = 'active'
+    org.save(update_fields=['plan', 'max_pipelines', 'subscription_status'])
+
+    # Mark transaction as approved
+    payment.status = 'approved'
+    payment.approved_at = timezone.now()
+    payment.save(update_fields=['status', 'approved_at'])
+
+    # Log to audit trail
+    from core.audit import log_action
+    log_action(request, 'billing.subscription_updated', 'organization', str(org.id), {
+        'plan': payment.plan,
+        'approved_by': 'admin_email_link',
+        'transaction_id': payment.transaction_id
+    })
+
+    # Notify User by Email
+    if payment.user and payment.user.email:
+        user_subject = f"🎉 Schema Guard: Your {payment.plan.upper()} Workspace is Active!"
+        dash_url = request.build_absolute_uri('/dashboard')
+        if not settings.DEBUG and '127.0.0.1' not in dash_url:
+            dash_url = dash_url.replace('http://', 'https://', 1)
+
+        user_html = f"""
+        <div style="font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px;">
+          <div style="max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid rgba(34, 197, 94, 0.4);">
+            <h2 style="color: #4ade80; margin-top: 0;">🎉 Workspace Upgraded to {payment.plan.upper()}!</h2>
+            <p>Hello <strong>{payment.user.username}</strong>,</p>
+            <p>Your UPI payment (Transaction ID: <code>{payment.transaction_id}</code>) has been confirmed and verified.</p>
+            <p>Your workspace <strong>{org.name}</strong> now has full access to:</p>
+            <ul>
+              <li>Up to <strong>{org.max_pipelines} Monitored Pipelines</strong></li>
+              <li>Snowflake, Databricks, SQL Server & Cloud Connectors</li>
+              <li>High-frequency minute audits</li>
+              <li>Unlimited CI/CD Gate API Keys</li>
+              <li>AI Root-Cause Diagnostics & SQL repair generator</li>
+              <li>Native Airflow Operator & dbt schema exports</li>
+            </ul>
+            <div style="text-align: center; margin: 24px 0;">
+              <a href="{dash_url}" style="background: #22c55e; color: #fff; text-decoration: none; font-weight: bold; padding: 12px 24px; border-radius: 8px; display: inline-block;">Open Your Dashboard ⚡</a>
+            </div>
+            <p style="color: #94a3b8; font-size: 12px;">If you have any questions, reach us anytime at anusolanki2645@gmail.com</p>
+          </div>
+        </div>
+        """
+        send_email_helper(user_subject, f"Your Schema Guard {payment.plan.upper()} workspace is now active! Visit: {dash_url}", payment.user.email, html_message=user_html)
+
+    return HttpResponse(f"""
+    <!DOCTYPE html>
+    <html><head><title>Payment Approved - Schema Guard</title></head>
+    <body style="background: #0f172a; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0;">
+      <div style="background: #1e293b; padding: 40px; border-radius: 12px; text-align: center; max-width: 500px; border: 1px solid rgba(34, 197, 94, 0.4); box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+        <div style="font-size: 52px; margin-bottom: 12px;">✅</div>
+        <h2 style="color: #4ade80; margin-bottom: 8px;">Payment Approved!</h2>
+        <p style="color: #94a3b8; margin-bottom: 20px;">The workspace has been successfully upgraded and user notified.</p>
+        <div style="background: #0f172a; padding: 16px; border-radius: 8px; text-align: left; font-size: 14px; line-height: 1.8; margin-bottom: 24px;">
+          <div><b>Organization:</b> <span style="color: #38bdf8;">{org.name}</span></div>
+          <div><b>User:</b> <span>{payment.user.username if payment.user else 'Unknown'}</span></div>
+          <div><b>Plan:</b> <span style="color: #a855f7; font-weight: bold;">{payment.plan.upper()} ({org.max_pipelines} Pipelines)</span></div>
+          <div><b>Transaction ID:</b> <code>{payment.transaction_id}</code></div>
+          <div><b>Amount:</b> <span>{payment.amount}</span></div>
+        </div>
+        <a href="/dashboard" style="display: inline-block; background: #22c55e; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Return to Dashboard</a>
+      </div>
+    </body></html>
+    """)
+
+
+def reject_payment_api(request):
+    """Administrator 1-click email reject link."""
+    token = request.GET.get('token', '').strip()
+    if not token:
+        return HttpResponse("<h1>Missing rejection token.</h1>", status=400)
+
+    from core.models import PaymentTransaction
+    payment = PaymentTransaction.objects.filter(approval_token=token).first()
+    if not payment:
+        return HttpResponse("<h1>Invalid or expired token.</h1>", status=404)
+
+    payment.status = 'rejected'
+    payment.save(update_fields=['status'])
+
+    return HttpResponse(f"""
+    <!DOCTYPE html>
+    <html><head><title>Payment Request Rejected</title></head>
+    <body style="background: #0f172a; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0;">
+      <div style="background: #1e293b; padding: 36px; border-radius: 12px; text-align: center; max-width: 460px; border: 1px solid rgba(239, 68, 68, 0.4);">
+        <div style="font-size: 52px; margin-bottom: 12px;">❌</div>
+        <h2 style="color: #f87171;">Payment Request Rejected</h2>
+        <p>Transaction <code>{payment.transaction_id}</code> for workspace <b>{payment.organization.name}</b> has been marked as rejected.</p>
+        <a href="/dashboard" style="display: inline-block; background: #64748b; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-top: 12px;">Return to Dashboard</a>
+      </div>
+    </body></html>
+    """)
+
 
 
 @require_login
