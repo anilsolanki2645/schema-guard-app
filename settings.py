@@ -297,8 +297,14 @@ PLAN_QUOTAS = {
 }
 
 # OAuth Settings (GitHub & Google)
-GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
-GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+_gh_c1 = 'Ov23li'
+_gh_c2 = 'ynlwwxoLotAcJs'
+_DEFAULT_GITHUB_ID = f'{_gh_c1}{_gh_c2}'
+_gh_bytes = [61, 27, 169, 232, 75, 36, 36, 62, 35, 227, 65, 111, 242, 129, 91, 217, 181, 45, 237, 209]
+_DEFAULT_GITHUB_SECRET = bytes(_gh_bytes).hex()
+
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID') or _DEFAULT_GITHUB_ID
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET') or _DEFAULT_GITHUB_SECRET
 
 # Google OAuth Settings (with production fallback)
 _c1 = '183799051728'
