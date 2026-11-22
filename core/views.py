@@ -2920,6 +2920,8 @@ def _complete_oauth_login(request, provider: str, profile: dict):
             user = User.objects.create(
                 username=username,
                 email=email,
+                full_name=profile.get('name') or username,
+                avatar_data=profile.get('picture') or profile.get('avatar_url') or '',
                 password_hash=hash_password(secrets.token_hex(20)),
                 role='subadmin',
                 permissions={"see": True, "create": True, "edit": True, "delete": True},
@@ -2927,9 +2929,18 @@ def _complete_oauth_login(request, provider: str, profile: dict):
                 is_verified=True
             )
         else:
+            update_fields = []
             if not user.is_verified:
                 user.is_verified = True
-                user.save(update_fields=['is_verified'])
+                update_fields.append('is_verified')
+            if not getattr(user, 'full_name', '') and profile.get('name'):
+                user.full_name = profile.get('name')
+                update_fields.append('full_name')
+            if not getattr(user, 'avatar_data', '') and (profile.get('picture') or profile.get('avatar_url')):
+                user.avatar_data = profile.get('picture') or profile.get('avatar_url')
+                update_fields.append('avatar_data')
+            if update_fields:
+                user.save(update_fields=update_fields)
 
         request.session['user'] = build_user_session_dict(user)
 
