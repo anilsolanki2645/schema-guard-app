@@ -59,6 +59,7 @@ urlpatterns = [
     path('api/billing/approve-payment', views.approve_payment_api, name='approve_payment'),
     path('api/billing/reject-payment', views.reject_payment_api, name='reject_payment'),
     path('api/billing/transactions', views.list_payment_transactions_api, name='list_payment_transactions'),
+    path('api/billing/transactions/<int:id>/screenshot', views.transaction_screenshot_api, name='transaction_screenshot'),
     
     # Verification and password reset URLs
     path('verify-email', views.verify_email_page, name='verify_email_page'),

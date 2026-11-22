@@ -7,26 +7,34 @@
 <section class="pricing-showcase" style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem 5rem;">
     <!-- Pricing Header -->
     <div style="text-align: center; margin-bottom: 3.5rem;">
-        <span class="hero-badge" style="display: inline-block; margin-bottom: 1rem;">💎 Predictable, Developer-Friendly Pricing</span>
-        <h1 style="font-size: 2.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.2;">
+        <span class="hero-badge" style="display: inline-block; margin-bottom: 1rem;">💎 Predictable, Developer-Friendly
+            Pricing</span>
+        <h1
+            style="font-size: 2.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.2;">
             Ironclad Schema Governance<br>
-            <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <span
+                style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
                 Built For Modern Data Teams
             </span>
         </h1>
-        <p style="color: var(--text-secondary); max-width: 680px; margin: 0 auto 2rem; font-size: 1.1rem; line-height: 1.6;">
-            Eliminate silent production pipeline breaks. Protect your analytics and downstream warehouse integrations with cryptographic schema contracts and continuous CI/CD gates.
+        <p
+            style="color: var(--text-secondary); max-width: 680px; margin: 0 auto 2rem; font-size: 1.1rem; line-height: 1.6;">
+            Eliminate silent production pipeline breaks. Protect your analytics and downstream warehouse integrations
+            with cryptographic schema contracts and continuous CI/CD gates.
         </p>
 
         {% if org %}
-        <div style="display: inline-flex; align-items: center; gap: 0.75rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.6rem 1.25rem; border-radius: 9999px;">
+        <div
+            style="display: inline-flex; align-items: center; gap: 0.75rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.6rem 1.25rem; border-radius: 9999px;">
             <span style="font-size: 0.85rem; color: #38bdf8; font-weight: 600;">Current Workspace:</span>
             <span style="font-size: 0.85rem; color: #ffffff; font-weight: 700;">{{ org.name }}</span>
-            <span style="font-size: 0.75rem; background: #38bdf8; color: #020617; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 9999px; text-transform: uppercase;">
+            <span
+                style="font-size: 0.75rem; background: #38bdf8; color: #020617; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 9999px; text-transform: uppercase;">
                 {{ org.plan|upper }} ({{ org.max_pipelines }} Pipelines)
             </span>
             {% if org.plan != 'free' %}
-            <button onclick="openCustomerPortal()" class="btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-left: 0.5rem;">
+            <button onclick="openCustomerPortal()" class="btn-secondary"
+                style="padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-left: 0.5rem;">
                 Manage Billing ⚙️
             </button>
             {% endif %}
@@ -35,48 +43,61 @@
     </div>
 
     <!-- Pricing Cards Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; margin-bottom: 4.5rem; align-items: stretch;">
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; margin-bottom: 4.5rem; align-items: stretch;">
         {% for plan in plans %}
-        <div class="glass-card" style="display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; border-radius: 1.25rem; position: relative; {% if plan.highlight %}border-color: #8b5cf6; box-shadow: 0 0 35px rgba(139, 92, 246, 0.25); transform: scale(1.02); background: linear-gradient(180deg, rgba(30, 27, 75, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);{% endif %}">
-            
+        <div class="glass-card"
+            style="display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; border-radius: 1.25rem; position: relative; {% if plan.highlight %}border-color: #8b5cf6; box-shadow: 0 0 35px rgba(139, 92, 246, 0.25); transform: scale(1.02); background: linear-gradient(180deg, rgba(30, 27, 75, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);{% endif %}">
+
             {% if plan.highlight %}
-            <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.35rem 1rem; border-radius: 9999px; letter-spacing: 0.05em; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);">
+            <div
+                style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.35rem 1rem; border-radius: 9999px; letter-spacing: 0.05em; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);">
                 {{ plan.badge }}
             </div>
             {% endif %}
 
             <div>
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-                    <h3 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); margin: 0;">{{ plan.name }}</h3>
+                <div
+                    style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+                    <h3 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); margin: 0;">{{ plan.name
+                        }}</h3>
                     {% if not plan.highlight and plan.badge %}
-                    <span style="font-size: 0.7rem; background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); padding: 0.2rem 0.5rem; border-radius: 0.35rem; font-weight: 600;">
+                    <span
+                        style="font-size: 0.7rem; background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); padding: 0.2rem 0.5rem; border-radius: 0.35rem; font-weight: 600;">
                         {{ plan.badge }}
                     </span>
                     {% endif %}
                 </div>
 
-                <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; min-height: 40px; margin-bottom: 1.5rem;">
+                <p
+                    style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; min-height: 40px; margin-bottom: 1.5rem;">
                     {{ plan.description }}
                 </p>
 
-                <div style="display: flex; align-items: baseline; gap: 0.35rem; margin-bottom: 1.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.5rem;">
+                <div
+                    style="display: flex; align-items: baseline; gap: 0.35rem; margin-bottom: 1.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.5rem;">
                     <span style="font-size: 2.75rem; font-weight: 900; color: #ffffff;">{{ plan.price }}</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem; font-weight: 500;">/ {{ plan.period }}</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem; font-weight: 500;">/ {{ plan.period
+                        }}</span>
                 </div>
 
                 <div style="margin-bottom: 2rem;">
-                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem;">
+                    <div
+                        style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem;">
                         Included Capabilities
                     </div>
-                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.8rem;">
+                    <ul
+                        style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.8rem;">
                         {% for feature in plan.features %}
-                        <li style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.88rem; color: var(--text-primary); line-height: 1.4;">
+                        <li
+                            style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.88rem; color: var(--text-primary); line-height: 1.4;">
                             <span style="color: #22c55e; font-weight: 800; font-size: 1rem;">✓</span>
                             <span>{{ feature }}</span>
                         </li>
                         {% endfor %}
                         {% for unf in plan.unavailable %}
-                        <li style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.85rem; color: var(--text-muted); opacity: 0.5; line-height: 1.4;">
+                        <li
+                            style="display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.85rem; color: var(--text-muted); opacity: 0.5; line-height: 1.4;">
                             <span style="color: #64748b; font-weight: 700;">✕</span>
                             <span style="text-decoration: line-through;">{{ unf }}</span>
                         </li>
@@ -87,23 +108,29 @@
 
             <div style="margin-top: 1rem;">
                 {% if is_logged_in %}
-                    {% if current_plan == plan.id %}
-                        <button class="btn-secondary" style="width: 100%; padding: 0.85rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default;">
-                            ✓ Active Plan
-                        </button>
-                    {% elif plan.id == 'free' %}
-                        <button onclick="handleDowngrade()" class="btn-secondary" style="width: 100%; padding: 0.85rem; font-weight: 700;">
-                            Switch to Free
-                        </button>
-                    {% else %}
-                        <button onclick="initiateCheckout('{{ plan.id }}')" id="btn-checkout-{{ plan.id }}" class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}" style="width: 100%; padding: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                            {{ plan.cta_text }}
-                        </button>
-                    {% endif %}
+                {% if current_plan == plan.id %}
+                <button class="btn-secondary"
+                    style="width: 100%; padding: 0.85rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default;">
+                    ✓ Active Plan
+                </button>
+                {% elif plan.id == 'free' %}
+                <button onclick="handleDowngrade()" class="btn-secondary"
+                    style="width: 100%; padding: 0.85rem; font-weight: 700;">
+                    Switch to Free
+                </button>
                 {% else %}
-                    <button onclick="openAuthModal(true)" class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}" style="width: 100%; padding: 0.85rem; font-weight: 700;">
-                        {% if plan.id == 'free' %}Get Started Free ⚡{% else %}Sign Up to Upgrade 🚀{% endif %}
-                    </button>
+                <button onclick="initiateCheckout('{{ plan.id }}')" id="btn-checkout-{{ plan.id }}"
+                    class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}"
+                    style="width: 100%; padding: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    {{ plan.cta_text }}
+                </button>
+                {% endif %}
+                {% else %}
+                <button onclick="openAuthModal(true)"
+                    class="{% if plan.highlight %}btn-primary{% else %}btn-secondary{% endif %}"
+                    style="width: 100%; padding: 0.85rem; font-weight: 700;">
+                    {% if plan.id == 'free' %}Get Started Free ⚡{% else %}Sign Up to Upgrade 🚀{% endif %}
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -112,7 +139,8 @@
 
     <!-- Feature Comparison Matrix -->
     <div class="glass-card" style="padding: 2.5rem; border-radius: 1.25rem; margin-bottom: 4.5rem; overflow-x: auto;">
-        <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.5rem; text-align: center;">
+        <h2
+            style="font-size: 1.75rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.5rem; text-align: center;">
             Detailed Plan Comparison
         </h2>
         <p style="color: var(--text-secondary); text-align: center; margin-bottom: 2.5rem; font-size: 0.95rem;">
@@ -123,38 +151,50 @@
             <thead>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.12);">
                     <th style="padding: 1rem; color: var(--text-muted); font-weight: 600; width: 40%;">Core Feature</th>
-                    <th style="padding: 1rem; color: var(--text-primary); font-weight: 700; text-align: center;">Developer (Free)</th>
+                    <th style="padding: 1rem; color: var(--text-primary); font-weight: 700; text-align: center;">
+                        Developer (Free)</th>
                     <th style="padding: 1rem; color: #8b5cf6; font-weight: 800; text-align: center;">Team Pro ($49)</th>
-                    <th style="padding: 1rem; color: #38bdf8; font-weight: 800; text-align: center;">Enterprise ($199)</th>
+                    <th style="padding: 1rem; color: #38bdf8; font-weight: 800; text-align: center;">Enterprise ($199)
+                    </th>
                 </tr>
             </thead>
             <tbody>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Monitored Pipelines Quota</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Monitored Pipelines Quota
+                    </td>
                     <td style="padding: 1rem; text-align: center;">5 Pipelines</td>
                     <td style="padding: 1rem; text-align: center; font-weight: 700; color: #a78bfa;">50 Pipelines</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1,000 Pipelines</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1,000 Pipelines
+                    </td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Supported Database Engines</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Supported Database Engines
+                    </td>
                     <td style="padding: 1rem; text-align: center;">Postgres, MySQL, SQLite</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Postgres, MySQL, Snowflake, SQL Server, Databricks</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Engines + Dedicated Cluster Pools</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Postgres, MySQL, Snowflake, SQL
+                        Server, Databricks</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Engines + Dedicated Cluster
+                        Pools</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Contract Integrity Signatures (SHA-256)</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Contract Integrity
+                        Signatures (SHA-256)</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Scheduled Audit Frequency</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Scheduled Audit Frequency
+                    </td>
                     <td style="padding: 1rem; text-align: center;">Daily</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #a78bfa;">Down to 1 minute</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #38bdf8;">Continuous & Custom Cron</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #a78bfa;">Down to 1 minute
+                    </td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600; color: #38bdf8;">Continuous & Custom
+                        Cron</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">CI/CD Gate API Keys & Tokens</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">CI/CD Gate API Keys &
+                        Tokens</td>
                     <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Unlimited</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Unlimited + RBAC Scoping</td>
@@ -162,23 +202,28 @@
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                     <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Alert Channels</td>
                     <td style="padding: 1rem; text-align: center;">Email</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Email, Slack, WhatsApp, Webhooks</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Channels + Custom Webhook Security</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">Email, Slack, WhatsApp, Webhooks
+                    </td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 600;">All Channels + Custom Webhook
+                        Security</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">AI Root-Cause Diagnosis & SQL Repair</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">AI Root-Cause Diagnosis &
+                        SQL Repair</td>
                     <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Priority Engine</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Airflow Operator & dbt Schema Exporter</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Airflow Operator & dbt
+                        Schema Exporter</td>
                     <td style="padding: 1rem; text-align: center; color: #64748b;">—</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Native Download</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Native Download</td>
                 </tr>
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Credential Encryption At Rest (Fernet AES-128)</td>
+                    <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Credential Encryption At
+                        Rest (Fernet AES-128)</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Included</td>
                     <td style="padding: 1rem; text-align: center; color: #22c55e;">✓ Dedicated Key Rotation</td>
@@ -187,7 +232,8 @@
                     <td style="padding: 1rem; color: var(--text-primary); font-weight: 600;">Support SLA</td>
                     <td style="padding: 1rem; text-align: center;">Community</td>
                     <td style="padding: 1rem; text-align: center; font-weight: 600;">Priority Email (24h)</td>
-                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1-Hour Dedicated SLA + Slack</td>
+                    <td style="padding: 1rem; text-align: center; font-weight: 700; color: #38bdf8;">1-Hour Dedicated
+                        SLA + Slack</td>
                 </tr>
             </tbody>
         </table>
@@ -195,17 +241,21 @@
 
     <!-- FAQ Section -->
     <div style="max-width: 850px; margin: 0 auto 3rem;">
-        <h2 style="font-size: 2rem; font-weight: 800; color: var(--text-primary); text-align: center; margin-bottom: 2rem;">
+        <h2
+            style="font-size: 2rem; font-weight: 800; color: var(--text-primary); text-align: center; margin-bottom: 2rem;">
             Frequently Asked Questions
         </h2>
-        
+
         <div style="display: flex; flex-direction: column; gap: 1.25rem;">
             <div class="glass-card" style="padding: 1.5rem; border-radius: 0.75rem;">
                 <h4 style="font-size: 1.05rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.5rem 0;">
                     How does Schema Guard block broken database migrations?
                 </h4>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
-                    Schema Guard acts as a gatekeeper in your CI/CD pipelines (GitHub Actions, GitLab CI, Airflow). Before your DDL migration or pipeline executes, it validates the proposed schema against your locked contract baseline. If breaking changes (such as dropped columns, incompatible type changes, or nullability shifts) are detected, the gate fails immediately with non-zero exit codes.
+                    Schema Guard acts as a gatekeeper in your CI/CD pipelines (GitHub Actions, GitLab CI, Airflow).
+                    Before your DDL migration or pipeline executes, it validates the proposed schema against your locked
+                    contract baseline. If breaking changes (such as dropped columns, incompatible type changes, or
+                    nullability shifts) are detected, the gate fails immediately with non-zero exit codes.
                 </p>
             </div>
 
@@ -214,7 +264,10 @@
                     Are our database credentials safe?
                 </h4>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
-                    Yes. All database connection strings are encrypted at rest using Fernet AES-128 cryptographic keys. Plaintext passwords are automatically masked with asterisks in all UI views and API serialization responses. Additionally, Schema Guard uses lazy connection pooling that disconnects immediately after catalog metadata extraction.
+                    Yes. All database connection strings are encrypted at rest using Fernet AES-128 cryptographic keys.
+                    Plaintext passwords are automatically masked with asterisks in all UI views and API serialization
+                    responses. Additionally, Schema Guard uses lazy connection pooling that disconnects immediately
+                    after catalog metadata extraction.
                 </p>
             </div>
 
@@ -223,7 +276,8 @@
                     Can I cancel or upgrade anytime?
                 </h4>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; margin: 0;">
-                    Absolutely. Subscriptions are billed monthly with no lock-in. You can upgrade, downgrade, or cancel directly from your Stripe Billing Customer Portal at any moment.
+                    Absolutely. Subscriptions are billed monthly with no lock-in. You can upgrade, downgrade, or cancel
+                    directly from your Stripe Billing Customer Portal at any moment.
                 </p>
             </div>
         </div>
@@ -231,14 +285,18 @@
 </section>
 
 <!-- UPI QR Payment & Instant Activation Modal -->
-<div id="qrPaymentModal" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(10px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
-    <div class="glass-card" style="max-width: 480px; width: 100%; border-radius: 1.25rem; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2rem; position: relative; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);">
+<div id="qrPaymentModal"
+    style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(10px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+    <div class="glass-card"
+        style="max-width: 480px; width: 100%; border-radius: 1.25rem; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2rem; position: relative; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);">
         <!-- Close Button -->
-        <button onclick="closeQrPaymentModal()" style="position: absolute; top: 1.25rem; right: 1.25rem; background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+        <button onclick="closeQrPaymentModal()"
+            style="position: absolute; top: 1.25rem; right: 1.25rem; background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
 
         <!-- Modal Header -->
         <div style="text-align: center; margin-bottom: 1.5rem;">
-            <div id="qr-modal-badge" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.3rem 0.85rem; border-radius: 9999px; letter-spacing: 0.05em; margin-bottom: 0.75rem;">
+            <div id="qr-modal-badge"
+                style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.3rem 0.85rem; border-radius: 9999px; letter-spacing: 0.05em; margin-bottom: 0.75rem;">
                 Workspace Upgrade
             </div>
             <h3 id="qr-modal-title" style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin: 0 0 0.4rem 0;">
@@ -250,21 +308,29 @@
         </div>
 
         <!-- QR Code & Payee Display -->
-        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; padding: 1.25rem; text-align: center; margin-bottom: 1.5rem;">
-            <div style="display: inline-block; background: #ffffff; padding: 0.5rem; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
-                <img src="/static/core/images/payment_upi_qr.jpg" alt="Paytm UPI QR" style="width: 190px; height: 190px; object-fit: contain; display: block; border-radius: 0.5rem;">
+        <div
+            style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; padding: 1.25rem; text-align: center; margin-bottom: 1.5rem;">
+            <div
+                style="display: inline-block; background: #ffffff; padding: 0.5rem; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
+                <img src="/static/core/images/payment_upi_qr.jpg" alt="Paytm UPI QR"
+                    style="width: 190px; height: 190px; object-fit: contain; display: block; border-radius: 0.5rem;">
             </div>
-            
+
             <div style="margin-top: 1rem;">
                 <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Anilbhai Isvarbhai Solanki</div>
-                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.35rem 0.75rem; border-radius: 0.5rem; margin-top: 0.4rem;">
+                <div
+                    style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.35rem 0.75rem; border-radius: 0.5rem; margin-top: 0.4rem;">
                     <span style="font-family: monospace; font-size: 0.85rem; color: #38bdf8;">9558322778@pthdfc</span>
-                    <button onclick="copyUpiId()" id="btn-copy-upi" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem;" title="Copy UPI ID">📋</button>
+                    <button onclick="copyUpiId()" id="btn-copy-upi"
+                        style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem;"
+                        title="Copy UPI ID">📋</button>
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
-                <span>Paytm</span> • <span>PhonePe</span> • <span>Google Pay</span> • <span>BHIM</span> • <span>Any UPI App</span>
+            <div
+                style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
+                <span>Paytm</span> • <span>PhonePe</span> • <span>Google Pay</span> • <span>BHIM</span> • <span>Any UPI
+                    App</span>
             </div>
         </div>
 
@@ -273,55 +339,69 @@
             <input type="hidden" id="qr-selected-plan" value="pro">
 
             <div style="margin-bottom: 1.25rem;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
+                <label
+                    style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
                     12-Digit UPI UTR / Transaction Reference ID <span style="color: #ef4444;">*</span>
                 </label>
-                <input type="text" id="qr-txn-id" required placeholder="e.g. 412345678901 or UTR Number" 
-                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.75rem 1rem; color: #ffffff; font-size: 0.95rem; font-family: monospace;">
+                <input type="text" id="qr-txn-id" required placeholder="e.g. 412345678901 or UTR Number"
+                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.75rem 1rem; color: #ffffff; font-size: 0.95rem; font-family: monospace;">
                 <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
                     Found in your payment app's receipt (UTR / UPI Ref No).
                 </span>
             </div>
 
             <div style="margin-bottom: 1.25rem;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
+                <label
+                    style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
                     Upload Transaction Screenshot <span style="color: #ef4444;">*</span>
                 </label>
-                <input type="file" id="qr-screenshot-input" accept="image/*" required onchange="handleScreenshotUpload(event)"
-                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #94a3b8; font-size: 0.85rem; cursor: pointer;">
-                <div id="screenshot-preview-container" style="display: none; margin-top: 0.5rem; text-align: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.5rem;">
-                    <img id="screenshot-preview-img" style="max-height: 120px; max-width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);" />
-                    <span style="display: block; font-size: 0.75rem; color: #22c55e; margin-top: 0.25rem;">✓ Screenshot attached</span>
+                <input type="file" id="qr-screenshot-input" accept="image/*" required
+                    onchange="handleScreenshotUpload(event)"
+                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #94a3b8; font-size: 0.85rem; cursor: pointer;">
+                <div id="screenshot-preview-container"
+                    style="display: none; margin-top: 0.5rem; text-align: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.5rem;">
+                    <img id="screenshot-preview-img"
+                        style="max-height: 120px; max-width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);" />
+                    <span style="display: block; font-size: 0.75rem; color: #22c55e; margin-top: 0.25rem;">✓ Screenshot
+                        attached</span>
                 </div>
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
+                <label
+                    style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
                     Notes / Organization Name (Optional)
                 </label>
-                <input type="text" id="qr-txn-notes" placeholder="e.g. Upgrade for analytics workspace" 
-                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #ffffff; font-size: 0.85rem;">
+                <input type="text" id="qr-txn-notes" placeholder="e.g. Upgrade for analytics workspace"
+                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #ffffff; font-size: 0.85rem;">
             </div>
 
-            <div id="qr-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
-            
-            <div id="qr-success-card" style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: left;">
-                <div style="display: flex; align-items: center; gap: 0.6rem; color: #4ade80; font-weight: 800; font-size: 1rem; margin-bottom: 0.6rem;">
+            <div id="qr-error-msg"
+                style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;">
+            </div>
+
+            <div id="qr-success-card"
+                style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: left;">
+                <div
+                    style="display: flex; align-items: center; gap: 0.6rem; color: #4ade80; font-weight: 800; font-size: 1rem; margin-bottom: 0.6rem;">
                     <span style="font-size: 1.3rem;">✅</span> Payment Proof Submitted!
                 </div>
                 <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">
                     your request is confirm in 1 hour
                 </div>
                 <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;">
-                    If you need access now please contact on this mail <a href="mailto:anusolanki2645@gmail.com" style="color: #38bdf8; font-weight: 700; text-decoration: underline;">anusolanki2645@gmail.com</a>
+                    If you need access now please contact on this mail <a href="mailto:anusolanki2645@gmail.com"
+                        style="color: #38bdf8; font-weight: 700; text-decoration: underline;">anusolanki2645@gmail.com</a>
                 </div>
                 <div style="margin-top: 1rem; text-align: right;">
-                    <button type="button" onclick="closeQrPaymentModal()" class="btn-secondary" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Close Window</button>
+                    <button type="button" onclick="closeQrPaymentModal()" class="btn-secondary"
+                        style="padding: 0.4rem 1rem; font-size: 0.8rem;">Close Window</button>
                 </div>
             </div>
 
             <div id="qr-action-buttons">
-                <button type="submit" id="btn-submit-qr" class="btn-primary" style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
+                <button type="submit" id="btn-submit-qr" class="btn-primary"
+                    style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
                     📤 Submit Payment Proof
                 </button>
             </div>
@@ -331,148 +411,124 @@
 
 <!-- Frontend Billing Checkout Script -->
 <script>
-function initiateCheckout(planId) {
-    if (planId === 'free') {
-        handleDowngrade();
+f        ion initiateCheckout(plan              if (planId === 'f                            le        grade();
         return;
-    }
-    openQrPaymentModal(planId);
+        }
+        openQrPaymentModal(planId);
 }
 
-let uploadedScreenshotBase64 = '';
+let        oadedScreenshotBase64 = '';
 
-function handleScreenshotUpload(event) {
+function handleScreenshotUpl        event) {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!fir        n;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onloa        function(e) {
         const img = new Image();
-        img.onload = function() {
-            // Client-side canvas compression to keep upload fast & under 150KB
-            const canvas = document.createElement('canvas');
-            let width = img.width;
+        im        load = function() {
+            // Client-side canvas com        sion to keep upload fast & under 150KB
+            cona         = document.createElement('canvas');
+            let width = img        th;
             let height = img.height;
-            const maxDim = 900;
+            const maxDim         0;
 
-            if (width > maxDim || height > maxDim) {
-                if (width > height) {
-                    height = Math.round((height * maxDim) / width);
+            if (width > maxDim || height > ma)                       if (width            t) {
+                    height = Math            height * maxDim) / width);
                     width = maxDim;
-                } else {
-                    width = Math.round((width * maxDim) / height);
-                    height = maxDim;
-                }
+                    } else {
+                    width = Math.round((width             ) / height);
+                    height =                             }
             }
 
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
+            canvas.width = wid                    canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
 
-            uploadedScreenshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
-            document.getElementById('screenshot-preview-img').src = uploadedScreenshotBase64;
-            document.getElementById('screenshot-preview-container').style.display = 'block';
-        };
-        img.src = e.target.result;
+            uploadedScree            e64 = canvas.toDataURL('image/jpeg', 0.8);
+            docume            ementById('screenshot-preview-img').src = up            reenshotBase64;
+            document.getElementById('screenshot-previ        one        style.display = 'block';
+                };
+        img.src = e.target.res        
     };
     reader.readAsDataURL(file);
 }
 
-function openQrPaymentModal(planId) {
-    const modal = document.getElementById('qrPaymentModal');
-    document.getElementById('qr-selected-plan').value = planId;
+function openQrPaymentM    oda    l(planId) {
+    const m         = document.getElementById('qrPaymentModal');
+    document.getEl            d('qr-selected-plan').value = planId;
     
-    const badge = document.getElementById('qr-modal-badge');
-    const title = document.getElementById('qr-modal-title');
-    const price = document.getElementById('qr-modal-price');
-    const btn = document.getElementById('btn-submit-qr');
+    const             document.getElementBy            odal-badge');
+    const title = document.getEl        tByI    d('    qr-modal-title');
+    const price =        ument.getElementById('qr-modal-price');
+    const btn = document.g        ementById('btn-submit-qr');
     
-    document.getElementById('qr-error-msg').style.display = 'none';
-    document.getElementById('qr-success-card').style.display = 'none';
-    document.getElementById('qr-action-buttons').style.display = 'block';
-    document.getElementById('qr-txn-id').value = '';
-    document.getElementById('qr-txn-notes').value = '';
-    document.getElementById('qr-screenshot-input').value = '';
-    document.getElementById('screenshot-preview-container').style.display = 'none';
+    document.getElementById('qr-        r-msg').style.display = 'none';
+    document.getElementById('qr-succ        card').style.display = 'none';
+    document.getElementBy        qr-action-buttons').style.display = 'block';
+    document.g        ementById('qr-txn-id').value = '';
+    document.getEleB        'qr-txn-notes').value = '';
+           ument.getElementById('qr-screensi        ').value = '';
+    document.getEle            ('screenshot-preview-container').style.display = 'none';
     uploadedScreenshotBase64 = '';
-    
-    if (planId === 'pro') {
-        badge.innerText = 'Team Pro Upgrade';
-        badge.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
+             if (planId === 'pro') {
+                   nnerText        Ter        grade';
+        badge.style.backgrou         'linear-gradient(135         #8b5cf6, #3b82f6)';
         title.innerText = 'Upgrade to Team Pro (50 Pipelines)';
         price.innerText = '₹3,999 / month ($49)';
-        btn.innerText = '📤 Submit Payment Proof (Team Pro)';
-    } else if (planId === 'enterprise') {
-        badge.innerText = 'Enterprise Upgrade';
-        badge.style.background = 'linear-gradient(135deg, #0ea5e9, #2563eb)';
-        title.innerText = 'Upgrade to Enterprise (1,000 Pipelines)';
-        price.innerText = '₹15,999 / month ($199)';
-        btn.innerText = '📤 Submit Payment Proof (Enterprise)';
+        btn        xt = '            t Payment Proof (Team Pro)';
+    } else if (planId === 'e                {
+        badge.                'Enterprise                       badge.style.background = 'linear-                     #0ea5e9, #2563eb)';
+        title.innerText                to                 1,000 Pipelines)';
+                        ext = '₹15,999                    ;
+        btn.innerText                    yment Proof (Enterprise)';
     }
     
-    modal.style.display = 'flex';
+    modal.style.display = 'fle                    closeQrPaymen                               .gety            ymentModal').style.display = 'none';t            UpiId() {
+    navigator.clipboard.writeText('955                fc').then(() => {
+        const btn = document.getElementById('btn-cop                     btn.innerText = '✅';
+                       () => btn.innerText                        });
 }
 
-function closeQrPaymentModal() {
-    document.getElementById('qrPaymentModal').style.display = 'none';
-}
-
-function copyUpiId() {
-    navigator.clipboard.writeText('9558322778@pthdfc').then(() => {
-        const btn = document.getElementById('btn-copy-upi');
-        btn.innerText = '✅';
-        setTimeout(() => btn.innerText = '📋', 2000);
-    });
-}
-
-async function submitQrPayment() {
-    const planId = document.getElementById('qr-selected-plan').value;
+async function submitQrPay                 const pla            cument.ge                ('qr-selected-plan').value;
     const txnId = document.getElementById('qr-txn-id').value.trim();
-    const notes = document.getElementById('qr-txn-notes').value.trim();
-    const errBox = document.getElementById('qr-error-msg');
-    const succCard = document.getElementById('qr-success-card');
-    const actionBtns = document.getElementById('qr-action-buttons');
-    const btn = document.getElementById('btn-submit-qr');
+                  s = document.getElementById('qr-                value.trim();
+    cons                ocument.getElementById('qr-err            ;
+        const succCard =            t.getElementById('qr-success-card');
+    const actionBtns = document.getElementById('            n-buttons');
+    const btn = doc            tElementById('btn-subm            
     
-    errBox.style.display = 'none';
-    succCard.style.display = 'none';
-    
-    if (!txnId || txnId.length < 6) {
-        errBox.innerText = 'Please enter a valid 12-digit UPI UTR / Transaction Reference number.';
-        errBox.style.display = 'block';
-        return;
+    errBox.style.display        no    ne'    ;
+    succCard.style.display = 'none';         
+                Id || txnId.length < 6) {
+        errBox.innerText = '                 a valid 12-digi                Transaction                    r.';
+        errBox.style.display =                      return;
     }
     
-    if (!uploadedScreenshotBase64) {
-        errBox.innerText = 'Please upload a screenshot of your successful transaction.';
-        errBox.style.display = 'block';
-        return;
-    }
+    if (!uploadedScreens                
+             rrBo            ext = 'Please upload a screenshot of            ccessful transaction.';
+                       e.display = 'block';
+        retu            }
     
-    const originalText = btn.innerText;
+                  inalText = btn.innerText;
     btn.disabled = true;
-    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Submitting payment proof & notifying admin...`;
+    b            HT         `<span style="d            inline-block; animation: spin 1s linear infinit        ⏳<    /sp    an> Submitting payment proof         tifying admin...`;
     
     try {
         const response = await fetch('/api/billing/qr-submit', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken') || ''
-            },
-            body: JSON.stringify({
-                plan: planId,
-                transaction_id: txnId,
-                amount: planId === 'pro' ? '₹3,999 ($49/mo)' : '₹15,999 ($199/mo)',
-                screenshot_data: uploadedScreenshotBase64,
+            method: 'POST',                 headers: {
+                            'Content-Type': 'applicati        son',
+                'X        FToken': getCookie('csrftoken') || ''
+                               body: JSON.stringify({
+                          planId,
+                transaction_id: tx                         amount: planId === 'pro'                 49/mo)' : '₹15,999 ($199/mo)',
+                screenshot_dat                    nshotBase64,
                 notes: notes
             })
         });
-        
-        const data = await response.json();
-        
-        if (response.ok && (data.status === 'pending' || data.status === 'success')) {
+                     const                  r            js        ;
+            
+        if (res    pon.status === 'pending' || data.status === 'success')) {
             actionBtns.style.display = 'none';
             succCard.style.display = 'block';
         } else {

@@ -2916,11 +2916,13 @@ def submit_qr_payment_api(request):
     # Build 1-click approve & reject links
     approve_url = request.build_absolute_uri(f"/api/billing/approve-payment?token={approval_token}")
     reject_url = request.build_absolute_uri(f"/api/billing/reject-payment?token={approval_token}")
+    view_screenshot_url = request.build_absolute_uri(f"/api/billing/transactions/{payment.id}/screenshot")
     if not settings.DEBUG and '127.0.0.1' not in approve_url and 'localhost' not in approve_url:
         approve_url = approve_url.replace('http://', 'https://', 1)
         reject_url = reject_url.replace('http://', 'https://', 1)
+        view_screenshot_url = view_screenshot_url.replace('http://', 'https://', 1)
 
-    # Dispatch email to Admin
+    # Dispatch email to Admin with attachment
     admin_recipient = "anusolanki2645@gmail.com"
     subject = f"🔔 [Action Required] Payment Approval: {user.username} ({plan.upper()} - {amount})"
 
@@ -2958,10 +2960,10 @@ def submit_qr_payment_api(request):
 
         <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 24px 0;" />
         
-        <div style="font-size: 14px; font-weight: bold; color: #cbd5e1; margin-bottom: 12px;">Payment Screenshot Uploaded:</div>
-        <div style="text-align: center; background: #000; padding: 12px; border-radius: 8px;">
-          <img src="{screenshot_data}" alt="Transaction Screenshot" style="max-width: 100%; max-height: 450px; border-radius: 6px; display: inline-block;" />
-        </div>
+        <p style="font-size: 13px; color: #94a3b8;">
+          📎 Payment Screenshot is attached to this email.<br>
+          🔍 Or view proof directly in browser: <a href="{view_screenshot_url}" style="color: #38bdf8; text-decoration: underline;">View Screenshot Proof</a>
+        </p>
       </div>
     </body>
     </html>
@@ -2975,9 +2977,20 @@ Transaction ID: {transaction_id}
 
 Approve Link: {approve_url}
 Reject Link: {reject_url}
+Screenshot: {view_screenshot_url}
 """
 
-    send_email_helper(subject, plain_msg, admin_recipient, html_message=html_body)
+    try:
+        from django.core.mail import EmailMultiAlternatives
+        import base64
+        msg = EmailMultiAlternatives(subject, plain_msg, settings.DEFAULT_FROM_EMAIL, [admin_recipient])
+        msg.attach_alternative(html_body, 'text/html')
+        if screenshot_data:
+            raw_b64 = screenshot_data.split(',', 1)[1] if ',' in screenshot_data else screenshot_data
+            msg.attach('transaction_proof.jpg', base64.b64decode(raw_b64), 'image/jpeg')
+        msg.send(fail_silently=False)
+    except Exception as email_err:
+        logger.error(f"Failed to send payment approval email: {email_err}")
 
     # Log to immutable audit trail
     from core.audit import log_action
@@ -3152,6 +3165,25 @@ def list_payment_transactions_api(request):
         "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
     } for t in txs]
     return JsonResponse({"status": "success", "transactions": data})
+
+
+def transaction_screenshot_api(request, id):
+    """View payment screenshot proof directly."""
+    from core.models import PaymentTransaction
+    tx = PaymentTransaction.objects.filter(id=id).first()
+    if not tx or not tx.screenshot_data:
+        return HttpResponse("<h1>No screenshot available</h1>", status=404)
+
+    import base64
+    raw_data = tx.screenshot_data
+    if ',' in raw_data:
+        header, b64_str = raw_data.split(',', 1)
+        mime = header.split(';')[0].replace('data:', '')
+    else:
+        b64_str = raw_data
+        mime = 'image/jpeg'
+    img_bytes = base64.b64decode(b64_str)
+    return HttpResponse(img_bytes, content_type=mime)
 
 
 
