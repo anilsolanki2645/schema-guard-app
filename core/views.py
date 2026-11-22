@@ -2732,6 +2732,8 @@ def oauth_github_login(request):
     state = secrets.token_urlsafe(32)
     request.session['oauth_state'] = state
     redirect_uri = request.build_absolute_uri('/auth/github/callback')
+    if not settings.DEBUG and redirect_uri.startswith('http://') and '127.0.0.1' not in redirect_uri and 'localhost' not in redirect_uri:
+        redirect_uri = redirect_uri.replace('http://', 'https://', 1)
 
     if not client_id:
         return render(request, 'core/oauth_fallback.html', {
