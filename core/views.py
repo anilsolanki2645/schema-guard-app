@@ -78,11 +78,11 @@ def resolve_connection_string(conn_str: str, db_type: str = None) -> str:
         if not prof:
             raise RuntimeError(f"Connection profile '{profile_name}' not found.")
         decrypted = decrypt_secret(prof.conn_str)
-        if not db_type and prof.db_type:
-            db_type = prof.db_type
 
-    from core.db_connector import normalize_connection_url
-    return normalize_connection_url(db_type, decrypted)
+    if db_type:
+        from core.db_connector import normalize_connection_url
+        return normalize_connection_url(db_type, decrypted)
+    return decrypted
 
 def ensure_contract_and_snapshot_files(pipeline_obj):
     """
@@ -740,9 +740,16 @@ def dashboard_page(request):
     from core.models import User
     user = User.objects.filter(username=user_info.get('username')).first()
     org = user.organization if user else None
+    
+    # Sync session user if organization or plan updated
+    if user and user.organization:
+        request.session['user'] = build_user_session_dict(user)
+        
+    raw_plan = (org.plan if org and org.plan else 'free').lower().strip()
+    clean_plan = raw_plan if raw_plan in ('free', 'pro', 'enterprise') else 'free'
     return render(request, 'core/dashboard.html', {
         'org': org,
-        'plan': org.plan if org else 'free',
+        'plan': clean_plan,
         'max_pipelines': org.max_pipelines if org else 5
     })
 
@@ -1141,9 +1148,16 @@ def create_pipeline_api(request):
         return JsonResponse({"detail": "Pipeline name is required."}, status=400)
 
     # Check organization plan pipeline quotas & feature gating
-    if user_info.get('role') != 'admin' and user_info.get('organization_id'):
-        from core.models import Organization, Pipeline
-        org = Organization.objects.filter(id=user_info.get('organization_id')).first()
+    if user_info.get('role') != 'admin':
+        from core.models import User, Organization, Pipeline
+        user_obj = User.objects.filter(username=user_info.get('username')).first()
+        org = user_obj.organization if user_obj and user_obj.organization else None
+        if not org and user_info.get('organization_id'):
+            org = Organization.objects.filter(id=user_info.get('organization_id')).first()
+            
+        if user_obj and org:
+            request.session['user'] = build_user_session_dict(user_obj)
+
         if org:
             current_pipes = Pipeline.objects.filter(organization=org).count()
             if current_pipes >= org.max_pipelines:
@@ -1629,9 +1643,11 @@ def run_pipeline_check_api(request, id):
         updated = perform_pipeline_check(id)
         return JsonResponse(updated)
     except ValueError as e:
-        return JsonResponse({"detail": str(e)}, status=404)
+        err_msg = str(e).strip() or repr(e) or "Pipeline not found or validation check failed."
+        return JsonResponse({"detail": err_msg}, status=404)
     except Exception as e:
-        return JsonResponse({"detail": str(e)}, status=400)
+        err_msg = str(e).strip() or repr(e) or type(e).__name__ or "Unknown pipeline check failure."
+        return JsonResponse({"detail": err_msg}, status=400)
 
 @require_login
 def run_ai_diagnostics_api(request, id):
@@ -2181,6 +2197,16 @@ def sandbox_page(request):
                 cols = cfg.get("columns", [])
             except Exception:
                 pass
+        if not cols and getattr(p, 'contract_yaml', None):
+            try:
+                import yaml
+                cfg = yaml.safe_load(p.contract_yaml)
+                if isinstance(cfg, dict):
+                    cols = cfg.get("columns", [])
+            except Exception:
+                pass
+        if not cols and getattr(p, 'schema_map', None):
+            cols = p.schema_map.get("right") or p.schema_map.get("left") or []
         if not cols:
             snap = SchemaSnapshot.objects.filter(pipeline=p).order_by('-version').first()
             if snap and snap.schema_data:
@@ -2250,6 +2276,22 @@ def simulate_ddl_api(request):
         except Exception as e:
             logger.warning(f"Failed to load contract from {contract_path}: {e}")
             
+    if not contract_cols and getattr(p_obj, 'contract_yaml', None):
+        try:
+            import yaml
+            cfg = yaml.safe_load(p_obj.contract_yaml)
+            if isinstance(cfg, dict):
+                contract_cols = cfg.get("columns", [])
+        except Exception:
+            pass
+
+    if not contract_cols and getattr(p_obj, 'schema_map', None):
+        raw_map = p_obj.schema_map.get("right") or p_obj.schema_map.get("left") or []
+        contract_cols = [
+            {"name": c.get("name", ""), "type": str(c.get("type", "text")), "nullable": c.get("nullable", True)}
+            for c in raw_map if isinstance(c, dict) and c.get("name")
+        ]
+
     if not contract_cols:
         from core.models import SchemaSnapshot
         snap = SchemaSnapshot.objects.filter(pipeline=p_obj).order_by('-version').first()

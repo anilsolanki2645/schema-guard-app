@@ -722,7 +722,7 @@ class PipelineDbtExportTests(TestCase):
         from core.views import CONTRACTS_DIR
         
         self.client = Client()
-        self.org = Organization.objects.create(name="dbt Org")
+        self.org = Organization.objects.create(name="dbt Org", plan="pro")
         self.user = User.objects.create(
             username="dbtuser",
             email="dbt@test.com",
@@ -826,7 +826,7 @@ class PipelineAirflowIntegrationTests(TestCase):
     
     def setUp(self):
         self.client = Client()
-        self.org = Organization.objects.create(name="Airflow Org")
+        self.org = Organization.objects.create(name="Airflow Org", plan="pro")
         self.user = User.objects.create(
             username="airflowuser",
             email="airflow@test.com",

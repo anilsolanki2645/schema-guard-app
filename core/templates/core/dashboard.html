@@ -58,7 +58,7 @@
             <div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
                     <span id="cnt-plan-name"
-                        style="font-size: 1.4rem; font-weight: 800; color: #a78bfa; text-transform: uppercase;">{{ plan|upper }}</span>
+                        style="font-size: 1.4rem; font-weight: 800; color: #a78bfa; text-transform: uppercase;">{% if plan == 'pro' %}TEAM PRO{% elif plan == 'enterprise' %}ENTERPRISE{% else %}FREE{% endif %}</span>
                     <a href="{% url 'pricing_page' %}"
                         style="font-size: 0.75rem; color: #38bdf8; text-decoration: none; font-weight: 700;">Change
                         💎</a>
@@ -867,62 +867,93 @@
     </div>
 </div>
 
-<!-- AI DIAGNOSTICS DRAWER -->
-<div id="ai-drawer" class="drawer-overlay" style="display: none;">
-    <div class="drawer-panel">
-        <div class="drawer-header"
-            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <span style="font-size: 1.75rem;">🤖</span>
+<!-- AI DIAGNOSTICS MODAL POPUP -->
+<div id="ai-drawer" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeAiDrawer()">
+    <div class="modal-card" style="max-width: 920px; width: 94%; max-height: 90vh; display: flex; flex-direction: column; background: #0b1120; border: 1px solid rgba(139, 92, 246, 0.35); border-radius: 1.25rem; box-shadow: 0 25px 70px rgba(0,0,0,0.85), 0 0 40px rgba(139, 92, 246, 0.15); overflow: hidden;">
+        
+        <!-- Modal Header -->
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.7);">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, rgba(139,92,246,0.35), rgba(56,189,248,0.25)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid rgba(139,92,246,0.4); box-shadow: 0 0 15px rgba(139,92,246,0.25);">
+                    🤖
+                </div>
                 <div>
-                    <h3 style="font-weight: 800; font-size: 1.1rem; margin: 0;">AI Diagnostics Assistant</h3>
-                    <p
-                        style="color: var(--color-warning); font-size: 0.75rem; font-weight: 600; margin: 0.15rem 0 0 0; text-transform: uppercase;">
-                        ACTIVE PIPELINE DRIFT REPAIR</p>
+                    <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                        <h2 style="font-weight: 800; font-size: 1.2rem; margin: 0; background: linear-gradient(135deg, #c084fc, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI Root-Cause Diagnostics & SQL Repair</h2>
+                        <span class="pipe-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem;">DRIFT COPILOT</span>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                        Target Pipeline: <strong id="ai-modal-pipeline-name" style="color: #f1f5f9;">Active Pipeline</strong>
+                    </p>
                 </div>
             </div>
-            <button class="drawer-close" onclick="closeAiDrawer()"
-                style="background: transparent; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer;">&times;</button>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 0.72rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.2rem 0.5rem; border-radius: 0.25rem; border: 1px solid rgba(255,255,255,0.08);">ESC</span>
+                <button type="button" class="modal-close" onclick="closeAiDrawer()" title="Close popup (Esc)"
+                    style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.25)';this.style.borderColor='rgba(239,68,68,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.borderColor='rgba(255,255,255,0.12)';">&times;</button>
+            </div>
         </div>
 
-        <div class="drawer-body"
-            style="display: flex; flex-direction: column; gap: 1.25rem; height: calc(100% - 70px);">
-            <!-- Diagnostic Summary -->
-            <div class="ai-analysis-header"
-                style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 1rem; border-radius: 0.5rem;">
-                <div style="font-weight: 700; margin-bottom: 0.25rem; color: #fde047;">🔍 Drift Mismatch Detected:</div>
-                <div id="ai-drift-summary"
-                    style="font-size: 0.85rem; color: var(--text-secondary); max-height: 80px; overflow-y: auto; line-height: 1.4;">
-                    Analyzing database changes...
+        <!-- Modal Body -->
+        <div class="modal-body" style="padding: 1.25rem 1.75rem; display: flex; flex-direction: column; gap: 1rem; overflow: hidden; flex: 1;">
+            
+            <!-- Drift Context Banner -->
+            <div class="ai-analysis-header" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-left: 4px solid #f59e0b; padding: 0.75rem 1rem; border-radius: 0.65rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                    <span style="font-weight: 700; color: #fbbf24; font-size: 0.82rem; display: flex; align-items: center; gap: 0.35rem;">
+                        <span>⚠️</span> Active Drift / Failure Signature
+                    </span>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Real-time target discrepancy</span>
+                </div>
+                <div id="ai-drift-summary" style="font-size: 0.8rem; color: #e2e8f0; font-family: var(--font-mono); line-height: 1.45; max-height: 65px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 0.45rem 0.65rem; border-radius: 0.35rem; border: 1px solid rgba(255,255,255,0.05);">
+                    Analyzing database changes against baseline schema...
                 </div>
             </div>
 
-            <!-- Chat Conversation container -->
-            <div class="ai-chat-container"
-                style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color); border-radius: 0.75rem; background: rgba(3,7,18,0.4); padding: 1rem;">
-                <div class="ai-chat-history" id="ai-chat-history"
-                    style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem; padding-right: 0.5rem; max-height: 300px;">
-                    <!-- Dynamic chat logs -->
+            <!-- Chat & Diagnostics Viewport (Generous Space!) -->
+            <div style="flex: 1; display: flex; flex-direction: column; min-height: 320px; max-height: 48vh; background: #030712; border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; overflow: hidden;">
+                <div class="ai-chat-history" id="ai-chat-history" style="flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; background: transparent; border: none; border-radius: 0;">
+                    <!-- Messages inserted here -->
+                </div>
+            </div>
+
+            <!-- Quick Action Prompts Bar -->
+            <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Quick Analysis Prompts:</span>
+                    <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
+                        <button type="button" class="btn-secondary" onclick="aiQuery('explain')" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; font-weight: 600; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.08); color: #c084fc;">💡 Explain Downstream Impact</button>
+                        <button type="button" class="btn-secondary" onclick="aiQuery('sql')" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; font-weight: 600; border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.08); color: #38bdf8;">🔧 Generate SQL Repair Script</button>
+                        <button type="button" class="btn-secondary" onclick="aiQuery('yaml')" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; font-weight: 600; border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.08); color: #4ade80;">📝 Update Contract YAML</button>
+                    </div>
                 </div>
 
-                <!-- Quick actions triggers -->
-                <div class="ai-quick-actions"
-                    style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
-                    <button class="quick-action-btn" onclick="aiQuery('explain')">💡 Explain Downstream Impact</button>
-                    <button class="quick-action-btn" onclick="aiQuery('sql')">🔧 Generate SQL Repair Script</button>
-                    <button class="quick-action-btn" onclick="aiQuery('yaml')">📝 Update Contract YAML</button>
-                </div>
-
-                <!-- Custom User Message input -->
-                <div class="chat-input-wrapper" style="display: flex; gap: 0.5rem;">
+                <!-- Custom Question Input -->
+                <div style="display: flex; gap: 0.65rem; align-items: center; background: rgba(15, 23, 42, 0.85); padding: 0.35rem 0.45rem 0.35rem 0.9rem; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.65rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                    <span style="font-size: 1rem; opacity: 0.6;">💬</span>
                     <input class="form-input" type="text" id="ai-chat-input"
-                        placeholder="Type custom question (e.g. Will this crash my Spark job?)..."
-                        onkeypress="handleAiKeyPress(event)" style="flex-grow: 1;">
-                    <button class="btn-primary" onclick="sendCustomAiMessage()"
-                        style="width: auto; padding: 0.5rem 1rem;">Send</button>
+                        placeholder="Ask AI Copilot anything (e.g. Will this mutation break dbt or Airflow?)..."
+                        onkeypress="handleAiKeyPress(event)"
+                        style="border: none; background: transparent; padding: 0.45rem 0; font-size: 0.85rem; color: #f8fafc; flex-grow: 1; box-shadow: none;">
+                    <button class="btn-primary" onclick="sendCustomAiMessage()" style="padding: 0.45rem 1.15rem; font-size: 0.82rem; font-weight: 700; white-space: nowrap; border-radius: 0.5rem;">
+                        Send 🚀
+                    </button>
                 </div>
             </div>
+
         </div>
+
+        <!-- Modal Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.75rem; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(15, 23, 42, 0.5); font-size: 0.72rem; color: #64748b;">
+            <div>
+                Powered by Gemini AI Diagnostic Engine & Contract Signatures
+            </div>
+            <div style="display: flex; gap: 0.65rem;">
+                <button type="button" class="btn-secondary" onclick="clearAiChat()" style="padding: 0.25rem 0.7rem; font-size: 0.72rem;">Clear Chat</button>
+                <button type="button" class="btn-secondary" onclick="closeAiDrawer()" style="padding: 0.25rem 0.9rem; font-size: 0.72rem; background: rgba(255,255,255,0.08); color: #f1f5f9; border-color: rgba(255,255,255,0.15);">Close</button>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -1758,7 +1789,8 @@ with DAG(
                 isRunningCheck = false;
                 document.getElementById('btn-trigger-check').disabled = false;
                 document.getElementById('btn-trigger-check').innerText = 'Trigger Validation Check';
-                alert("Error running check: " + err.message);
+                const errMsg = (err && err.message && err.message.trim()) ? err.message.trim() : 'Pipeline check failed. Please verify target database connectivity & credentials.';
+                alert("Error running check: " + errMsg);
             });
     }
 
@@ -2356,8 +2388,70 @@ with DAG(
     }
 
     // -------------------------------------------------------------
-    // AI Drawer logic
+    // AI Diagnostics Modal Logic (Spacious Popup & Markdown Engine)
     // -------------------------------------------------------------
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.innerText = text;
+        return div.innerHTML;
+    }
+
+    function formatMarkdown(text) {
+        if (!text) return '';
+
+        // 1. Code blocks with copy button ```lang\ncode\n```
+        let out = text.replace(/```(?:([a-zA-Z0-9_]+)?\n)?([\s\S]*?)```/g, function(match, lang, code) {
+            const trimmed = code.trim();
+            const language = (lang || 'sql').toUpperCase();
+            return `<div class="ai-code-wrapper" style="background: #020617; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.5rem; margin: 0.75rem 0; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 0.35rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.7rem; color: #94a3b8; font-family: var(--font-mono);">
+                    <span>${language}</span>
+                    <button type="button" class="btn-secondary" style="padding: 0.15rem 0.5rem; font-size: 0.68rem; cursor: pointer;" onclick="copyAiCode(this)">📋 Copy</button>
+                </div>
+                <pre style="margin: 0; padding: 0.85rem; font-family: var(--font-mono); font-size: 0.82rem; color: #38bdf8; overflow-x: auto; line-height: 1.5; white-space: pre-wrap;"><code>${escapeHtml(trimmed)}</code></pre>
+            </div>`;
+        });
+
+        // 2. Headings
+        out = out.replace(/^### (.*$)/gim, '<h4 style="font-size: 0.95rem; font-weight: 700; color: #38bdf8; margin: 0.75rem 0 0.35rem 0;">$1</h4>');
+        out = out.replace(/^## (.*$)/gim, '<h3 style="font-size: 1.05rem; font-weight: 800; color: #a78bfa; margin: 0.85rem 0 0.4rem 0;">$1</h3>');
+
+        // 3. Bold text **text**
+        out = out.replace(/\*\*([^*]+)\*\*/g, '<strong style="color: #f1f5f9;">$1</strong>');
+
+        // 4. Inline code `code`
+        out = out.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.08); padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.85em; color: #f472b6; font-family: var(--font-mono);">$1</code>');
+
+        // 5. Bullet lists - item
+        out = out.replace(/^\s*[-*]\s+(.*$)/gim, '<li style="margin-left: 1.25rem; margin-bottom: 0.3rem;">$1</li>');
+
+        // 6. Line breaks
+        out = out.replace(/\n\n/g, '<br><br>');
+        out = out.replace(/\n/g, '<br>');
+
+        return out;
+    }
+
+    function copyAiCode(btn) {
+        const wrapper = btn.closest('.ai-code-wrapper');
+        if (!wrapper) return;
+        const pre = wrapper.querySelector('pre');
+        if (!pre) return;
+        navigator.clipboard.writeText(pre.innerText).then(() => {
+            const original = btn.innerHTML;
+            btn.innerHTML = '✅ Copied!';
+            setTimeout(() => { btn.innerHTML = original; }, 2000);
+        }).catch(() => {
+            alert('Copied to clipboard!');
+        });
+    }
+
+    function clearAiChat() {
+        document.getElementById('ai-chat-history').innerHTML = '';
+        aiChatHistory = [];
+    }
+
     function openAiDrawer() {
         if (!activePipeline) return;
 
@@ -2365,30 +2459,77 @@ with DAG(
         document.getElementById('ai-chat-history').innerHTML = '';
         document.getElementById('ai-drift-summary').innerText = 'Analyzing database schema changes against contract...';
 
-        const drawer = document.getElementById('ai-drawer');
-        drawer.style.display = 'block';
-        setTimeout(() => drawer.classList.add('active'), 10);
+        const nameSpan = document.getElementById('ai-modal-pipeline-name');
+        if (nameSpan) {
+            nameSpan.innerText = `${activePipeline.name} (${activePipeline.schema}.${activePipeline.table} | ${(activePipeline.dbType || '').toUpperCase()})`;
+        }
+
+        const modal = document.getElementById('ai-drawer');
+        modal.style.display = 'flex';
+        modal.classList.add('active');
 
         // Fetch initial diagnostic analysis summary
         aiQuery('explain');
     }
 
     function closeAiDrawer() {
-        const drawer = document.getElementById('ai-drawer');
-        drawer.classList.remove('active');
-        setTimeout(() => drawer.style.display = 'none', 300);
+        const modal = document.getElementById('ai-drawer');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    }
+
+    // Support ESC key to close modal
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('ai-drawer');
+            if (modal && (modal.style.display === 'flex' || modal.classList.contains('active'))) {
+                closeAiDrawer();
+            }
+        }
+    });
+
+    function showAiLoading() {
+        const hist = document.getElementById('ai-chat-history');
+        if (!hist) return;
+        const loading = document.getElementById('ai-typing-indicator');
+        if (loading) loading.remove();
+
+        hist.innerHTML += `
+            <div id="ai-typing-indicator" style="align-self: flex-start; display: flex; align-items: center; gap: 0.65rem; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(139, 92, 246, 0.3); padding: 0.75rem 1.15rem; border-radius: 0.75rem; color: #c084fc; font-size: 0.85rem;">
+                <span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; margin: 0;"></span>
+                <span>AI Copilot is diagnosing schema drift & generating repair recommendations...</span>
+            </div>
+        `;
+        hist.scrollTop = hist.scrollHeight;
     }
 
     function appendChatMessage(sender, text) {
         const hist = document.getElementById('ai-chat-history');
-        const msgClass = sender === 'user' ? 'chat-msg chat-user' : 'chat-msg chat-assistant';
+        if (!hist) return;
 
-        // Clean and simple formatting support
-        const formatted = text
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br>');
+        // Remove loading indicator
+        const loading = document.getElementById('ai-typing-indicator');
+        if (loading) loading.remove();
 
-        hist.innerHTML += `<div class="${msgClass}"><div>${formatted}</div></div>`;
+        if (sender === 'user') {
+            hist.innerHTML += `
+                <div style="align-self: flex-end; max-width: 80%; background: linear-gradient(135deg, rgba(139,92,246,0.35), rgba(99,102,241,0.35)); border: 1px solid rgba(139,92,246,0.5); padding: 0.75rem 1.15rem; border-radius: 1rem; border-bottom-right-radius: 0.2rem; color: #f1f5f9; font-size: 0.88rem; line-height: 1.45; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+        } else {
+            const formatted = formatMarkdown(text);
+            hist.innerHTML += `
+                <div style="align-self: flex-start; max-width: 95%; width: 100%; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); padding: 1.15rem 1.35rem; border-radius: 1rem; border-bottom-left-radius: 0.2rem; color: #e2e8f0; font-size: 0.88rem; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+                    <div style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; margin-bottom: 0.65rem; letter-spacing: 0.05em;">
+                        <span>🤖</span> Copilot Diagnostic Report
+                    </div>
+                    <div>${formatted}</div>
+                </div>
+            `;
+        }
         hist.scrollTop = hist.scrollHeight;
     }
 
@@ -2405,6 +2546,7 @@ with DAG(
         }
 
         appendChatMessage('user', queryText);
+        showAiLoading();
 
         fetch(`/api/pipelines/${activePipeline.id}/ai-diagnostics`, {
             method: 'POST',
@@ -2434,6 +2576,7 @@ with DAG(
 
         input.value = '';
         appendChatMessage('user', question);
+        showAiLoading();
 
         fetch(`/api/pipelines/${activePipeline.id}/ai-diagnostics`, {
             method: 'POST',

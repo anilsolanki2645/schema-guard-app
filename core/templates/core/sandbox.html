@@ -156,6 +156,11 @@ function loadDdlTemplate(type) {
     const tableName = pipe.table || 'my_table';
     const cols = pipe.columns || [];
     
+    if (!cols || cols.length === 0) {
+        alert("Selected pipeline has no loaded columns yet. Please run a validation check on this pipeline to capture its table schema baseline.");
+        return;
+    }
+    
     let targetCol = cols.find(c => c.name === selectedColumnName);
     if (!targetCol && cols.length > 0) {
         targetCol = cols[0];

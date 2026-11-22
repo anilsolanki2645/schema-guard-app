@@ -10,6 +10,15 @@ class Organization(models.Model):
     subscription_status = models.CharField(max_length=50, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self.plan:
+            self.plan = str(self.plan).lower().strip()
+            if self.plan not in ('free', 'pro', 'enterprise'):
+                self.plan = 'free'
+        else:
+            self.plan = 'free'
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 

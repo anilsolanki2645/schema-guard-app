@@ -168,7 +168,7 @@
                     <span class="sg-pulse-dot" style="{% if request.session.user.plan == 'pro' %}background: #a855f7; box-shadow: 0 0 6px #a855f7;{% elif request.session.user.plan == 'enterprise' %}background: #38bdf8; box-shadow: 0 0 6px #38bdf8;{% else %}background: #64748b; box-shadow: none;{% endif %}"></span>
                     <span>{{ request.session.user.organization_name|default:"Production Org" }}</span>
                     <span class="sg-plan-badge" style="{% if request.session.user.plan == 'pro' %}background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;{% elif request.session.user.plan == 'enterprise' %}background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #fff;{% else %}background: rgba(255, 255, 255, 0.12); color: #94a3b8;{% endif %}">
-                        {{ request.session.user.plan|default:"FREE"|upper }}
+                        {% if request.session.user.plan == 'pro' %}PRO{% elif request.session.user.plan == 'enterprise' %}ENTERPRISE{% else %}FREE{% endif %}
                     </span>
                 </a>
 
