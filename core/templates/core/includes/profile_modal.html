@@ -24,6 +24,7 @@
 
         <!-- Modal Form -->
         <form id="profile-edit-form" onsubmit="saveProfileChanges(event)">
+            {% csrf_token %}
             <!-- AVATAR MANAGEMENT SECTION -->
             <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1.5rem;">
                 <div style="position: relative; width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2.5px solid #818cf8; background: #080d1a; flex-shrink: 0; box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);">
@@ -160,22 +161,56 @@ function closeProfileModal() {
     currentAvatarData = null;
 }
 
+function getProfileCsrfToken() {
+    const input = document.querySelector('#profile-edit-form [name=csrfmiddlewaretoken]') || document.querySelector('[name=csrfmiddlewaretoken]');
+    if (input && input.value) return input.value;
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
 function handleAvatarFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    if (file.size > 5 * 1024 * 1024) {
-        showProfileAlert("Image file is too large (maximum 5MB).", "error");
-        return;
-    }
+    showProfileAlert("Processing & optimizing photo...", "info");
     
     const reader = new FileReader();
     reader.onload = function(e) {
-        const base64Url = e.target.result;
-        currentAvatarData = base64Url;
-        const previewImg = document.getElementById('modal-avatar-preview');
-        if (previewImg) previewImg.src = base64Url;
-        showProfileAlert("Photo preview ready. Click 'Save Changes' to update.", "info");
+        const img = new Image();
+        img.onload = function() {
+            try {
+                // Resize & center-crop to crisp 256x256 square (keeps payload ultra-fast ~20KB)
+                const canvas = document.createElement('canvas');
+                const size = 256;
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                const minDim = Math.min(img.width, img.height);
+                const sx = (img.width - minDim) / 2;
+                const sy = (img.height - minDim) / 2;
+                
+                ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+                
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                currentAvatarData = compressedDataUrl;
+                
+                const previewImg = document.getElementById('modal-avatar-preview');
+                if (previewImg) previewImg.src = compressedDataUrl;
+                
+                showProfileAlert("Photo optimized and ready! Click 'Save Changes' to update.", "info");
+            } catch (err) {
+                console.error("Canvas optimization error:", err);
+                // Fallback to raw data url if canvas fails
+                currentAvatarData = e.target.result;
+                const previewImg = document.getElementById('modal-avatar-preview');
+                if (previewImg) previewImg.src = currentAvatarData;
+            }
+        };
+        img.onerror = function() {
+            showProfileAlert("Failed to load image file. Please choose another image.", "error");
+        };
+        img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
@@ -249,59 +284,69 @@ function saveProfileChanges(e) {
     saveBtn.innerHTML = '<span>⏳</span> Saving...';
     saveBtn.disabled = true;
 
-    const payload = {
-        full_name: document.getElementById('profile-input-fullname').value,
-        email: document.getElementById('profile-input-email').value,
-        job_title: document.getElementById('profile-input-jobtitle').value,
-        bio: document.getElementById('profile-input-bio').value
-    };
+    try {
+        const payload = {
+            full_name: (document.getElementById('profile-input-fullname') || {}).value || '',
+            email: (document.getElementById('profile-input-email') || {}).value || '',
+            job_title: (document.getElementById('profile-input-jobtitle') || {}).value || '',
+            bio: (document.getElementById('profile-input-bio') || {}).value || ''
+        };
 
-    if (currentAvatarData !== null) {
-        payload.avatar_data = currentAvatarData;
-    }
-
-    const currentPw = document.getElementById('profile-current-pw').value;
-    const newPw = document.getElementById('profile-new-pw').value;
-    if (newPw) {
-        payload.current_password = currentPw;
-        payload.new_password = newPw;
-    }
-
-    fetch('/api/user/profile', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken') || ''
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(r => r.json())
-    .then(data => {
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
-        if (data.error) {
-            showProfileAlert(data.error, 'error');
-        } else if (data.success) {
-            showProfileAlert("Profile updated successfully!", "success");
-            
-            // Update navbar elements in real-time
-            const navName = document.getElementById('badge-username');
-            if (navName) navName.innerText = data.user.full_name || data.user.username;
-            
-            const navAvatar = document.getElementById('nav-user-avatar');
-            if (navAvatar) {
-                navAvatar.src = data.user.avatar_url + '?t=' + Date.now();
-            }
-
-            setTimeout(() => {
-                closeProfileModal();
-            }, 1000);
+        if (currentAvatarData !== null) {
+            payload.avatar_data = currentAvatarData;
         }
-    })
-    .catch(err => {
+
+        const currentPwEl = document.getElementById('profile-current-pw');
+        const newPwEl = document.getElementById('profile-new-pw');
+        if (newPwEl && newPwEl.value) {
+            payload.current_password = currentPwEl ? currentPwEl.value : '';
+            payload.new_password = newPwEl.value;
+        }
+
+        const csrfToken = getProfileCsrfToken();
+
+        fetch('/api/user/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+            if (data.error) {
+                showProfileAlert(data.error, 'error');
+            } else if (data.success) {
+                showProfileAlert("Profile updated successfully!", "success");
+                
+                // Update navbar elements in real-time
+                const navName = document.getElementById('badge-username');
+                if (navName && data.user) {
+                    navName.innerText = data.user.full_name || data.user.username;
+                }
+                
+                const navAvatar = document.getElementById('nav-user-avatar');
+                if (navAvatar && data.user) {
+                    navAvatar.src = data.user.avatar_url + '?t=' + Date.now();
+                }
+
+                setTimeout(() => {
+                    closeProfileModal();
+                }, 1000);
+            }
+        })
+        .catch(err => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+            showProfileAlert("Network error saving profile: " + err, 'error');
+        });
+    } catch (unexpectedErr) {
         saveBtn.innerHTML = originalText;
         saveBtn.disabled = false;
-        showProfileAlert("Network error saving profile: " + err, 'error');
-    });
+        showProfileAlert("Unexpected error: " + unexpectedErr, 'error');
+    }
 }
 </script>

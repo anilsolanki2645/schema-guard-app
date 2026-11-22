@@ -3165,6 +3165,7 @@ def build_user_session_dict(user_obj):
     }
 
 
+@csrf_exempt
 @require_login
 def user_profile_api(request):
     """GET/POST endpoint for viewing and updating user profile data and avatar."""
