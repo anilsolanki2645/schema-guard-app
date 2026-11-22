@@ -107,8 +107,8 @@
             <div style="margin-top: 1rem;">
                 {% if is_logged_in %}
                 {% if current_plan == plan.id %}
-                <button class="btn-secondary"
-                    style="width: 100%; padding: 0.85rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: default;">
+                <button onclick="showActivePlanInfo('{{ plan.name }}')" class="btn-secondary"
+                    style="width: 100%; padding: 0.85rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: pointer;">
                     ✓ Active Plan
                 </button>
                 {% elif plan.id == 'free' %}
@@ -409,124 +409,148 @@
 
 <!-- Frontend Billing Checkout Script -->
 <script>
-f        ion initiateCheckout(plan              if (planId === 'f                            le        grade();
+function initiateCheckout(planId) {
+    if (planId === 'free') {
+        handleDowngrade();
         return;
-        }
-        openQrPaymentModal(planId);
+    }
+    openQrPaymentModal(planId);
 }
 
-let        oadedScreenshotBase64 = '';
+let uploadedScreenshotBase64 = '';
 
-function handleScreenshotUpl        event) {
+function handleScreenshotUpload(event) {
     const file = event.target.files[0];
-    if (!fir        n;
+    if (!file) return;
 
     const reader = new FileReader();
-    reader.onloa        function(e) {
+    reader.onload = function(e) {
         const img = new Image();
-        im        load = function() {
-            // Client-side canvas com        sion to keep upload fast & under 150KB
-            cona         = document.createElement('canvas');
-            let width = img        th;
+        img.onload = function() {
+            // Client-side canvas compression to keep upload fast & under 150KB
+            const canvas = document.createElement('canvas');
+            let width = img.width;
             let height = img.height;
-            const maxDim         0;
+            const maxDim = 900;
 
-            if (width > maxDim || height > ma)                       if (width            t) {
-                    height = Math            height * maxDim) / width);
+            if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                    height = Math.round((height * maxDim) / width);
                     width = maxDim;
-                    } else {
-                    width = Math.round((width             ) / height);
-                    height =                             }
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
             }
 
-            canvas.width = wid                    canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
 
-            uploadedScree            e64 = canvas.toDataURL('image/jpeg', 0.8);
-            docume            ementById('screenshot-preview-img').src = up            reenshotBase64;
-            document.getElementById('screenshot-previ        one        style.display = 'block';
-                };
-        img.src = e.target.res        
+            uploadedScreenshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('screenshot-preview-img').src = uploadedScreenshotBase64;
+            document.getElementById('screenshot-preview-container').style.display = 'block';
+        };
+        img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
 
-function openQrPaymentM    oda    l(planId) {
-    const m         = document.getElementById('qrPaymentModal');
-    document.getEl            d('qr-selected-plan').value = planId;
+function openQrPaymentModal(planId) {
+    const modal = document.getElementById('qrPaymentModal');
+    document.getElementById('qr-selected-plan').value = planId;
     
-    const             document.getElementBy            odal-badge');
-    const title = document.getEl        tByI    d('    qr-modal-title');
-    const price =        ument.getElementById('qr-modal-price');
-    const btn = document.g        ementById('btn-submit-qr');
+    const badge = document.getElementById('qr-modal-badge');
+    const title = document.getElementById('qr-modal-title');
+    const price = document.getElementById('qr-modal-price');
+    const btn = document.getElementById('btn-submit-qr');
     
-    document.getElementById('qr-        r-msg').style.display = 'none';
-    document.getElementById('qr-succ        card').style.display = 'none';
-    document.getElementBy        qr-action-buttons').style.display = 'block';
-    document.g        ementById('qr-txn-id').value = '';
-    document.getEleB        'qr-txn-notes').value = '';
-           ument.getElementById('qr-screensi        ').value = '';
-    document.getEle            ('screenshot-preview-container').style.display = 'none';
+    document.getElementById('qr-error-msg').style.display = 'none';
+    document.getElementById('qr-success-card').style.display = 'none';
+    document.getElementById('qr-action-buttons').style.display = 'block';
+    document.getElementById('qr-txn-id').value = '';
+    document.getElementById('qr-txn-notes').value = '';
+    document.getElementById('qr-screenshot-input').value = '';
+    document.getElementById('screenshot-preview-container').style.display = 'none';
     uploadedScreenshotBase64 = '';
-             if (planId === 'pro') {
-                   nnerText        Ter        grade';
-        badge.style.backgrou         'linear-gradient(135         #8b5cf6, #3b82f6)';
+    
+    if (planId === 'pro') {
+        badge.innerText = 'Team Pro Upgrade';
+        badge.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
         title.innerText = 'Upgrade to Team Pro (50 Pipelines)';
         price.innerText = '₹3,999 / month ($49)';
-        btn        xt = '            t Payment Proof (Team Pro)';
-    } else if (planId === 'e                {
-        badge.                'Enterprise                       badge.style.background = 'linear-                     #0ea5e9, #2563eb)';
-        title.innerText                to                 1,000 Pipelines)';
-                        ext = '₹15,999                    ;
-        btn.innerText                    yment Proof (Enterprise)';
+        btn.innerText = '📤 Submit Payment Proof (Team Pro)';
+    } else if (planId === 'enterprise') {
+        badge.innerText = 'Enterprise Upgrade';
+        badge.style.background = 'linear-gradient(135deg, #0ea5e9, #2563eb)';
+        title.innerText = 'Upgrade to Enterprise (1,000 Pipelines)';
+        price.innerText = '₹15,999 / month ($199)';
+        btn.innerText = '📤 Submit Payment Proof (Enterprise)';
     }
     
-    modal.style.display = 'fle                    closeQrPaymen                               .gety            ymentModal').style.display = 'none';t            UpiId() {
-    navigator.clipboard.writeText('955                fc').then(() => {
-        const btn = document.getElementById('btn-cop                     btn.innerText = '✅';
-                       () => btn.innerText                        });
+    modal.style.display = 'flex';
 }
 
-async function submitQrPay                 const pla            cument.ge                ('qr-selected-plan').value;
+function closeQrPaymentModal() {
+    document.getElementById('qrPaymentModal').style.display = 'none';
+}
+
+function copyUpiId() {
+    navigator.clipboard.writeText('9558322778@pthdfc').then(() => {
+        const btn = document.getElementById('btn-copy-upi');
+        btn.innerText = '✅';
+        setTimeout(() => btn.innerText = '📋', 2000);
+    });
+}
+
+async function submitQrPayment() {
+    const planId = document.getElementById('qr-selected-plan').value;
     const txnId = document.getElementById('qr-txn-id').value.trim();
-                  s = document.getElementById('qr-                value.trim();
-    cons                ocument.getElementById('qr-err            ;
-        const succCard =            t.getElementById('qr-success-card');
-    const actionBtns = document.getElementById('            n-buttons');
-    const btn = doc            tElementById('btn-subm            
+    const notes = document.getElementById('qr-txn-notes').value.trim();
+    const errBox = document.getElementById('qr-error-msg');
+    const succCard = document.getElementById('qr-success-card');
+    const actionBtns = document.getElementById('qr-action-buttons');
+    const btn = document.getElementById('btn-submit-qr');
     
-    errBox.style.display        no    ne'    ;
-    succCard.style.display = 'none';         
-                Id || txnId.length < 6) {
-        errBox.innerText = '                 a valid 12-digi                Transaction                    r.';
-        errBox.style.display =                      return;
+    errBox.style.display = 'none';
+    succCard.style.display = 'none';
+    
+    if (!txnId || txnId.length < 6) {
+        errBox.innerText = 'Please enter a valid 12-digit UPI UTR / Transaction Reference number.';
+        errBox.style.display = 'block';
+        return;
     }
     
-    if (!uploadedScreens                
-             rrBo            ext = 'Please upload a screenshot of            ccessful transaction.';
-                       e.display = 'block';
-        retu            }
+    if (!uploadedScreenshotBase64) {
+        errBox.innerText = 'Please upload a screenshot of your successful transaction.';
+        errBox.style.display = 'block';
+        return;
+    }
     
-                  inalText = btn.innerText;
+    const originalText = btn.innerText;
     btn.disabled = true;
-    b            HT         `<span style="d            inline-block; animation: spin 1s linear infinit        ⏳<    /sp    an> Submitting payment proof         tifying admin...`;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Submitting payment proof & notifying admin...`;
     
     try {
         const response = await fetch('/api/billing/qr-submit', {
-            method: 'POST',                 headers: {
-                            'Content-Type': 'applicati        son',
-                'X        FToken': getCookie('csrftoken') || ''
-                               body: JSON.stringify({
-                          planId,
-                transaction_id: tx                         amount: planId === 'pro'                 49/mo)' : '₹15,999 ($199/mo)',
-                screenshot_dat                    nshotBase64,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({
+                plan: planId,
+                transaction_id: txnId,
+                amount: planId === 'pro' ? '₹3,999 ($49/mo)' : '₹15,999 ($199/mo)',
+                screenshot_data: uploadedScreenshotBase64,
                 notes: notes
             })
         });
-                     const                  r            js        ;
-            
-        if (res    pon.status === 'pending' || data.status === 'success')) {
+        
+        const data = await response.json();
+        
+        if (response.ok && (data.status === 'pending' || data.status === 'success')) {
             actionBtns.style.display = 'none';
             succCard.style.display = 'block';
         } else {
@@ -543,9 +567,12 @@ async function submitQrPay                 const pla            cument.ge       
     }
 }
 
-async function openCustomerPortal() {
+async function handleDowngrade() {
+    if (!confirm('Are you sure you want to switch back to the Developer Free plan? Your pipeline limit will be adjusted to 5.')) {
+        return;
+    }
     try {
-        const response = await fetch('/api/billing/portal', {
+        const response = await fetch('/api/billing/downgrade', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -553,20 +580,19 @@ async function openCustomerPortal() {
             }
         });
         const data = await response.json();
-        if (response.ok && data.url) {
-            window.location.href = data.url;
+        if (response.ok) {
+            alert('Your organization has been switched to the Developer Free plan.');
+            window.location.reload();
         } else {
-            alert(data.detail || 'Could not open billing portal.');
+            alert(data.detail || 'Could not process downgrade.');
         }
     } catch (err) {
-        alert('Billing portal error: ' + err.message);
+        alert('Downgrade error: ' + err.message);
     }
 }
 
-function handleDowngrade() {
-    if (confirm('Are you sure you want to switch back to the Developer Free plan? Your pipeline limit will be adjusted to 5.')) {
-        openCustomerPortal();
-    }
+function showActivePlanInfo(planName) {
+    alert('This is your current active plan (' + planName + '). To upgrade or change, choose another tier.');
 }
 
 function getCookie(name) {

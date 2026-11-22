@@ -2745,6 +2745,32 @@ def create_customer_portal_api(request):
         })
 
 
+def downgrade_plan_api(request):
+    """
+    Downgrades the user's organization to the Developer Free plan.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import User
+    user = User.objects.filter(username=user_info.get('username')).first()
+    if not user or not user.organization:
+        return JsonResponse({"detail": "Organization not found."}, status=404)
+
+    org = user.organization
+    org.plan = 'free'
+    org.max_pipelines = 5
+    org.save()
+
+    return JsonResponse({
+        "status": "success",
+        "message": "Organization has been downgraded to the Developer Free plan.",
+        "plan": "free",
+        "max_pipelines": 5
+    })
+
+
 @csrf_exempt
 def stripe_webhook(request):
     """

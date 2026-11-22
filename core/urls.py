@@ -54,6 +54,7 @@ urlpatterns = [
     # Stripe Billing & Subscription API endpoints
     path('api/billing/checkout', views.create_checkout_session_api, name='stripe_checkout'),
     path('api/billing/portal', views.create_customer_portal_api, name='stripe_portal'),
+    path('api/billing/downgrade', views.downgrade_plan_api, name='downgrade_plan_api'),
     path('api/billing/webhook', csrf_exempt(views.stripe_webhook), name='stripe_webhook'),
     path('api/billing/qr-submit', csrf_exempt(views.submit_qr_payment_api), name='submit_qr_payment'),
     path('api/billing/approve-payment', views.approve_payment_api, name='approve_payment'),
