@@ -22,7 +22,7 @@
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
             <div class="form-group">
                 <label class="form-label" for="sandbox-pipeline-select" style="font-weight: 700; font-size: 0.85rem;">1. Select Downstream Data Contract Pipeline</label>
-                <select class="form-select" id="sandbox-pipeline-select" style="background: rgba(15, 23, 42, 0.6);">
+                <select class="form-select" id="sandbox-pipeline-select" style="background: rgba(15, 23, 42, 0.6);" onchange="onPipelineSelected()">
                     <option value="" disabled selected>-- Choose pipeline to test against --</option>
                     {% for pipeline in pipelines %}
                         <option value="{{ pipeline.id }}" data-table="{{ pipeline.table }}" data-dbtype="{{ pipeline.db_type }}">
@@ -30,6 +30,15 @@
                         </option>
                     {% endfor %}
                 </select>
+            </div>
+
+            <!-- DYNAMIC COLUMN SELECTOR & CHIPS -->
+            <div id="sandbox-column-container" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 0.5rem; padding: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Table Columns (<span id="col-count">0</span>)</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">Click a column to target in DDL</span>
+                </div>
+                <div id="sandbox-column-chips" style="display: flex; flex-wrap: wrap; gap: 0.35rem; max-height: 110px; overflow-y: auto;"></div>
             </div>
 
             <div class="form-group">
@@ -41,15 +50,16 @@
             </div>
 
             <div class="form-group" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
                     <label class="form-label" for="sandbox-ddl-input" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0;">2. Paste Proposed DDL SQL Migration Script</label>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn-secondary" onclick="loadDdlTemplate('rename')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Rename</button>
-                        <button class="btn-secondary" onclick="loadDdlTemplate('drop')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Drop</button>
-                        <button class="btn-secondary" onclick="loadDdlTemplate('alter')" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-color: rgba(255,255,255,0.08);">Alter Type</button>
+                    <div style="display: flex; gap: 0.4rem; align-items: center;">
+                        <span style="font-size: 0.72rem; color: var(--text-muted);">Insert Template:</span>
+                        <button type="button" class="btn-secondary" onclick="loadDdlTemplate('rename')" style="padding: 0.15rem 0.45rem; font-size: 0.72rem; border-color: rgba(255,255,255,0.12);">Rename</button>
+                        <button type="button" class="btn-secondary" onclick="loadDdlTemplate('drop')" style="padding: 0.15rem 0.45rem; font-size: 0.72rem; border-color: rgba(255,255,255,0.12);">Drop</button>
+                        <button type="button" class="btn-secondary" onclick="loadDdlTemplate('alter')" style="padding: 0.15rem 0.45rem; font-size: 0.72rem; border-color: rgba(255,255,255,0.12);">Alter Type</button>
                     </div>
                 </div>
-                <textarea class="form-input" id="sandbox-ddl-input" placeholder="-- Example: ALTER TABLE orders RENAME COLUMN price TO cost;&#10;-- Or write custom DDL here..." style="font-family: var(--font-mono); font-size: 0.8rem; background: #030712; border-color: rgba(255,255,255,0.05); color: #38bdf8; height: 280px; resize: none; line-height: 1.5; padding: 1rem; flex-grow: 1;"></textarea>
+                <textarea class="form-input" id="sandbox-ddl-input" placeholder="-- Example: ALTER TABLE orders RENAME COLUMN price TO cost;&#10;-- Or write custom DDL here..." style="font-family: var(--font-mono); font-size: 0.8rem; background: #030712; border-color: rgba(255,255,255,0.05); color: #38bdf8; height: 260px; resize: none; line-height: 1.5; padding: 1rem; flex-grow: 1;"></textarea>
             </div>
 
             <button class="btn-primary" onclick="runSandboxSimulation()" style="justify-content: center; font-weight: 700; font-size: 0.9rem; padding: 0.75rem;">
@@ -73,20 +83,106 @@
 
 <script>
 let csrfToken = '{{ csrf_token }}';
+const pipelinesData = {{ pipelines_json|safe }};
+let selectedColumnName = null;
+
+function onPipelineSelected() {
+    const select = document.getElementById('sandbox-pipeline-select');
+    const pipe = pipelinesData.find(p => p.id === select.value);
+    const container = document.getElementById('sandbox-column-container');
+    const chipsDiv = document.getElementById('sandbox-column-chips');
+    const countSpan = document.getElementById('col-count');
+    
+    if (!pipe || !pipe.columns || pipe.columns.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    countSpan.innerText = pipe.columns.length;
+    chipsDiv.innerHTML = '';
+    
+    // Pick the first non-id column by default, or the first column
+    let defaultCol = pipe.columns[0];
+    if (pipe.columns.length > 1 && defaultCol.name.toLowerCase().endsWith('_id') && !pipe.columns[1].name.toLowerCase().endsWith('_id')) {
+        defaultCol = pipe.columns[1];
+    }
+    selectedColumnName = defaultCol ? defaultCol.name : null;
+    
+    pipe.columns.forEach(col => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.id = `col-chip-${col.name}`;
+        chip.className = 'pipe-badge';
+        chip.style.cssText = `cursor: pointer; font-family: var(--font-mono); font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem; border: 1px solid ${col.name === selectedColumnName ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)'}; background: ${col.name === selectedColumnName ? 'rgba(139, 92, 246, 0.25)' : 'rgba(15, 23, 42, 0.6)'}; color: ${col.name === selectedColumnName ? '#c084fc' : 'var(--text-secondary)'}; transition: all 0.15s ease;`;
+        chip.innerHTML = `<strong>${col.name}</strong> <span style="opacity: 0.6; font-size: 0.65rem;">${col.type}</span>`;
+        chip.onclick = () => selectColumnChip(col.name);
+        chipsDiv.appendChild(chip);
+    });
+    
+    // Auto-load template for selected column
+    loadDdlTemplate('alter');
+}
+
+function selectColumnChip(colName) {
+    selectedColumnName = colName;
+    const select = document.getElementById('sandbox-pipeline-select');
+    const pipe = pipelinesData.find(p => p.id === select.value);
+    if (!pipe) return;
+    
+    pipe.columns.forEach(col => {
+        const chip = document.getElementById(`col-chip-${col.name}`);
+        if (chip) {
+            const isSelected = (col.name === selectedColumnName);
+            chip.style.borderColor = isSelected ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)';
+            chip.style.background = isSelected ? 'rgba(139, 92, 246, 0.25)' : 'rgba(15, 23, 42, 0.6)';
+            chip.style.color = isSelected ? '#c084fc' : 'var(--text-secondary)';
+        }
+    });
+    
+    // Refresh template with selected column
+    loadDdlTemplate('alter');
+}
 
 function loadDdlTemplate(type) {
     const select = document.getElementById('sandbox-pipeline-select');
-    const selectedOption = select.options[select.selectedIndex];
-    const tableName = selectedOption ? selectedOption.getAttribute('data-table') : 'my_table';
+    const pipe = pipelinesData.find(p => p.id === select.value);
+    
+    if (!pipe) {
+        alert("Please select a downstream data contract pipeline first.");
+        return;
+    }
+    
+    const tableName = pipe.table || 'my_table';
+    const cols = pipe.columns || [];
+    
+    let targetCol = cols.find(c => c.name === selectedColumnName);
+    if (!targetCol && cols.length > 0) {
+        targetCol = cols[0];
+        selectedColumnName = targetCol.name;
+    }
+    const colName = targetCol ? targetCol.name : 'column_name';
+    const colType = (targetCol ? targetCol.type : 'varchar').toLowerCase();
     
     const textarea = document.getElementById('sandbox-ddl-input');
     
     if (type === 'rename') {
-        textarea.value = `ALTER TABLE ${tableName} RENAME COLUMN price TO cost;`;
+        textarea.value = `ALTER TABLE ${tableName} RENAME COLUMN ${colName} TO ${colName}_updated;`;
     } else if (type === 'drop') {
-        textarea.value = `ALTER TABLE ${tableName} DROP COLUMN email;`;
+        textarea.value = `ALTER TABLE ${tableName} DROP COLUMN ${colName};`;
     } else {
-        textarea.value = `ALTER TABLE ${tableName} ALTER COLUMN amount TYPE numeric(12,2) NOT NULL;`;
+        // Alter type
+        let newType = 'varchar(255)';
+        if (colType.includes('int')) {
+            newType = 'bigint';
+        } else if (colType.includes('num') || colType.includes('dec') || colType.includes('real') || colType.includes('float')) {
+            newType = 'numeric(14,2)';
+        } else if (colType.includes('char') || colType.includes('text') || colType.includes('string')) {
+            newType = 'text';
+        } else if (colType.includes('date') || colType.includes('time')) {
+            newType = 'timestamptz';
+        }
+        textarea.value = `ALTER TABLE ${tableName} ALTER COLUMN ${colName} TYPE ${newType} NOT NULL;`;
     }
 }
 

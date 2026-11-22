@@ -26,11 +26,11 @@ def simulate_ddl_on_schema(ddl_sql, schema_columns):
     
     # 1. RENAME COLUMN
     # Match: ALTER TABLE name RENAME COLUMN old TO new
-    rename_match = re.search(r'alter\s+table\s+(\w+)\s+rename\s+column\s+(\w+)\s+to\s+(\w+)', lower_sql)
+    rename_match = re.search(r'alter\s+table\s+([a-zA-Z0-9_\.]+)\s+rename\s+column\s+([\w"`]+)\s+to\s+([\w"`]+)', lower_sql)
     if rename_match:
-        table_name = rename_match.group(1)
-        old_col = rename_match.group(2)
-        new_col = rename_match.group(3)
+        table_name = rename_match.group(1).split('.')[-1].strip('"`')
+        old_col = rename_match.group(2).strip('"`')
+        new_col = rename_match.group(3).strip('"`')
         
         found_col = None
         for col in new_cols:
@@ -54,10 +54,10 @@ def simulate_ddl_on_schema(ddl_sql, schema_columns):
     # 2. DROP COLUMN
     # Match: ALTER TABLE name DROP COLUMN col
     # Match: ALTER TABLE name DROP col
-    drop_match = re.search(r'alter\s+table\s+(\w+)\s+drop\s+(?:column\s+)?(\w+)', lower_sql)
+    drop_match = re.search(r'alter\s+table\s+([a-zA-Z0-9_\.]+)\s+drop\s+(?:column\s+)?([\w"`]+)', lower_sql)
     if drop_match:
-        table_name = drop_match.group(1)
-        col_name = drop_match.group(2)
+        table_name = drop_match.group(1).split('.')[-1].strip('"`')
+        col_name = drop_match.group(2).strip('"`')
         
         found_col = None
         for col in new_cols:
@@ -79,10 +79,10 @@ def simulate_ddl_on_schema(ddl_sql, schema_columns):
     # 3. ADD COLUMN
     # Match: ALTER TABLE name ADD COLUMN col type [not null/null]
     # Match: ALTER TABLE name ADD col type
-    add_match = re.search(r'alter\s+table\s+(\w+)\s+add\s+(?:column\s+)?(\w+)\s+([\w\(\),\s\d]+)', lower_sql)
+    add_match = re.search(r'alter\s+table\s+([a-zA-Z0-9_\.]+)\s+add\s+(?:column\s+)?([\w"`]+)\s+([\w\(\),\s\d]+)', lower_sql)
     if add_match:
-        table_name = add_match.group(1)
-        col_name = add_match.group(2)
+        table_name = add_match.group(1).split('.')[-1].strip('"`')
+        col_name = add_match.group(2).strip('"`')
         type_and_constraints = add_match.group(3).strip()
         
         # Check if already exists
@@ -117,13 +117,13 @@ def simulate_ddl_on_schema(ddl_sql, schema_columns):
     # Match: ALTER TABLE name ALTER COLUMN col TYPE type
     # Match: ALTER TABLE name MODIFY COLUMN col type
     # Match: ALTER TABLE name MODIFY col type
-    alter_match = re.search(r'alter\s+table\s+(\w+)\s+alter\s+(?:column\s+)?(\w+)\s+type\s+([\w\(\),\s\d]+)', lower_sql)
+    alter_match = re.search(r'alter\s+table\s+([a-zA-Z0-9_\.]+)\s+alter\s+(?:column\s+)?([\w"`]+)\s+type\s+([\w\(\),\s\d]+)', lower_sql)
     if not alter_match:
-        alter_match = re.search(r'alter\s+table\s+(\w+)\s+modify\s+(?:column\s+)?(\w+)\s+([\w\(\),\s\d]+)', lower_sql)
+        alter_match = re.search(r'alter\s+table\s+([a-zA-Z0-9_\.]+)\s+modify\s+(?:column\s+)?([\w"`]+)\s+([\w\(\),\s\d]+)', lower_sql)
         
     if alter_match:
-        table_name = alter_match.group(1)
-        col_name = alter_match.group(2)
+        table_name = alter_match.group(1).split('.')[-1].strip('"`')
+        col_name = alter_match.group(2).strip('"`')
         type_and_constraints = alter_match.group(3).strip()
         
         found_col = None

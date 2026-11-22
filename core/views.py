@@ -2163,7 +2163,7 @@ def health_check_api(request):
 def sandbox_page(request):
     """Render the DDL Blast Radius simulation sandbox page."""
     user_info = request.session.get('user')
-    from core.models import Pipeline
+    from core.models import Pipeline, SchemaSnapshot
     
     # Scope pipeline list to organization boundary
     if user_info.get('role') == 'admin':
@@ -2171,8 +2171,48 @@ def sandbox_page(request):
     else:
         qs = Pipeline.objects.filter(organization_id=user_info.get('organization_id')).order_by('name')
         
+    pipeline_list = []
+    for p in qs:
+        contract_path, _ = ensure_contract_and_snapshot_files(p)
+        cols = []
+        if contract_path and os.path.exists(contract_path):
+            try:
+                cfg = load_contract(contract_path)
+                cols = cfg.get("columns", [])
+            except Exception:
+                pass
+        if not cols:
+            snap = SchemaSnapshot.objects.filter(pipeline=p).order_by('-version').first()
+            if snap and snap.schema_data:
+                cols = snap.schema_data.get("columns", [])
+                
+        formatted_cols = []
+        for c in cols:
+            if isinstance(c, dict):
+                formatted_cols.append({
+                    "name": c.get("name", ""),
+                    "type": str(c.get("type", "text")),
+                    "nullable": c.get("nullable", True)
+                })
+            elif isinstance(c, str):
+                formatted_cols.append({
+                    "name": c,
+                    "type": "text",
+                    "nullable": True
+                })
+
+        pipeline_list.append({
+            "id": p.id,
+            "name": p.name,
+            "table": p.table,
+            "schema": p.schema,
+            "db_type": p.db_type,
+            "columns": formatted_cols
+        })
+        
     return render(request, 'core/sandbox.html', {
-        "pipelines": qs
+        "pipelines": pipeline_list,
+        "pipelines_json": json.dumps(pipeline_list)
     })
 
 @require_login
@@ -2201,17 +2241,24 @@ def simulate_ddl_api(request):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
     # Read pipeline contract design
-    contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
-    if not os.path.exists(contract_path):
+    contract_path, _ = ensure_contract_and_snapshot_files(p_obj)
+    contract_cols = []
+    if contract_path and os.path.exists(contract_path):
+        try:
+            cfg = load_contract(contract_path)
+            contract_cols = cfg.get("columns", [])
+        except Exception as e:
+            logger.warning(f"Failed to load contract from {contract_path}: {e}")
+            
+    if not contract_cols:
+        from core.models import SchemaSnapshot
+        snap = SchemaSnapshot.objects.filter(pipeline=p_obj).order_by('-version').first()
+        if snap and snap.schema_data:
+            contract_cols = snap.schema_data.get("columns", [])
+            
+    if not contract_cols:
         return JsonResponse({"detail": "Active contract specifications not found on server."}, status=400)
         
-    try:
-        cfg = load_contract(contract_path)
-    except Exception as e:
-        return JsonResponse({"detail": f"Failed to load YAML contract: {e}"}, status=400)
-        
-    contract_cols = cfg.get("columns", [])
-    
     from core.ddl_parser import simulate_ddl_on_schema, generate_safe_transition_recipe
     
     try:
