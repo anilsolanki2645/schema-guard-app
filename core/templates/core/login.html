@@ -187,35 +187,22 @@ AI Transition Recipe:
           <!-- App details -->
           <div style="display: flex; flex-direction: column; gap: 0.75rem;">
               <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                  <span style="display: flex; align-items: center; justify-content: center;">
-                      <svg width="32" height="32" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45)); transition: all 0.3s ease;">
+                  <span style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(129, 140, 248, 0.25); box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);">
+                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <defs>
-                              <linearGradient id="gateHexGradFooter" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                              <linearGradient id="shieldLeftFooter" x1="5" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
                                   <stop offset="0%" stop-color="#38bdf8"/>
-                                  <stop offset="50%" stop-color="#818cf8"/>
+                                  <stop offset="100%" stop-color="#2563eb"/>
+                              </linearGradient>
+                              <linearGradient id="shieldRightFooter" x1="16" y1="4" x2="27" y2="28" gradientUnits="userSpaceOnUse">
+                                  <stop offset="0%" stop-color="#818cf8"/>
                                   <stop offset="100%" stop-color="#c084fc"/>
                               </linearGradient>
-                              <radialGradient id="gateAuraFooter" cx="50%" cy="50%" r="50%">
-                                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
-                                  <stop offset="60%" stop-color="#818cf8" stop-opacity="0.08"/>
-                                  <stop offset="100%" stop-color="#0b0f19" stop-opacity="0"/>
-                              </radialGradient>
                           </defs>
-                          <circle cx="18" cy="18" r="16" fill="#0b1120" stroke="rgba(129, 140, 248, 0.25)" stroke-width="1.2"/>
-                          <circle cx="18" cy="18" r="16" stroke="url(#gateHexGradFooter)" stroke-width="1.2" stroke-dasharray="14 6 8 4 12 6" stroke-linecap="round"/>
-                          <circle cx="18" cy="18" r="14.5" fill="url(#gateAuraFooter)"/>
-                          <path d="M18 2 V6 M18 30 V34 M2 18 H6 M30 18 H34" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
-                          <circle cx="18" cy="3.5" r="1.5" fill="#38bdf8"/>
-                          <circle cx="18" cy="32.5" r="1.5" fill="#818cf8"/>
-                          <circle cx="3.5" cy="18" r="1.5" fill="#38bdf8"/>
-                          <circle cx="32.5" cy="18" r="1.5" fill="#c084fc"/>
-                          <path d="M7 7 L9.5 9.5 M29 7 L26.5 9.5 M7 29 L9.5 26.5 M29 29 L26.5 26.5" stroke="rgba(129, 140, 248, 0.6)" stroke-width="1.2" stroke-linecap="round"/>
-                          <ellipse cx="18" cy="11.5" rx="7.5" ry="2.6" fill="#1e1b4b" stroke="url(#gateHexGradFooter)" stroke-width="1.4"/>
-                          <path d="M10.5 11.5 V14.5 C10.5 15.9 13.9 17.1 18 17.1 C22.1 17.1 25.5 15.9 25.5 14.5 V11.5" stroke="url(#gateHexGradFooter)" stroke-width="1.4" fill="none"/>
-                          <path d="M10.5 17 V20 C10.5 21.4 13.9 22.6 18 22.6 C22.1 22.6 25.5 21.4 25.5 20 V17" stroke="url(#gateHexGradFooter)" stroke-width="1.4" fill="none"/>
-                          <path d="M10.5 22.5 V25.5 C10.5 26.9 13.9 28.1 18 28.1 C22.1 28.1 25.5 26.9 25.5 25.5 V22.5" stroke="url(#gateHexGradFooter)" stroke-width="1.4" fill="none"/>
-                          <line x1="18" y1="9" x2="18" y2="17" stroke="#22d3ee" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 1.5"/>
-                          <circle cx="18" cy="19.8" r="2.2" fill="#22d3ee"/>
+                          <path d="M16 2.5 L5 7 V15.5 C5 22.3 9.7 27.6 16 29.5 V17 L10.5 13.5 L16 10 V2.5 Z" fill="url(#shieldLeftFooter)"/>
+                          <path d="M16 2.5 L27 7 V15.5 C27 22.3 22.3 27.6 16 29.5 V17 L21.5 13.5 L16 10 V2.5 Z" fill="url(#shieldRightFooter)"/>
+                          <circle cx="16" cy="13.5" r="2.2" fill="#38bdf8"/>
+                          <circle cx="16" cy="13.5" r="1" fill="#ffffff"/>
                       </svg>
                   </span>
                   <h3 style="font-weight: 800; font-size: 1.25rem; background: linear-gradient(135deg, var(--color-primary-hover), var(--color-info)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; border: none;">Schema Guard</h3>
