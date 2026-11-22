@@ -1072,6 +1072,55 @@ def get_pipelines_api(request):
         pipelines = [serialize_pipeline(p) for p in qs]
         return JsonResponse(pipelines, safe=False)
 
+def check_feature_permission(org, feature_name, extra=None):
+    """
+    Validates if an organization's plan is allowed to use a given feature.
+    Returns (True, None) if allowed, or (False, error_message) if denied.
+    """
+    if not org:
+        plan = 'free'
+    else:
+        plan = (getattr(org, 'plan', 'free') or 'free').lower()
+
+    if plan == 'enterprise':
+        return True, None
+
+    if feature_name == 'db_engine':
+        engine = str(extra or '').strip().lower()
+        pro_engines = ['snowflake', 'sqlserver', 'sql server', 'mssql', 'databricks', 'oracle', 'bigquery', 'redshift']
+        if plan == 'free' and any(e in engine for e in pro_engines):
+            return False, f"The '{extra}' database connector requires a Team Pro or Enterprise subscription. Your workspace is currently on Developer (Free)."
+
+    elif feature_name == 'cron_frequency':
+        cron = str(extra or '').strip()
+        if plan == 'free' and cron:
+            parts = cron.split()
+            if len(parts) == 5:
+                minute, hour = parts[0], parts[1]
+                if minute == '*' or '/' in minute or hour == '*' or '/' in hour or ',' in hour:
+                    return False, "Sub-daily check frequencies (down to 1 minute) require a Team Pro or Enterprise plan. Developer (Free) is limited to Daily audits."
+
+    elif feature_name == 'api_keys':
+        if plan == 'free':
+            return False, "CI/CD Gate API Keys & programmatic tokens require Team Pro or Enterprise. Please upgrade your workspace."
+
+    elif feature_name == 'ai_diagnostics':
+        if plan == 'free':
+            return False, "AI Root-Cause Diagnostics & SQL repair generator is a Team Pro & Enterprise feature. Please upgrade your workspace."
+
+    elif feature_name == 'airflow_export':
+        if plan == 'free':
+            return False, "Native Airflow Operator & dbt Schema Exporter download requires Team Pro or Enterprise."
+
+    elif feature_name == 'alerts':
+        alert_channels = extra if isinstance(extra, dict) else {}
+        if plan == 'free':
+            if alert_channels.get('slack') or alert_channels.get('whatsapp') or alert_channels.get('webhook') or alert_channels.get('wp'):
+                return False, "Slack, WhatsApp, and Webhook alert channels require Team Pro or Enterprise. Developer (Free) supports Email alerts."
+
+    return True, None
+
+
 @require_login
 def create_pipeline_api(request):
     if request.method != "POST":
@@ -1081,7 +1130,12 @@ def create_pipeline_api(request):
     if not user_info.get('permissions', {}).get('create', True) and user_info.get('role') not in ['admin', 'subadmin']:
         return JsonResponse({"detail": "Permission denied to create pipelines."}, status=403)
 
-    # Check organization plan pipeline quotas
+    data = json.loads(request.body)
+    raw_name = data.get("name", "").strip()
+    if not raw_name:
+        return JsonResponse({"detail": "Pipeline name is required."}, status=400)
+
+    # Check organization plan pipeline quotas & feature gating
     if user_info.get('role') != 'admin' and user_info.get('organization_id'):
         from core.models import Organization, Pipeline
         org = Organization.objects.filter(id=user_info.get('organization_id')).first()
@@ -1091,11 +1145,18 @@ def create_pipeline_api(request):
                 return JsonResponse({
                     "detail": f"Pipeline limit reached ({current_pipes}/{org.max_pipelines}) for your '{org.plan.upper()}' tier. Upgrade your plan to create more pipelines."
                 }, status=402)
-    
-    data = json.loads(request.body)
-    raw_name = data.get("name", "").strip()
-    if not raw_name:
-        return JsonResponse({"detail": "Pipeline name is required."}, status=400)
+
+            allowed, err = check_feature_permission(org, 'db_engine', data.get("dbType"))
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
+
+            allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
+
+            allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
 
     import re, secrets
     base_id = re.sub(r'[^a-zA-Z0-9_]', '_', raw_name.lower().replace(" ", "_")).strip('_') or "pipeline"
@@ -1231,6 +1292,20 @@ def edit_pipeline_api(request, id):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
     data = json.loads(request.body)
+    
+    # Feature gating check on pipeline update
+    if user_info.get('role') != 'admin' and user_info.get('organization_id'):
+        from core.models import Organization
+        org = Organization.objects.filter(id=user_info.get('organization_id')).first()
+        if org:
+            if "cron" in data:
+                allowed, err = check_feature_permission(org, 'cron_frequency', data.get("cron"))
+                if not allowed:
+                    return JsonResponse({"detail": err}, status=403)
+            if "alerts" in data:
+                allowed, err = check_feature_permission(org, 'alerts', data.get("alerts"))
+                if not allowed:
+                    return JsonResponse({"detail": err}, status=403)
     updates = {
         "connStr": data.get("connStr"),
         "cron": data.get("cron"),
@@ -1556,6 +1631,16 @@ def run_ai_diagnostics_api(request, id):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
     data = json.loads(request.body)
+    
+    # Feature gating check for AI Diagnostics
+    if user_info.get('role') != 'admin':
+        from core.models import Organization
+        org_id = p.get('organization_id') or user_info.get('organization_id')
+        org = Organization.objects.filter(id=org_id).first()
+        if org:
+            allowed, err = check_feature_permission(org, 'ai_diagnostics')
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
     q_type = data.get("query_type")
     custom_query = data.get("custom_query", "")
     
@@ -2221,6 +2306,15 @@ def export_dbt_schema_api(request, id):
     if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
         
+    # Feature gating check on export
+    if user_info.get('role') != 'admin' and p_obj.organization_id:
+        from core.models import Organization
+        org = Organization.objects.filter(id=p_obj.organization_id).first()
+        if org:
+            allowed, err = check_feature_permission(org, 'airflow_export')
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
+        
     # Load contract design
     contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
     if not os.path.exists(contract_path):
@@ -2281,6 +2375,15 @@ def export_dbt_schema_api(request, id):
 @require_login
 def download_airflow_operator(request):
     """Download the python module containing Schema Guard Airflow operators/sensors."""
+    user_info = request.session.get('user')
+    if user_info and user_info.get('role') != 'admin' and user_info.get('organization_id'):
+        from core.models import Organization
+        org = Organization.objects.filter(id=user_info.get('organization_id')).first()
+        if org:
+            allowed, err = check_feature_permission(org, 'airflow_export')
+            if not allowed:
+                return HttpResponse(f"Upgrade Required: {err}", status=403)
+
     operator_path = os.path.join(os.path.dirname(__file__), 'airflow_operator.py')
     if not os.path.exists(operator_path):
         return HttpResponse("Airflow operator file not found.", status=404)
@@ -2333,6 +2436,15 @@ def connection_profiles_api(request):
         
         if not name or not db_type or not conn_str:
             return JsonResponse({"detail": "All fields (name, db_type, conn_str) are required."}, status=400)
+            
+        # Feature gating check on database connector engine
+        if user_info.get('role') != 'admin' and org_id:
+            from core.models import Organization
+            org = Organization.objects.filter(id=org_id).first()
+            if org:
+                allowed, err = check_feature_permission(org, 'db_engine', db_type)
+                if not allowed:
+                    return JsonResponse({"detail": err}, status=403)
             
         import re
         if not re.match(r'^[a-zA-Z0-9_\-]+$', name):
@@ -2442,6 +2554,12 @@ def api_keys_api(request):
             
         if not org:
             return JsonResponse({"detail": "No organization found to bind API key."}, status=400)
+            
+        # Feature gating check on API keys
+        if user_info.get('role') != 'admin' and org:
+            allowed, err = check_feature_permission(org, 'api_keys')
+            if not allowed:
+                return JsonResponse({"detail": err}, status=403)
             
         raw_key, key_id, key_hash = generate_api_key()
         api_key_obj = ApiKey.objects.create(
@@ -2717,6 +2835,125 @@ def stripe_webhook(request):
             })
 
     return JsonResponse({"status": "handled", "type": event_type})
+
+
+@csrf_exempt
+@require_login
+def submit_qr_payment_api(request):
+    """
+    Validates and processes a QR code / UPI payment submission,
+    upgrades the organization to the selected tier immediately,
+    and unlocks user limits.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    username = user_info.get('username')
+    from core.models import User, Organization, PaymentTransaction
+
+    user = User.objects.filter(username=username).first()
+    if not user:
+        return JsonResponse({"detail": "User not found."}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON payload."}, status=400)
+
+    plan = data.get("plan", "pro").strip().lower()
+    if plan not in ["pro", "enterprise"]:
+        return JsonResponse({"detail": "Invalid plan. Choose 'pro' or 'enterprise'."}, status=400)
+
+    transaction_id = data.get("transaction_id", "").strip().upper()
+    if not transaction_id or len(transaction_id) < 6:
+        return JsonResponse({
+            "detail": "Please enter a valid UPI Reference / UTR Number (minimum 6 digits)."
+        }, status=400)
+
+    # Check if transaction ID already used
+    if PaymentTransaction.objects.filter(transaction_id=transaction_id).exists():
+        return JsonResponse({
+            "detail": f"Transaction ID '{transaction_id}' has already been registered."
+        }, status=400)
+
+    org = user.organization
+    if not org:
+        org = Organization.objects.create(name=f"{user.username}'s Workspace", plan='free', max_pipelines=5)
+        user.organization = org
+        user.save(update_fields=['organization'])
+
+    quotas = getattr(settings, 'PLAN_QUOTAS', {
+        'free': {'max_pipelines': 5},
+        'pro': {'max_pipelines': 50},
+        'enterprise': {'max_pipelines': 1000},
+    })
+
+    amount = data.get("amount") or ("₹3,999 ($49/mo)" if plan == 'pro' else "₹15,999 ($199/mo)")
+    notes = data.get("notes", "").strip()
+
+    # 1. Upgrade Organization Plan & Quotas
+    org.plan = plan
+    org.max_pipelines = quotas.get(plan, {}).get('max_pipelines', 50 if plan == 'pro' else 1000)
+    org.subscription_status = 'active'
+    org.save(update_fields=['plan', 'max_pipelines', 'subscription_status'])
+
+    # 2. Record Payment Transaction
+    PaymentTransaction.objects.create(
+        transaction_id=transaction_id,
+        organization=org,
+        user=user,
+        plan=plan,
+        amount=amount,
+        payment_method="UPI_QR",
+        status="verified",
+        notes=notes
+    )
+
+    # 3. Log to immutable audit trail
+    from core.audit import log_action
+    log_action(request, 'billing.qr_payment', 'organization', str(org.id), {
+        'plan': plan,
+        'transaction_id': transaction_id,
+        'amount': amount,
+        'max_pipelines': org.max_pipelines
+    })
+
+    # 4. Refresh session
+    request.session['user'] = build_user_session_dict(user)
+
+    return JsonResponse({
+        "status": "success",
+        "message": f"Payment verified! Your workspace has been upgraded to {plan.title()} ({org.max_pipelines} Pipelines unlocked).",
+        "plan": plan,
+        "max_pipelines": org.max_pipelines,
+        "transaction_id": transaction_id
+    })
+
+
+@require_login
+def list_payment_transactions_api(request):
+    """List payment transactions (admin sees all, users see their org's)."""
+    user_info = request.session.get('user', {})
+    from core.models import PaymentTransaction
+    if user_info.get('role') == 'admin':
+        txs = PaymentTransaction.objects.all().select_related('organization', 'user')
+    else:
+        txs = PaymentTransaction.objects.filter(organization_id=user_info.get('organization_id')).select_related('organization', 'user')
+
+    data = [{
+        "id": t.id,
+        "transaction_id": t.transaction_id,
+        "organization": t.organization.name if t.organization else "Workspace",
+        "user": t.user.username if t.user else "Unknown",
+        "plan": t.plan.upper(),
+        "amount": t.amount,
+        "status": t.status,
+        "payment_method": t.payment_method,
+        "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
+    } for t in txs]
+    return JsonResponse({"status": "success", "transactions": data})
+
 
 
 # =============================================================
@@ -3009,7 +3246,7 @@ def pricing_page(request):
             "id": "pro",
             "name": "Team Pro",
             "badge": "Most Popular",
-            "price": "$49",
+            "price": "$49 / ₹3,999",
             "period": "per month",
             "description": "Continuous schema governance, CI/CD gates, and instant alerts for high-growth data teams.",
             "max_pipelines": 50,
@@ -3035,7 +3272,7 @@ def pricing_page(request):
             "id": "enterprise",
             "name": "Enterprise",
             "badge": "Full Governance",
-            "price": "$199",
+            "price": "$199 / ₹15,999",
             "period": "per month",
             "description": "Mission-critical schema contracts, immutable audit trails, and multi-tenant compliance.",
             "max_pipelines": 1000,
@@ -3058,7 +3295,11 @@ def pricing_page(request):
         'plans': plans_info,
         'current_plan': current_plan,
         'org': org,
-        'is_logged_in': bool(user_info)
+        'user': user_info,
+        'is_logged_in': bool(user_info),
+        'payee_name': 'Anilbhai Isvarbhai Solanki',
+        'upi_id': '9558322778@pthdfc',
+        'qr_image_url': '/static/core/images/payment_upi_qr.jpg'
     })
 
 
@@ -3167,6 +3408,8 @@ def build_user_session_dict(user_obj):
     """Helper to construct rich user session dictionary with profile details."""
     full_name = getattr(user_obj, 'full_name', '') or user_obj.username
     org_name = user_obj.organization.name if user_obj.organization else "Production Org"
+    org_plan = (user_obj.organization.plan if user_obj.organization else "free") or "free"
+    max_pipes = user_obj.organization.max_pipelines if user_obj.organization else 5
     return {
         "username": user_obj.username,
         "email": user_obj.email,
@@ -3174,6 +3417,8 @@ def build_user_session_dict(user_obj):
         "permissions": user_obj.permissions,
         "organization_id": user_obj.organization_id,
         "organization_name": org_name,
+        "plan": org_plan,
+        "max_pipelines": max_pipes,
         "is_verified": user_obj.is_verified,
         "full_name": full_name,
         "job_title": getattr(user_obj, 'job_title', ''),

@@ -230,36 +230,184 @@
     </div>
 </section>
 
+<!-- UPI QR Payment & Instant Activation Modal -->
+<div id="qrPaymentModal" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(10px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+    <div class="glass-card" style="max-width: 480px; width: 100%; border-radius: 1.25rem; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2rem; position: relative; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);">
+        <!-- Close Button -->
+        <button onclick="closeQrPaymentModal()" style="position: absolute; top: 1.25rem; right: 1.25rem; background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+
+        <!-- Modal Header -->
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div id="qr-modal-badge" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.3rem 0.85rem; border-radius: 9999px; letter-spacing: 0.05em; margin-bottom: 0.75rem;">
+                Workspace Upgrade
+            </div>
+            <h3 id="qr-modal-title" style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin: 0 0 0.4rem 0;">
+                Pay via UPI QR Code
+            </h3>
+            <p id="qr-modal-price" style="font-size: 1.15rem; font-weight: 700; color: #38bdf8; margin: 0;">
+                ₹3,999 / month ($49)
+            </p>
+        </div>
+
+        <!-- QR Code & Payee Display -->
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; padding: 1.25rem; text-align: center; margin-bottom: 1.5rem;">
+            <div style="display: inline-block; background: #ffffff; padding: 0.5rem; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
+                <img src="/static/core/images/payment_upi_qr.jpg" alt="Paytm UPI QR" style="width: 190px; height: 190px; object-fit: contain; display: block; border-radius: 0.5rem;">
+            </div>
+            
+            <div style="margin-top: 1rem;">
+                <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Anilbhai Isvarbhai Solanki</div>
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.35rem 0.75rem; border-radius: 0.5rem; margin-top: 0.4rem;">
+                    <span style="font-family: monospace; font-size: 0.85rem; color: #38bdf8;">9558322778@pthdfc</span>
+                    <button onclick="copyUpiId()" id="btn-copy-upi" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem;" title="Copy UPI ID">📋</button>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
+                <span>Paytm</span> • <span>PhonePe</span> • <span>Google Pay</span> • <span>BHIM</span> • <span>Any UPI App</span>
+            </div>
+        </div>
+
+        <!-- Verification Form -->
+        <form id="qr-payment-form" onsubmit="event.preventDefault(); submitQrPayment();">
+            <input type="hidden" id="qr-selected-plan" value="pro">
+
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
+                    12-Digit UPI UTR / Transaction Reference ID <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="text" id="qr-txn-id" required placeholder="e.g. 412345678901 or UTR Number" 
+                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.75rem 1rem; color: #ffffff; font-size: 0.95rem; font-family: monospace;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
+                    Found in your payment app's receipt (UTR / UPI Ref No).
+                </span>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
+                    Notes / Organization Name (Optional)
+                </label>
+                <input type="text" id="qr-txn-notes" placeholder="e.g. Upgrade for analytics workspace" 
+                       style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #ffffff; font-size: 0.85rem;">
+            </div>
+
+            <div id="qr-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+            <div id="qr-success-msg" style="display: none; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+
+            <button type="submit" id="btn-submit-qr" class="btn-primary" style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
+                ⚡ Verify & Activate Plan Immediately
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Frontend Billing Checkout Script -->
 <script>
-async function initiateCheckout(planId) {
-    const btn = document.getElementById(`btn-checkout-${planId}`);
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Connecting to Stripe...`;
+function initiateCheckout(planId) {
+    if (planId === 'free') {
+        handleDowngrade();
+        return;
+    }
+    openQrPaymentModal(planId);
+}
 
+function openQrPaymentModal(planId) {
+    const modal = document.getElementById('qrPaymentModal');
+    document.getElementById('qr-selected-plan').value = planId;
+    
+    const badge = document.getElementById('qr-modal-badge');
+    const title = document.getElementById('qr-modal-title');
+    const price = document.getElementById('qr-modal-price');
+    const btn = document.getElementById('btn-submit-qr');
+    
+    document.getElementById('qr-error-msg').style.display = 'none';
+    document.getElementById('qr-success-msg').style.display = 'none';
+    document.getElementById('qr-txn-id').value = '';
+    
+    if (planId === 'pro') {
+        badge.innerText = 'Team Pro Upgrade';
+        badge.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
+        title.innerText = 'Upgrade to Team Pro (50 Pipelines)';
+        price.innerText = '₹3,999 / month ($49)';
+        btn.innerText = '⚡ Verify & Activate Team Pro (50 Pipelines)';
+    } else if (planId === 'enterprise') {
+        badge.innerText = 'Enterprise Upgrade';
+        badge.style.background = 'linear-gradient(135deg, #0ea5e9, #2563eb)';
+        title.innerText = 'Upgrade to Enterprise (1,000 Pipelines)';
+        price.innerText = '₹15,999 / month ($199)';
+        btn.innerText = '👑 Verify & Activate Enterprise (1,000 Pipelines)';
+    }
+    
+    modal.style.display = 'flex';
+}
+
+function closeQrPaymentModal() {
+    document.getElementById('qrPaymentModal').style.display = 'none';
+}
+
+function copyUpiId() {
+    navigator.clipboard.writeText('9558322778@pthdfc').then(() => {
+        const btn = document.getElementById('btn-copy-upi');
+        btn.innerText = '✅';
+        setTimeout(() => btn.innerText = '📋', 2000);
+    });
+}
+
+async function submitQrPayment() {
+    const planId = document.getElementById('qr-selected-plan').value;
+    const txnId = document.getElementById('qr-txn-id').value.trim();
+    const notes = document.getElementById('qr-txn-notes').value.trim();
+    const errBox = document.getElementById('qr-error-msg');
+    const succBox = document.getElementById('qr-success-msg');
+    const btn = document.getElementById('btn-submit-qr');
+    
+    errBox.style.display = 'none';
+    succBox.style.display = 'none';
+    
+    if (!txnId || txnId.length < 6) {
+        errBox.innerText = 'Please enter a valid 12-digit UPI UTR / Transaction Reference number.';
+        errBox.style.display = 'block';
+        return;
+    }
+    
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Verifying payment & activating workspace...`;
+    
     try {
-        const response = await fetch('/api/billing/checkout', {
+        const response = await fetch('/api/billing/qr-submit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken') || ''
             },
-            body: JSON.stringify({ plan: planId })
+            body: JSON.stringify({
+                plan: planId,
+                transaction_id: txnId,
+                amount: planId === 'pro' ? '₹3,999 ($49/mo)' : '₹15,999 ($199/mo)',
+                notes: notes
+            })
         });
-
+        
         const data = await response.json();
-        if (response.ok && data.url) {
-            window.location.href = data.url;
+        
+        if (response.ok && data.status === 'success') {
+            succBox.innerText = `🎉 ${data.message} Redirecting to Dashboard...`;
+            succBox.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1800);
         } else {
-            alert(data.detail || data.message || 'Failed to initiate Stripe Checkout session.');
+            errBox.innerText = data.detail || 'Could not verify transaction. Please check your Reference ID.';
+            errBox.style.display = 'block';
             btn.disabled = false;
-            btn.innerHTML = originalText;
+            btn.innerText = originalText;
         }
     } catch (err) {
-        alert('Network error connecting to billing services: ' + err.message);
+        errBox.innerText = 'Network error connecting to activation service: ' + err.message;
+        errBox.style.display = 'block';
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.innerText = originalText;
     }
 }
 

@@ -55,6 +55,8 @@ urlpatterns = [
     path('api/billing/checkout', views.create_checkout_session_api, name='stripe_checkout'),
     path('api/billing/portal', views.create_customer_portal_api, name='stripe_portal'),
     path('api/billing/webhook', csrf_exempt(views.stripe_webhook), name='stripe_webhook'),
+    path('api/billing/qr-submit', csrf_exempt(views.submit_qr_payment_api), name='submit_qr_payment'),
+    path('api/billing/transactions', views.list_payment_transactions_api, name='list_payment_transactions'),
     
     # Verification and password reset URLs
     path('verify-email', views.verify_email_page, name='verify_email_page'),

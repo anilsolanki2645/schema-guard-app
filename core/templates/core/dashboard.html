@@ -1944,11 +1944,12 @@ function submitWizard() {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
         body: JSON.stringify({ name, dbType, connStr, schema, table, cron, cronText, alerts })
     })
-    .then(res => {
+    .then(async res => {
+        const data = await res.json();
         if (!res.ok) {
-            throw new Error('Register pipeline request failed.');
+            throw new Error(data.detail || 'Register pipeline request failed.');
         }
-        return res.json();
+        return data;
     })
     .then(newPipe => {
         isWizRegistering = false;

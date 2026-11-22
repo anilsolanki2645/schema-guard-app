@@ -82,6 +82,7 @@ class AuditLog(models.Model):
         ('billing.checkout_created', 'Stripe Checkout Created'),
         ('billing.subscription_updated', 'Stripe Subscription Updated'),
         ('billing.subscription_cancelled', 'Stripe Subscription Cancelled'),
+        ('billing.qr_payment', 'UPI QR Payment Verified'),
         ('user.oauth_login', 'User OAuth Login'),
     ]
     
@@ -179,3 +180,22 @@ class ApiKey(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.key_id})"
+
+
+class PaymentTransaction(models.Model):
+    transaction_id = models.CharField(max_length=100, unique=True)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='payment_transactions')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_transactions')
+    plan = models.CharField(max_length=50)  # 'pro', 'enterprise'
+    amount = models.CharField(max_length=50, default='')
+    payment_method = models.CharField(max_length=50, default='UPI_QR')
+    status = models.CharField(max_length=50, default='verified')  # 'pending', 'verified', 'rejected'
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.transaction_id} - {self.plan} ({self.status})"
+
