@@ -768,6 +768,59 @@ body {
     }
 }
 
+/* ==========================================================================
+   GLOBAL APP FOOTER STYLES
+   ========================================================================== */
+.app-inner-footer {
+    width: 100%;
+    max-width: 1560px;
+    margin: 3.5rem auto 0;
+    padding: 1.5rem 1.5rem 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    font-size: 0.82rem;
+    color: #64748b;
+    box-sizing: border-box;
+}
+
+.inner-footer-left {
+    font-weight: 500;
+    color: #64748b;
+}
+
+.inner-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.inner-footer-right a {
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.18s ease;
+}
+
+.inner-footer-right a:hover {
+    color: #38bdf8;
+    text-decoration: none;
+}
+
+.inner-footer-right span {
+    color: rgba(255, 255, 255, 0.15);
+}
+
+.footer-sec-badge {
+    color: #10b981 !important;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
 /* Form Styles */
 .form-group {
     margin-bottom: 1.25rem;

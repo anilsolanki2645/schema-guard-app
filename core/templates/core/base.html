@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.1">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.2">
 </head>
 <body>
     <!-- ========================================================= -->
@@ -268,8 +268,9 @@
     </main>
 
     <!-- ========================================================= -->
-    <!-- GLOBAL FOOTER                                             -->
+    <!-- GLOBAL FOOTER (SHOWN ON ALL PAGES EXCEPT LANDING)         -->
     <!-- ========================================================= -->
+    {% if request.resolver_match.url_name != 'login_page' %}
     <footer class="app-inner-footer">
         <div class="inner-footer-left">
             &copy; 2026 Schema Guard Inc. • Continuous Schema Gatekeeper & Data Contract Engine
@@ -286,6 +287,7 @@
             <span class="footer-sec-badge">🔒 AES-256 Protected</span>
         </div>
     </footer>
+    {% endif %}
 
     <!-- Global Navigation Scripts -->
     <script>
