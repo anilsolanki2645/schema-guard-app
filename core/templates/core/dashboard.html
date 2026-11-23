@@ -102,6 +102,9 @@
             <a href="{% url 'audit_logs_export_csv' %}" class="btn-secondary"
                 style="border-color: rgba(255,255,255,0.15); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none; color: var(--text-secondary);"
                 title="Export SOC2-compliant schema audit trail">📥 Export Audit CSV</a>
+            <a href="{% url 'compliance_report_export_api' %}?format=json" class="btn-secondary"
+                style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none;"
+                title="Download SOC 2 Type II & ISO 27001 Cryptographic Compliance Pack">🛡️ SOC 2 Pack</a>
             <button type="button" class="btn-secondary" onclick="createDemoPipeline()"
                 style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem;"
                 title="1-click demo pipeline with simulated schema drift for quick testing">⚡ Load Demo Pipeline</button>

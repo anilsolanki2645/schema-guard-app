@@ -2364,6 +2364,118 @@ class WebhookDeliveryTests(TestCase):
         self.assertEqual(audit.details.get("action"), "retry_webhook")
 
 
+class ComplianceReportTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline, GateValidationLog
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Acme Corp Enterprise", plan="enterprise")
+        self.user = User.objects.create(
+            username="compliance_officer",
+            email="officer@acme.com",
+            password_hash=hash_password("CompliancePass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline1 = Pipeline.objects.create(
+            id="pipe-comp-01",
+            organization=self.org,
+            name="Billing Engine",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="invoices",
+            contract_yaml="columns:\n  - name: inv_id\n    type: varchar\n",
+            lock_signature="f" * 64,
+            schema_map={"inv_id": "varchar", "amount": "decimal"},
+            status="Clean"
+        )
+        self.pipeline2 = Pipeline.objects.create(
+            id="pipe-comp-02",
+            organization=self.org,
+            name="Inventory Stream",
+            environment="prod",
+            db_type="mysql",
+            conn_str="mysql://user:pass@localhost:3306/testdb",
+            schema="inventory",
+            table="items",
+            contract_yaml="columns:\n  - name: sku\n    type: varchar\n",
+            lock_signature="e" * 64,
+            schema_map={"sku": "varchar"},
+            status="Drifted"
+        )
+        GateValidationLog.objects.create(
+            pipeline=self.pipeline1,
+            commit_sha="abcdef1234567890abcdef1234567890abcdef12",
+            branch="feature/invoice-uuid",
+            status="PASS",
+            violations_count=0
+        )
+        GateValidationLog.objects.create(
+            pipeline=self.pipeline2,
+            commit_sha="9876543210fedcba9876543210fedcba98765432",
+            branch="fix/drop-sku",
+            status="FAIL",
+            violations_count=1
+        )
+
+    def test_compliance_report_json_export(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'compliance_officer',
+            'password': 'CompliancePass123!',
+        })
+        url = reverse('compliance_report_export_api')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'application/json')
+        data = json.loads(res.content)
+
+        summary = data["compliance_summary"]
+        self.assertEqual(summary["organization"], "Acme Corp Enterprise")
+        self.assertIn("cryptographic_seal", summary)
+        self.assertTrue(summary["cryptographic_seal"].startswith("sha256:"))
+
+        metrics = summary["metrics"]
+        self.assertEqual(metrics["total_monitored_pipelines"], 2)
+        self.assertEqual(metrics["clean_pipelines"], 1)
+        self.assertEqual(metrics["drifted_pipelines"], 1)
+        self.assertEqual(metrics["contract_adherence_rate_pct"], 50.0)
+        self.assertEqual(metrics["ci_cd_gate_evaluations"], 2)
+        self.assertEqual(metrics["ci_cd_blocked_breaking_changes"], 1)
+        self.assertEqual(metrics["ci_cd_gate_pass_rate_pct"], 50.0)
+
+        # Baseline registry check
+        baselines = data["contract_baselines"]
+        self.assertEqual(len(baselines), 2)
+        self.assertEqual(baselines[0]["lock_signature"], "f" * 64)
+
+        # Gate evidence check
+        gates = data["cicd_gate_evidence"]
+        self.assertEqual(len(gates), 2)
+
+    def test_compliance_report_csv_export(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'compliance_officer',
+            'password': 'CompliancePass123!',
+        })
+        url = reverse('compliance_report_export_api') + "?format=csv"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        csv_text = res.content.decode('utf-8')
+        self.assertIn("SCHEMA GUARD SOC2 & ISO 27001 COMPLIANCE EVIDENCE PACK", csv_text)
+        self.assertIn("Acme Corp Enterprise", csv_text)
+        self.assertIn("Contract Adherence Rate Pct", csv_text)
+        self.assertIn("Billing Engine", csv_text)
+        self.assertIn("Inventory Stream", csv_text)
+
+
+
 
 
 

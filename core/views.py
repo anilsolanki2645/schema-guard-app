@@ -5724,6 +5724,186 @@ def audit_logs_export_csv(request):
     return response
 
 
+@require_login
+def compliance_report_export_api(request):
+    """
+    Generates and exports a SOC 2 Type II and ISO/IEC 27001 Cryptographic Compliance Evidence Pack
+    demonstrating data contract baseline locks, CI/CD breaking change gates, and schema drift controls.
+    """
+    import csv
+    import hashlib
+    import json
+    import uuid
+    from datetime import datetime, timezone
+    from django.http import HttpResponse, JsonResponse
+    from core.models import Pipeline, ContractVersion, GateValidationLog, WebhookDeliveryLog, AuditLog, Organization
+
+    user_info = request.session.get('user', {})
+    org_id = user_info.get('organization_id')
+    role = user_info.get('role')
+
+    if role == 'admin' and not org_id:
+        pipelines_qs = Pipeline.objects.all()
+        gate_qs = GateValidationLog.objects.all()
+        webhook_qs = WebhookDeliveryLog.objects.all()
+        audit_qs = AuditLog.objects.all()
+        versions_qs = ContractVersion.objects.all()
+        org_name = "Global Enterprise (All Organizations)"
+    else:
+        pipelines_qs = Pipeline.objects.filter(organization_id=org_id)
+        pipeline_ids = list(pipelines_qs.values_list('id', flat=True))
+        gate_qs = GateValidationLog.objects.filter(pipeline_id__in=pipeline_ids)
+        webhook_qs = WebhookDeliveryLog.objects.filter(pipeline_id__in=pipeline_ids)
+        audit_qs = AuditLog.objects.filter(organization_id=org_id)
+        versions_qs = ContractVersion.objects.filter(pipeline_id__in=pipeline_ids)
+        org = Organization.objects.filter(id=org_id).first()
+        org_name = org.name if org else "Default Organization"
+
+    total_pipelines = pipelines_qs.count()
+    clean_pipelines = pipelines_qs.filter(status='Clean').count()
+    drifted_pipelines = pipelines_qs.filter(status='Drifted').count()
+    adherence_pct = round((clean_pipelines / total_pipelines * 100), 2) if total_pipelines > 0 else 100.0
+
+    total_gate_checks = gate_qs.count()
+    passed_gate_checks = gate_qs.filter(status='PASS').count()
+    blocked_breaking = gate_qs.filter(status='FAIL').count()
+    gate_pass_rate = round((passed_gate_checks / total_gate_checks * 100), 2) if total_gate_checks > 0 else 100.0
+
+    total_webhooks = webhook_qs.count()
+    successful_webhooks = webhook_qs.filter(success=True).count()
+    webhook_success_rate = round((successful_webhooks / total_webhooks * 100), 2) if total_webhooks > 0 else 100.0
+
+    total_versions = versions_qs.count()
+    promotions_count = audit_qs.filter(action='pipeline.promoted').count()
+
+    # Build contracts baseline registry
+    baseline_registry = []
+    for p in pipelines_qs.order_by('name'):
+        latest_ver = versions_qs.filter(pipeline=p).order_by('-version_number').first()
+        ver_num = latest_ver.version_number if latest_ver else 1
+        col_count = len(p.schema_map) if isinstance(p.schema_map, dict) else 0
+        baseline_registry.append({
+            "pipeline_id": p.id,
+            "name": p.name,
+            "environment": getattr(p, 'environment', 'prod') or 'prod',
+            "db_type": p.db_type,
+            "schema": p.schema,
+            "table": p.table,
+            "lock_signature": p.lock_signature or "UNLOCKED",
+            "active_version": ver_num,
+            "columns_governed": col_count,
+            "status": p.status,
+            "last_checked": p.last_checked.strftime("%Y-%m-%d %H:%M:%S UTC") if p.last_checked else "Never",
+            "integrity_seal": "VERIFIED_LOCKED" if p.lock_signature else "PENDING_LOCK"
+        })
+
+    # Recent change gate evaluations
+    recent_gates = []
+    for g in gate_qs.order_by('-checked_at')[:50]:
+        recent_gates.append({
+            "pipeline_id": g.pipeline_id,
+            "commit_sha": g.commit_sha,
+            "branch": g.branch,
+            "status": g.status,
+            "violations_count": g.violations_count,
+            "checked_at": g.checked_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        })
+
+    now_ts = datetime.now(timezone.utc).isoformat()
+    report_id = f"SG-SOC2-{uuid.uuid4().hex[:12].upper()}"
+
+    summary = {
+        "report_id": report_id,
+        "organization": org_name,
+        "generated_at": now_ts,
+        "auditor_frameworks": [
+            "SOC 2 Type II: Trust Services Criteria CC6.1 (Logical Access), CC6.6 (Boundary Protection), CC6.8 (Unauthorized Changes), CC7.1 (Vulnerability Detection), CC7.2 (Security Monitoring)",
+            "ISO/IEC 27001:2022: Control A.8.9 (Configuration Management), Control A.8.32 (Change Management)"
+        ],
+        "compliance_status": "COMPLIANT" if adherence_pct >= 80.0 else "REQUIRES_ATTENTION",
+        "metrics": {
+            "total_monitored_pipelines": total_pipelines,
+            "clean_pipelines": clean_pipelines,
+            "drifted_pipelines": drifted_pipelines,
+            "contract_adherence_rate_pct": adherence_pct,
+            "total_contract_baselines_locked": sum(1 for b in baseline_registry if b["lock_signature"] != "UNLOCKED"),
+            "total_contract_revisions": total_versions,
+            "multi_environment_promotions": promotions_count,
+            "ci_cd_gate_evaluations": total_gate_checks,
+            "ci_cd_blocked_breaking_changes": blocked_breaking,
+            "ci_cd_gate_pass_rate_pct": gate_pass_rate,
+            "webhook_notifications_dispatched": total_webhooks,
+            "webhook_success_rate_pct": webhook_success_rate,
+        }
+    }
+
+    seal_corpus = json.dumps({"summary": summary, "registry": baseline_registry}, sort_keys=True)
+    cryptographic_seal = hashlib.sha256(seal_corpus.encode('utf-8')).hexdigest()
+    summary["cryptographic_seal"] = f"sha256:{cryptographic_seal}"
+
+    format_param = (request.GET.get('format') or 'json').lower().strip()
+
+    if format_param == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="schema_guard_soc2_compliance_{now_ts[:10]}.csv"'
+        writer = csv.writer(response)
+
+        writer.writerow(["# SCHEMA GUARD SOC2 & ISO 27001 COMPLIANCE EVIDENCE PACK"])
+        writer.writerow(["Report ID", report_id])
+        writer.writerow(["Organization", org_name])
+        writer.writerow(["Generated At", now_ts])
+        writer.writerow(["Compliance Status", summary["compliance_status"]])
+        writer.writerow(["Cryptographic Seal", summary["cryptographic_seal"]])
+        writer.writerow([])
+
+        writer.writerow(["# EXECUTIVE GOVERNANCE METRICS"])
+        writer.writerow(["Metric", "Value"])
+        for k, v in summary["metrics"].items():
+            writer.writerow([k.replace("_", " ").title(), v])
+        writer.writerow([])
+
+        writer.writerow(["# DATA CONTRACT BASELINE REGISTRY & CRYPTOGRAPHIC HASHES"])
+        writer.writerow(["Pipeline ID", "Name", "Environment", "Engine", "Table", "Columns Governed", "Lock Signature (SHA-256)", "Version", "Status", "Last Checked", "Integrity"])
+        for b in baseline_registry:
+            writer.writerow([
+                b["pipeline_id"],
+                b["name"],
+                b["environment"].upper(),
+                b["db_type"].upper(),
+                b["table"],
+                b["columns_governed"],
+                b["lock_signature"],
+                f"v{b['active_version']}",
+                b["status"],
+                b["last_checked"],
+                b["integrity_seal"]
+            ])
+        writer.writerow([])
+
+        writer.writerow(["# CI/CD CHANGE GATE RECENT EVALUATIONS (CC6.8 EVIDENCE)"])
+        writer.writerow(["Pipeline ID", "Commit SHA", "Branch", "Status", "Violations Blocked", "Checked At"])
+        for g in recent_gates:
+            writer.writerow([
+                g["pipeline_id"],
+                g["commit_sha"],
+                g["branch"],
+                g["status"],
+                g["violations_count"],
+                g["checked_at"]
+            ])
+
+        return response
+
+    report_data = {
+        "compliance_summary": summary,
+        "contract_baselines": baseline_registry,
+        "cicd_gate_evidence": recent_gates,
+    }
+    response = JsonResponse(report_data, json_dumps_params={"indent": 2})
+    response['Content-Disposition'] = f'attachment; filename="schema_guard_soc2_compliance_{now_ts[:10]}.json"'
+    return response
+
+
 def build_user_session_dict(user_obj):
     """Helper to construct rich user session dictionary with profile details."""
     full_name = getattr(user_obj, 'full_name', '') or user_obj.username

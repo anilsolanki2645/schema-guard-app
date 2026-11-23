@@ -109,6 +109,7 @@ urlpatterns = [
     path('api/auth/api-keys', views.api_keys_api, name='api_keys_api'),
     path('api/auth/api-keys/<str:key_id>', views.api_key_detail_api, name='api_key_detail_api'),
     path('api/audit-logs/export', views.audit_logs_export_csv, name='audit_logs_export_csv'),
+    path('api/compliance/report', views.compliance_report_export_api, name='compliance_report_export_api'),
 
     # Health check endpoint
     path('api/health', views.health_check_api, name='health_check'),
