@@ -5,8 +5,9 @@ Tests for models, views, API endpoints, authentication, and permission boundarie
 import json
 from django.test import TestCase, Client
 from django.urls import reverse
-from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot, ContractVersion
+from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot, ContractVersion, ApiKey
 from core.views import hash_password, verify_password, generate_code
+from core.security import hash_api_key
 from unittest.mock import patch, Mock, MagicMock
 
 
@@ -1991,6 +1992,152 @@ class ContractVersioningTests(TestCase):
         url = reverse('rollback_contract_version_api', args=[self.pipeline.id, 999])
         res = self.client.post(url)
         self.assertEqual(res.status_code, 404)
+
+
+class CiCdGateTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="CI Org", plan="pro")
+        self.raw_api_key = "sg_live_secret_key_12345"
+        self.api_key = ApiKey.objects.create(
+            name="CI Pipeline Key",
+            key_hash=hash_api_key(self.raw_api_key),
+            organization=self.org,
+            is_active=True
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-ci-test-01",
+            organization=self.org,
+            name="Production Orders",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            cron="0 * * * *",
+            contract_yaml=(
+                "columns:\n"
+                "  - name: id\n"
+                "    type: integer\n"
+                "    nullable: false\n"
+                "  - name: customer_id\n"
+                "    type: integer\n"
+                "    nullable: false\n"
+                "  - name: amount\n"
+                "    type: numeric(10,2)\n"
+                "    nullable: true\n"
+            ),
+            lock_signature="9999999999999999999999999999999999999999999999999999999999999999",
+            status="Clean"
+        )
+
+    def test_ci_gate_passed_with_compatible_schema(self):
+        url = reverse('ci_cd_gate_api')
+        payload = {
+            "pipeline_id": self.pipeline.id,
+            "branch": "feature/add-notes",
+            "commit_sha": "abc1234567890",
+            "schema": {
+                "columns": [
+                    {"name": "id", "type": "integer", "nullable": False},
+                    {"name": "customer_id", "type": "integer", "nullable": False},
+                    {"name": "amount", "type": "numeric(10,2)", "nullable": True},
+                    {"name": "notes", "type": "text", "nullable": True}
+                ]
+            }
+        }
+        res = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_SCHEMA_GUARD_TOKEN=self.raw_api_key
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["passed"])
+        self.assertEqual(data["status"], "PASSED")
+        self.assertEqual(data["exit_code"], 0)
+        self.assertEqual(data["violations_count"], 0)
+        self.assertIn("PASSED", data["github_markdown"])
+        self.assertIn("Production Orders", data["github_markdown"])
+
+    def test_ci_gate_blocked_when_contract_column_missing(self):
+        url = reverse('ci_cd_gate_api')
+        # Missing 'amount' which is defined in contract
+        payload = {
+            "pipeline_id": self.pipeline.id,
+            "branch": "feature/drop-amount",
+            "schema": {
+                "columns": [
+                    {"name": "id", "type": "integer", "nullable": False},
+                    {"name": "customer_id", "type": "integer", "nullable": False}
+                ]
+            }
+        }
+        res = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_SCHEMA_GUARD_TOKEN=self.raw_api_key
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertFalse(data["passed"])
+        self.assertEqual(data["status"], "BLOCKED")
+        self.assertEqual(data["exit_code"], 1)
+        self.assertGreaterEqual(data["violations_count"], 1)
+        self.assertIn("BLOCKED", data["github_markdown"])
+        self.assertIn("Missing column 'amount'", data["violations"][0])
+
+    def test_ci_gate_by_table_name_resolution(self):
+        url = reverse('ci_cd_gate_api')
+        payload = {
+            "table": "orders",
+            "environment": "prod",
+            "schema": {
+                "columns": [
+                    {"name": "id", "type": "integer", "nullable": False},
+                    {"name": "customer_id", "type": "integer", "nullable": False},
+                    {"name": "amount", "type": "numeric(10,2)", "nullable": True}
+                ]
+            }
+        }
+        res = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_SCHEMA_GUARD_TOKEN=self.raw_api_key
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["passed"])
+        self.assertEqual(data["pipeline"]["id"], self.pipeline.id)
+
+    def test_ci_gate_unauthorized_missing_token(self):
+        url = reverse('ci_cd_gate_api')
+        payload = {"pipeline_id": self.pipeline.id}
+        res = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 401)
+
+    def test_ci_workflow_template_github(self):
+        url = reverse('ci_cd_workflow_template_api') + f"?pipeline_id={self.pipeline.id}&platform=github"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["filename"], ".github/workflows/schema-guard.yml")
+        self.assertIn("actions/checkout", data["content"])
+        self.assertIn(self.pipeline.id, data["content"])
+
+    def test_ci_workflow_template_download(self):
+        url = reverse('ci_cd_workflow_template_api') + f"?pipeline_id={self.pipeline.id}&platform=github&download=1"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn("schema-guard.yml", res["Content-Disposition"])
+
 
 
 

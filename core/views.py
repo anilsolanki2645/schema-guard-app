@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import random
@@ -2287,6 +2288,223 @@ def validate_pipeline_gate_api(request, id):
         "warnings": warnings,
         "checked_at": log_entry.checked_at.strftime("%Y-%m-%d %H:%M:%S")
     })
+
+def ci_cd_gate_api(request):
+    """
+    Unified CI/CD Data Contract Gate API for GitHub Actions, GitLab CI, and automation.
+    Validates PR schema or DDL changes against verified contract specifications.
+    Returns breaking status, violations list, exit code, and formatted PR markdown.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    from core.models import Pipeline, ApiKey, GateValidationLog
+    from django.utils import timezone as dj_tz
+
+    # 1. Authenticate via API Key or active user session
+    auth_header = request.headers.get("X-Schema-Guard-Token") or request.headers.get("Authorization") or request.GET.get("token")
+    if auth_header and auth_header.startswith("Bearer "):
+        auth_header = auth_header[7:].strip()
+
+    authenticated = False
+    org_id = None
+    actor = "system/ci"
+
+    if auth_header:
+        token_hash = hash_api_key(auth_header)
+        api_key = ApiKey.objects.filter(key_hash=token_hash, is_active=True).first()
+        if api_key:
+            authenticated = True
+            org_id = api_key.organization_id
+            actor = f"api_key:{api_key.name}"
+            api_key.last_used_at = dj_tz.now()
+            api_key.save(update_fields=['last_used_at'])
+
+    if not authenticated and request.session.get('user'):
+        u = request.session.get('user')
+        authenticated = True
+        org_id = u.get('organization_id')
+        actor = u.get('username', 'user')
+
+    if not authenticated:
+        return JsonResponse({
+            "detail": "Unauthorized: Missing or invalid API key. Pass 'X-Schema-Guard-Token' header or 'Authorization: Bearer <token>'."
+        }, status=401)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    pipeline_id = data.get("pipeline_id")
+    table_name = data.get("table")
+    db_schema = data.get("db_schema") or (data.get("schema") if isinstance(data.get("schema"), str) else None)
+    environment = (data.get("environment") or "prod").lower()
+
+    # Resolve target pipeline
+    p_obj = None
+    if pipeline_id:
+        p_obj = Pipeline.objects.filter(id=pipeline_id).first()
+    elif table_name:
+        q = Pipeline.objects.filter(table__iexact=table_name)
+        if org_id:
+            q = q.filter(organization_id=org_id)
+        if db_schema:
+            q = q.filter(schema__iexact=db_schema)
+        if environment:
+            p_obj = q.filter(environment=environment).first()
+        if not p_obj:
+            p_obj = q.first()
+
+    if not p_obj:
+        return JsonResponse({
+            "detail": f"Target pipeline not found for identifier '{pipeline_id or table_name}'."
+        }, status=404)
+
+    # Scoping check
+    if org_id and p_obj.organization_id and p_obj.organization_id != org_id:
+        return JsonResponse({"detail": "Unauthorized access to this pipeline."}, status=403)
+
+    commit_sha = data.get("commit_sha", "").strip()
+    branch = data.get("branch", "").strip()
+    proposed_schema = data.get("proposed_schema") or (data.get("schema") if isinstance(data.get("schema"), dict) else None)
+    proposed_ddl = data.get("ddl")
+
+    # Load contract columns
+    from core.migration_generator import parse_contract_columns
+    contract_cols = parse_contract_columns(p_obj.contract_yaml)
+
+    if not contract_cols:
+        contract_path, _ = ensure_contract_and_snapshot_files(p_obj)
+        if contract_path and os.path.exists(contract_path):
+            try:
+                cfg = load_contract(contract_path)
+                contract_cols = cfg.get("columns", [])
+            except Exception:
+                pass
+
+    if not contract_cols:
+        return JsonResponse({
+            "detail": f"Pipeline '{p_obj.name}' does not have a defined contract baseline. Please lock a contract first."
+        }, status=400)
+
+    # Resolve proposed columns
+    proposed_cols = []
+    if proposed_schema and isinstance(proposed_schema, dict) and "columns" in proposed_schema:
+        proposed_cols = proposed_schema["columns"]
+    elif proposed_ddl:
+        sim_cols = list(contract_cols)
+        add_matches = re.findall(r'add\s+(?:column\s+)?([a-zA-Z0-9_]+)\s+([a-zA-Z0-9_\(\)]+)', proposed_ddl, re.I)
+        for m_col, m_type in add_matches:
+            sim_cols.append({"name": m_col, "type": m_type, "nullable": "not null" not in proposed_ddl.lower()})
+        drop_matches = re.findall(r'drop\s+column\s+([a-zA-Z0-9_]+)', proposed_ddl, re.I)
+        for m_col in drop_matches:
+            sim_cols = [c for c in sim_cols if c["name"].lower() != m_col.lower()]
+        proposed_cols = sim_cols
+    else:
+        try:
+            resolved_conn = resolve_connection_string(p_obj.conn_str, p_obj.db_type)
+            from core.db_connector import get_db_columns
+            live_info = get_db_columns(p_obj.db_type, resolved_conn, p_obj.schema, p_obj.table)
+            proposed_cols = live_info.get("columns", [])
+        except Exception as e:
+            return JsonResponse({"detail": f"Could not extract live schema for gate check: {e}"}, status=400)
+
+    # Evaluate contract rules
+    from core.ci_gate import evaluate_proposed_schema_against_contract, build_github_markdown_report
+    violations, warnings = evaluate_proposed_schema_against_contract(contract_cols, proposed_cols)
+
+    is_passed = (len(violations) == 0)
+    status_str = "PASSED" if is_passed else "BLOCKED"
+    exit_code = 0 if is_passed else 1
+
+    # Build Markdown PR report
+    md_report = build_github_markdown_report(
+        pipeline_name=p_obj.name,
+        table=p_obj.table,
+        schema=p_obj.schema,
+        environment=p_obj.environment or 'prod',
+        status=status_str,
+        violations=violations,
+        warnings=warnings,
+        commit_sha=commit_sha,
+        branch=branch
+    )
+
+    # Log in GateValidationLog
+    log_entry = GateValidationLog.objects.create(
+        pipeline=p_obj,
+        commit_sha=commit_sha,
+        branch=branch,
+        status="PASS" if is_passed else "FAIL",
+        violations_count=len(violations),
+        details={
+            "violations": violations,
+            "warnings": warnings,
+            "actor": actor,
+            "total_columns": len(proposed_cols)
+        }
+    )
+
+    summary_text = (
+        f"✅ PASSED: All {len(proposed_cols)} schema columns comply with contract baseline."
+        if is_passed
+        else f"❌ BLOCKED: {len(violations)} breaking schema contract violation(s) detected."
+    )
+
+    return JsonResponse({
+        "passed": is_passed,
+        "status": status_str,
+        "exit_code": exit_code,
+        "violations_count": len(violations),
+        "warnings_count": len(warnings),
+        "violations": violations,
+        "warnings": warnings,
+        "summary": summary_text,
+        "pipeline": {
+            "id": p_obj.id,
+            "name": p_obj.name,
+            "table": p_obj.table,
+            "schema": p_obj.schema,
+            "environment": p_obj.environment or 'prod',
+            "lock_signature": p_obj.lock_signature
+        },
+        "github_markdown": md_report,
+        "checked_at": log_entry.checked_at.isoformat()
+    })
+
+
+def ci_cd_workflow_template_api(request):
+    """
+    Generates ready-to-use CI/CD workflow templates (GitHub Actions, GitLab CI, Bash).
+    """
+    pipeline_id = request.GET.get("pipeline_id")
+    platform = (request.GET.get("platform") or "github").lower()
+    download = bool(request.GET.get("download"))
+
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=pipeline_id).first() if pipeline_id else None
+
+    table_name = p_obj.table if p_obj else "orders"
+    pid = p_obj.id if p_obj else "pipe-orders-demo"
+    base_url = f"{request.scheme}://{request.get_host()}"
+
+    from core.ci_gate import generate_ci_workflow_template
+    tmpl = generate_ci_workflow_template(
+        platform=platform,
+        base_url=base_url,
+        pipeline_id=pid,
+        table_name=table_name
+    )
+
+    if download:
+        content_type = "text/yaml" if "yml" in tmpl["filename"] else "text/plain"
+        response = HttpResponse(tmpl["content"], content_type=f"{content_type}; charset=utf-8")
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(tmpl["filename"])}"'
+        return response
+
+    return JsonResponse(tmpl)
+
 
 @require_login
 def get_gate_logs_api(request, id):

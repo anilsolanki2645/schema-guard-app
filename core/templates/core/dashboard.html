@@ -237,6 +237,9 @@
                 <button type="button" class="btn-secondary" id="btn-contract-history" onclick="openContractHistoryModal()"
                     style="border-color: rgba(139, 92, 246, 0.4); color: #c084fc; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
                     title="Inspect contract version history and roll back revisions">📜 History</button>
+                <button type="button" class="btn-secondary" id="btn-ci-gate" onclick="openCiGateModal()"
+                    style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
+                    title="Generate GitHub Actions / GitLab CI workflow and test gate">🛡️ CI/CD Gate</button>
                 <button class="btn-primary-sm" id="btn-trigger-check" onclick="triggerCheck()">Trigger Validation
                     Check</button>
                 <button class="btn-secondary" id="btn-migration-generator" onclick="openMigrationModal()"
@@ -1302,6 +1305,92 @@
     </div>
 </div>
 
+<!-- CI/CD GATE & WORKFLOW EXPORT MODAL -->
+<div id="ci-gate-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeCiGateModal()">
+    <div class="modal-card" style="max-width: 960px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; background: #0b1120; border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 1.25rem; box-shadow: 0 25px 70px rgba(0,0,0,0.85), 0 0 40px rgba(16, 185, 129, 0.15); overflow: hidden;">
+        
+        <!-- Header -->
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.7);">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, rgba(16,185,129,0.35), rgba(59,130,246,0.25)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid rgba(16,185,129,0.4);">
+                    🛡️
+                </div>
+                <div>
+                    <h2 style="font-weight: 800; font-size: 1.2rem; margin: 0; background: linear-gradient(135deg, #34d399, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">CI/CD Contract Gate & Pull Request Check</h2>
+                    <p id="ci-modal-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                        Pipeline: <strong id="ci-pipeline-title" style="color: #f1f5f9;">-</strong> • Automatically block breaking schema changes in GitHub Actions & GitLab CI
+                    </p>
+                </div>
+            </div>
+            <button type="button" class="modal-close" onclick="closeCiGateModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer;">&times;</button>
+        </div>
+
+        <!-- Body -->
+        <div class="modal-body" style="padding: 1.25rem 1.75rem; overflow-y: auto; flex: 1;">
+            
+            <!-- Quick Instructions Bar -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; padding: 0.85rem 1.15rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <div style="font-size: 0.82rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.2rem;">Quick Setup in 2 Steps:</div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">
+                        1. Add <code>SCHEMA_GUARD_API_KEY</code> to your repository secrets.<br>
+                        2. Commit the workflow file below into <code>.github/workflows/</code> or <code>.gitlab-ci.yml</code>.
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" onclick="runCiGateSimulation()" id="btn-simulate-ci-gate"
+                    style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; font-size: 0.8rem; font-weight: 700; padding: 0.4rem 0.85rem;">
+                    🧪 Test Gate Simulation
+                </button>
+            </div>
+
+            <!-- Simulation Result Container -->
+            <div id="ci-simulation-container" style="display: none; margin-bottom: 1rem; background: rgba(3, 7, 18, 0.6); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 0.75rem; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8;">GitHub PR Comment Markdown Preview:</span>
+                    <span id="ci-sim-status-badge" class="pipe-badge" style="font-size: 0.7rem;">-</span>
+                </div>
+                <pre id="ci-sim-markdown-preview" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 0.85rem; border-radius: 0.5rem; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.78rem; line-height: 1.5; color: #e2e8f0; white-space: pre-wrap; max-height: 180px; overflow-y: auto; margin: 0;"></pre>
+            </div>
+
+            <!-- Platform Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                <button type="button" class="mig-tab-btn active" id="tab-ci-github" onclick="switchCiPlatform('github')">🐙 GitHub Actions</button>
+                <button type="button" class="mig-tab-btn" id="tab-ci-gitlab" onclick="switchCiPlatform('gitlab')">🦊 GitLab CI</button>
+                <button type="button" class="mig-tab-btn" id="tab-ci-bash" onclick="switchCiPlatform('bash')">💻 cURL / Bash Script</button>
+            </div>
+
+            <!-- Workflow Code Display -->
+            <div style="position: relative; background: #030712; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.8); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.45rem 1rem; font-size: 0.75rem;">
+                    <span id="ci-filename-display" style="font-family: var(--font-mono); color: #34d399; font-weight: 600;">.github/workflows/schema-guard.yml</span>
+                    <span id="ci-desc-display" style="color: #94a3b8; font-size: 0.72rem;">Runs on PR to main branch</span>
+                </div>
+                <pre id="ci-code-display" style="margin: 0; padding: 1.15rem; font-family: 'JetBrains Mono', Consolas, Monaco, monospace; font-size: 0.82rem; line-height: 1.55; color: #f1f5f9; white-space: pre-wrap; word-break: break-all; max-height: 380px; overflow-y: auto; background: transparent;"></pre>
+            </div>
+
+            <div id="ci-copy-toast" style="display: none; margin-top: 0.75rem; padding: 0.5rem 0.85rem; border-radius: 0.5rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; font-size: 0.8rem; font-weight: 600;">
+                ✅ Copied workflow configuration to clipboard!
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.08); padding: 1rem 1.75rem; background: rgba(15, 23, 42, 0.5);">
+            <div style="font-size: 0.75rem; color: #94a3b8;">
+                🔒 CI/CD endpoint authenticates via <code>X-Schema-Guard-Token</code> without requiring interactive UI session.
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <button type="button" class="btn-secondary" onclick="closeCiGateModal()">Close</button>
+                <button type="button" class="btn-secondary" onclick="copyCiWorkflow()" style="border-color: rgba(16,185,129,0.5); color: #34d399; font-weight: 600;">
+                    📋 Copy Workflow
+                </button>
+                <button type="button" class="btn-primary" onclick="downloadCiWorkflow()" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; font-weight: 700;">
+                    💾 Download Workflow File
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- AI DIAGNOSTICS MODAL POPUP -->
 <div id="ai-drawer" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeAiDrawer()">
     <div class="modal-card" style="max-width: 920px; width: 94%; max-height: 90vh; display: flex; flex-direction: column; background: #0b1120; border: 1px solid rgba(139, 92, 246, 0.35); border-radius: 1.25rem; box-shadow: 0 25px 70px rgba(0,0,0,0.85), 0 0 40px rgba(139, 92, 246, 0.15); overflow: hidden;">
@@ -1924,6 +2013,10 @@
         const histBtn = document.getElementById('btn-contract-history');
         if (histBtn) {
             histBtn.style.display = 'inline-flex';
+        }
+        const ciBtn = document.getElementById('btn-ci-gate');
+        if (ciBtn) {
+            ciBtn.style.display = 'inline-flex';
         }
 
         // Show promote button for dev & staging pipelines
@@ -3814,6 +3907,156 @@ with DAG(
             rollbackBtn.disabled = false;
             rollbackBtn.innerHTML = `⏪ Rollback to v${selectedVersionNumber}`;
             alert(`❌ Rollback error: ${err.message}`);
+        });
+    }
+
+    // -------------------------------------------------------------
+    // CI/CD Contract Gate & Workflow Generator Logic
+    // -------------------------------------------------------------
+    let currentCiPlatform = 'github';
+    let currentCiWorkflowData = null;
+
+    function openCiGateModal() {
+        if (!activePipeline) {
+            alert('Please select a pipeline first.');
+            return;
+        }
+
+        document.getElementById('ci-pipeline-title').innerText = activePipeline.name;
+        document.getElementById('ci-simulation-container').style.display = 'none';
+
+        const modal = document.getElementById('ci-gate-modal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+
+        fetchCiWorkflow();
+    }
+
+    function closeCiGateModal() {
+        const modal = document.getElementById('ci-gate-modal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function switchCiPlatform(platform) {
+        currentCiPlatform = platform;
+
+        ['github', 'gitlab', 'bash'].forEach(p => {
+            const btn = document.getElementById(`tab-ci-${p}`);
+            if (btn) {
+                if (p === platform) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        });
+
+        fetchCiWorkflow();
+    }
+
+    function fetchCiWorkflow() {
+        if (!activePipeline) return;
+
+        const codeDisplay = document.getElementById('ci-code-display');
+        const fileDisplay = document.getElementById('ci-filename-display');
+        const descDisplay = document.getElementById('ci-desc-display');
+
+        if (codeDisplay) {
+            codeDisplay.innerHTML = '<span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Generating workflow template...';
+        }
+
+        fetch(`/api/ci/workflows?pipeline_id=${encodeURIComponent(activePipeline.id)}&platform=${currentCiPlatform}`)
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Failed to generate workflow.');
+            return data;
+        })
+        .then(data => {
+            currentCiWorkflowData = data;
+            if (fileDisplay) fileDisplay.innerText = data.filename;
+            if (descDisplay) {
+                if (currentCiPlatform === 'github') descDisplay.innerText = 'Runs on pull_request and posts breaking change report';
+                else if (currentCiPlatform === 'gitlab') descDisplay.innerText = 'Runs in test stage on merge_requests and main';
+                else descDisplay.innerText = 'Execute locally or in bash automation';
+            }
+            if (codeDisplay) codeDisplay.innerText = data.content;
+        })
+        .catch(err => {
+            if (codeDisplay) codeDisplay.innerText = `# Error: ${err.message}`;
+        });
+    }
+
+    function copyCiWorkflow() {
+        const codeDisplay = document.getElementById('ci-code-display');
+        if (!codeDisplay) return;
+
+        navigator.clipboard.writeText(codeDisplay.innerText).then(() => {
+            const toast = document.getElementById('ci-copy-toast');
+            if (toast) {
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 3000);
+            }
+        }).catch(() => {
+            alert('Workflow copied to clipboard!');
+        });
+    }
+
+    function downloadCiWorkflow() {
+        if (!activePipeline) return;
+        window.location.href = `/api/ci/workflows?pipeline_id=${encodeURIComponent(activePipeline.id)}&platform=${currentCiPlatform}&download=1`;
+    }
+
+    function runCiGateSimulation() {
+        if (!activePipeline) return;
+
+        const btn = document.getElementById('btn-simulate-ci-gate');
+        const container = document.getElementById('ci-simulation-container');
+        const badge = document.getElementById('ci-sim-status-badge');
+        const preview = document.getElementById('ci-sim-markdown-preview');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Testing Gate...';
+
+        fetch('/api/ci/gate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                pipeline_id: activePipeline.id,
+                branch: 'feature/ci-gate-test',
+                commit_sha: 'a1b2c3d4e5f6789012345678901234567890abcd'
+            })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Gate test failed.');
+            return data;
+        })
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '🧪 Test Gate Simulation';
+
+            container.style.display = 'block';
+            if (data.passed) {
+                badge.className = 'pipe-badge';
+                badge.style.background = 'rgba(34, 197, 94, 0.15)';
+                badge.style.color = '#4ade80';
+                badge.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+                badge.innerText = 'PASSED (Exit Code: 0)';
+            } else {
+                badge.className = 'pipe-badge';
+                badge.style.background = 'rgba(239, 68, 68, 0.15)';
+                badge.style.color = '#f87171';
+                badge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                badge.innerText = `BLOCKED (${data.violations_count} Violations)`;
+            }
+
+            preview.innerText = data.github_markdown || data.summary;
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '🧪 Test Gate Simulation';
+            alert(`Simulation failed: ${err.message}`);
         });
     }
 </script>
