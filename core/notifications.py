@@ -315,9 +315,18 @@ def dispatch_signed_webhook(
                 method="POST"
             )
             with urllib.request.urlopen(req, timeout=8) as res:
-                status_code = res.status
-                raw_body = res.read()
-                response_body = raw_body.decode("utf-8", errors="ignore")[:2000] if raw_body else ""
+                status_code = getattr(res, "status", 200)
+                try:
+                    raw_body = res.read()
+                    if isinstance(raw_body, bytes):
+                        response_body = raw_body.decode("utf-8", errors="ignore")[:2000]
+                    elif isinstance(raw_body, str):
+                        response_body = raw_body[:2000]
+                    else:
+                        response_body = ""
+                except Exception:
+                    response_body = ""
+
                 if status_code in (200, 201, 202, 204):
                     success = True
                     error_message = ""
