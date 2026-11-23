@@ -46,3 +46,12 @@ snapshots/
 venv/
 .venv/
 env/
+
+# Video and demo generator artifacts
+*.mp4
+*.mp3
+app_scene_*.png
+actual_app_scenes.html
+concat_app_scenes.txt
+render_scene_*.html
+
