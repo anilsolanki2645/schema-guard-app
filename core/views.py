@@ -3059,6 +3059,224 @@ def list_contract_versions_api(request, id):
 
 
 @require_login
+def get_pipeline_timeline_api(request, id):
+    """
+    Time-Travel Timeline API:
+    Aggregates SchemaSnapshots, ContractVersions, DriftIncidents, and AuditLog events
+    into a chronological unified event stream for visual point-in-time schema governance.
+    """
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, SchemaSnapshot, ContractVersion, DriftIncident, AuditLog
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    events = []
+
+    # 1. Schema Snapshots (live database structural state captures)
+    snapshots = SchemaSnapshot.objects.filter(pipeline=pipeline).order_by('-captured_at')[:50]
+    for s in snapshots:
+        col_count = len(s.schema_data.get("columns", [])) if isinstance(s.schema_data, dict) and "columns" in s.schema_data else (len(s.schema_data) if isinstance(s.schema_data, dict) else 0)
+        events.append({
+            "event_type": "snapshot",
+            "timestamp": s.captured_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "raw_timestamp": s.captured_at.isoformat(),
+            "actor": s.captured_by or "system",
+            "title": f"Database Schema Snapshot v{s.version}",
+            "description": f"Captured {col_count} columns • Status: {s.status} ({s.violations_count} violations)",
+            "status": s.status,
+            "badge_color": "emerald" if s.status == "Clean" else "rose",
+            "snapshot_id": s.id,
+            "version": s.version,
+            "columns_count": col_count,
+            "hash": s.hash[:16] if s.hash else None,
+        })
+
+    # 2. Contract Versions (governance contract baseline locks & revisions)
+    versions = ContractVersion.objects.filter(pipeline=pipeline).order_by('-created_at')[:30]
+    for v in versions:
+        events.append({
+            "event_type": "contract_version",
+            "timestamp": v.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "raw_timestamp": v.created_at.isoformat(),
+            "actor": v.created_by or "engineer",
+            "title": f"Data Contract Revision v{v.version_number}",
+            "description": v.change_summary or "Contract baseline locked with cryptographic signature",
+            "badge_color": "indigo",
+            "version_number": v.version_number,
+            "signature": v.lock_signature[:16] if v.lock_signature else None,
+        })
+
+    # 3. Drift Incidents (violations opened, acknowledged, resolved)
+    incidents = DriftIncident.objects.filter(pipeline=pipeline).order_by('-created_at')[:30]
+    for inc in incidents:
+        events.append({
+            "event_type": "incident",
+            "timestamp": inc.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "raw_timestamp": inc.created_at.isoformat(),
+            "actor": inc.acknowledged_by or "system",
+            "title": f"Incident {inc.incident_number}: {inc.title}",
+            "description": f"Severity: {inc.severity} • Status: {inc.status} ({inc.violations_count} violations)",
+            "status": inc.status,
+            "severity": inc.severity,
+            "badge_color": "red" if inc.severity == "CRITICAL" else "amber",
+            "incident_number": inc.incident_number,
+            "mttr_seconds": inc.mttr_seconds,
+        })
+
+    # 4. Relevant Audit Logs (promotions, rollbacks, auto-repairs)
+    audit_logs = AuditLog.objects.filter(
+        models.Q(target_id=str(pipeline.id)) | models.Q(details__pipeline_id=str(pipeline.id))
+    ).order_by('-timestamp')[:30]
+    for a in audit_logs:
+        if a.action in ('pipeline.promoted', 'contract.rollback', 'pipeline.auto_repaired'):
+            action_label = {
+                'pipeline.promoted': 'Multi-Environment Promotion',
+                'contract.rollback': 'Contract Revision Rollback',
+                'pipeline.auto_repaired': 'Safe Database Auto-Repair Executed'
+            }.get(a.action, a.action)
+            events.append({
+                "event_type": "audit_action",
+                "action": a.action,
+                "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "raw_timestamp": a.timestamp.isoformat(),
+                "actor": a.actor,
+                "title": action_label,
+                "description": f"Actor: {a.actor} • Details: {json.dumps(a.details)}",
+                "badge_color": "cyan",
+                "details": a.details,
+            })
+
+    # Sort all events chronologically descending
+    events.sort(key=lambda x: x["raw_timestamp"], reverse=True)
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": pipeline.id,
+        "pipeline_name": pipeline.name,
+        "environment": getattr(pipeline, "environment", "prod") or "prod",
+        "current_status": pipeline.status,
+        "total_events": len(events),
+        "timeline": events
+    })
+
+
+@require_login
+def diff_pipeline_timeline_api(request, id):
+    """
+    Time-Travel Diff Inspector:
+    Computes a deep structural schema diff between two historical snapshots or versions.
+    Accepts query parameters:
+      - snap1, snap2: IDs of SchemaSnapshot
+      - OR v1, v2: version numbers of ContractVersion
+    """
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, SchemaSnapshot, ContractVersion
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    snap1_id = request.GET.get('snap1')
+    snap2_id = request.GET.get('snap2')
+    v1_num = request.GET.get('v1')
+    v2_num = request.GET.get('v2')
+
+    def extract_cols_map(data):
+        if not data:
+            return {}
+        if isinstance(data, dict):
+            if "columns" in data and isinstance(data["columns"], list):
+                out = {}
+                for c in data["columns"]:
+                    if isinstance(c, dict) and "name" in c:
+                        out[c["name"]] = c.get("type", "varchar")
+                    elif isinstance(c, str):
+                        out[c] = "varchar"
+                return out
+            return {k: str(v) for k, v in data.items() if not k.startswith('_')}
+        return {}
+
+    if snap1_id and snap2_id:
+        s1 = SchemaSnapshot.objects.filter(id=snap1_id, pipeline=pipeline).first()
+        s2 = SchemaSnapshot.objects.filter(id=snap2_id, pipeline=pipeline).first()
+        if not s1 or not s2:
+            return JsonResponse({"detail": "One or both snapshots not found."}, status=404)
+        schema1_map = extract_cols_map(s1.schema_data)
+        schema2_map = extract_cols_map(s2.schema_data)
+        meta1 = {"type": "snapshot", "version": s1.version, "timestamp": s1.captured_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+        meta2 = {"type": "snapshot", "version": s2.version, "timestamp": s2.captured_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+    elif v1_num and v2_num:
+        cv1 = ContractVersion.objects.filter(version_number=v1_num, pipeline=pipeline).first()
+        cv2 = ContractVersion.objects.filter(version_number=v2_num, pipeline=pipeline).first()
+        if not cv1 or not cv2:
+            return JsonResponse({"detail": "One or both contract versions not found."}, status=404)
+        schema1_map = extract_cols_map(cv1.schema_map)
+        schema2_map = extract_cols_map(cv2.schema_map)
+        meta1 = {"type": "contract_version", "version": cv1.version_number, "timestamp": cv1.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+        meta2 = {"type": "contract_version", "version": cv2.version_number, "timestamp": cv2.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+    else:
+        snaps = list(SchemaSnapshot.objects.filter(pipeline=pipeline).order_by('captured_at'))
+        if len(snaps) >= 2:
+            s1, s2 = snaps[0], snaps[-1]
+            schema1_map = extract_cols_map(s1.schema_data)
+            schema2_map = extract_cols_map(s2.schema_data)
+            meta1 = {"type": "snapshot", "version": s1.version, "timestamp": s1.captured_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+            meta2 = {"type": "snapshot", "version": s2.version, "timestamp": s2.captured_at.strftime("%Y-%m-%d %H:%M:%S UTC")}
+        else:
+            return JsonResponse({"detail": "Not enough historical snapshots or versions to compare. Run checks to generate snapshots."}, status=400)
+
+    added_cols = []
+    removed_cols = []
+    altered_cols = []
+    unchanged_count = 0
+
+    all_keys = set(schema1_map.keys()) | set(schema2_map.keys())
+    for col in sorted(all_keys):
+        in_1 = col in schema1_map
+        in_2 = col in schema2_map
+        if in_2 and not in_1:
+            added_cols.append({"name": col, "type": schema2_map[col]})
+        elif in_1 and not in_2:
+            removed_cols.append({"name": col, "type": schema1_map[col]})
+        else:
+            t1 = str(schema1_map[col]).lower()
+            t2 = str(schema2_map[col]).lower()
+            if t1 != t2:
+                altered_cols.append({"name": col, "old_type": schema1_map[col], "new_type": schema2_map[col]})
+            else:
+                unchanged_count += 1
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": pipeline.id,
+        "baseline": meta1,
+        "target": meta2,
+        "diff_summary": {
+            "added_count": len(added_cols),
+            "removed_count": len(removed_cols),
+            "altered_count": len(altered_cols),
+            "unchanged_count": unchanged_count,
+            "has_breaking_changes": len(removed_cols) > 0
+        },
+        "added_columns": added_cols,
+        "removed_columns": removed_cols,
+        "altered_columns": altered_cols,
+    })
+
+
+@require_login
 def get_contract_version_detail_api(request, id, version_number):
     """
     Retrieve full details and YAML content for a specific contract version.

@@ -2743,6 +2743,122 @@ class DriftIncidentTests(TestCase):
         self.assertIsNotNone(inc.snoozed_until)
 
 
+class SchemaTimelineTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline, SchemaSnapshot, ContractVersion, DriftIncident
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Timeline Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="timeline_analyst",
+            email="analyst@timeline.com",
+            password_hash=hash_password("TimePass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-time-01",
+            organization=self.org,
+            name="Subscriptions Engine",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="subscriptions",
+            contract_yaml="columns:\n  - name: sub_id\n    type: varchar\n",
+            lock_signature="c" * 64,
+            schema_map={"sub_id": "varchar"},
+            status="Clean"
+        )
+        self.snap1 = SchemaSnapshot.objects.create(
+            pipeline=self.pipeline,
+            version=1,
+            schema_data={"columns": [{"name": "sub_id", "type": "varchar"}, {"name": "plan", "type": "varchar"}]},
+            status="Clean",
+            captured_by="system"
+        )
+        self.snap2 = SchemaSnapshot.objects.create(
+            pipeline=self.pipeline,
+            version=2,
+            schema_data={"columns": [{"name": "sub_id", "type": "varchar"}, {"name": "plan", "type": "varchar"}, {"name": "tier_code", "type": "integer"}]},
+            status="Drifted",
+            captured_by="migration"
+        )
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=1,
+            contract_yaml="columns:\n  - name: sub_id\n    type: varchar\n",
+            lock_signature="c" * 64,
+            change_summary="Initial contract baseline"
+        )
+        DriftIncident.objects.create(
+            incident_number="INC-2026-9999",
+            pipeline=self.pipeline,
+            status="RESOLVED",
+            severity="MEDIUM",
+            title="Added tier_code",
+            violations=["ADDED COLUMN: tier_code"],
+            mttr_seconds=120
+        )
+
+    def test_get_pipeline_timeline_api(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'timeline_analyst',
+            'password': 'TimePass123!',
+        })
+        url = reverse('get_pipeline_timeline_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["pipeline_id"], self.pipeline.id)
+        timeline = data["timeline"]
+        self.assertGreaterEqual(len(timeline), 4)
+
+        event_types = {e["event_type"] for e in timeline}
+        self.assertIn("snapshot", event_types)
+        self.assertIn("contract_version", event_types)
+        self.assertIn("incident", event_types)
+
+    def test_diff_pipeline_timeline_api_snapshots(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'timeline_analyst',
+            'password': 'TimePass123!',
+        })
+        url = reverse('diff_pipeline_timeline_api', args=[self.pipeline.id]) + f"?snap1={self.snap1.id}&snap2={self.snap2.id}"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+
+        diff_summary = data["diff_summary"]
+        self.assertEqual(diff_summary["added_count"], 1)
+        self.assertEqual(diff_summary["removed_count"], 0)
+        self.assertFalse(diff_summary["has_breaking_changes"])
+        self.assertEqual(data["added_columns"][0]["name"], "tier_code")
+
+    def test_diff_pipeline_timeline_api_breaking_change(self):
+        # Diff snap2 -> snap1 (removing tier_code)
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'timeline_analyst',
+            'password': 'TimePass123!',
+        })
+        url = reverse('diff_pipeline_timeline_api', args=[self.pipeline.id]) + f"?snap1={self.snap2.id}&snap2={self.snap1.id}"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        diff_summary = data["diff_summary"]
+        self.assertEqual(diff_summary["removed_count"], 1)
+        self.assertTrue(diff_summary["has_breaking_changes"])
+        self.assertEqual(data["removed_columns"][0]["name"], "tier_code")
+
+
+
 
 
 
