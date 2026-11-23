@@ -2858,6 +2858,148 @@ class SchemaTimelineTests(TestCase):
         self.assertEqual(data["removed_columns"][0]["name"], "tier_code")
 
 
+class ColumnDataQualityRulesTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="DQ Rules Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="dq_engineer",
+            email="dq@rules.com",
+            password_hash=hash_password("DqPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-dq-01",
+            organization=self.org,
+            name="Invoicing Ledger",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="invoices",
+            contract_yaml="""columns:
+  - name: inv_id
+    type: varchar
+    primary_key: true
+  - name: status
+    type: varchar
+    nullable: false
+  - name: amount
+    type: numeric
+""",
+            lock_signature="d" * 64,
+            schema_map={"inv_id": "varchar", "status": "varchar", "amount": "numeric"},
+            status="Clean"
+        )
+
+    def test_get_pipeline_dq_rules_api(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'dq_engineer',
+            'password': 'DqPass123!',
+        })
+        url = reverse('pipeline_dq_rules_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["total_rules"], 3)
+        cols = {r["column"]: r for r in data["rules"]}
+        self.assertTrue(cols["inv_id"]["primary_key"])
+        self.assertFalse(cols["status"]["nullable"])
+
+    @patch('core.views.lock_contract')
+    def test_update_pipeline_dq_rules_api(self, mock_lock):
+        mock_lock.return_value = "e" * 64
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'dq_engineer',
+            'password': 'DqPass123!',
+        })
+        url = reverse('pipeline_dq_rules_api', args=[self.pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "rules": [
+                    {"column": "status", "allowed_values": ["PAID", "PENDING", "REFUNDED"]},
+                    {"column": "amount", "min_value": 0, "max_value": 1000000}
+                ]
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+
+        self.pipeline.refresh_from_db()
+        import yaml
+        doc = yaml.safe_load(self.pipeline.contract_yaml)
+        cols = {c["name"]: c for c in doc["columns"]}
+        self.assertEqual(cols["status"]["allowed_values"], ["PAID", "PENDING", "REFUNDED"])
+        self.assertEqual(cols["amount"]["min_value"], 0)
+        self.assertEqual(cols["amount"]["max_value"], 1000000)
+
+    def test_perform_data_quality_validation_with_enum_and_range_sqlite(self):
+        import sqlite3
+        import tempfile
+        import os
+        from core.views import perform_data_quality_validation
+
+        # Create temporary sqlite db with test data
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.execute("CREATE TABLE orders (id INT PRIMARYKEY, status TEXT, amount REAL);")
+            conn.execute("INSERT INTO orders VALUES (1, 'PAID', 50.0);")
+            conn.execute("INSERT INTO orders VALUES (2, 'PENDING', 120.0);")
+            conn.commit()
+            conn.close()
+
+            schema_cols = [
+                {"name": "id", "primary_key": True},
+                {"name": "status", "allowed_values": ["PAID", "PENDING", "CANCELLED"]},
+                {"name": "amount", "min_value": 0, "max_value": 500}
+            ]
+
+            # 1. Passes all constraints
+            res = perform_data_quality_validation(
+                db_type="sqlite",
+                conn_str=f"sqlite:///{db_path}",
+                schema_name="",
+                table_name="orders",
+                schema_columns=schema_cols
+            )
+            self.assertEqual(res["status"], "PASS")
+
+            # 2. Insert invalid enum value -> should FAIL
+            conn = sqlite3.connect(db_path)
+            conn.execute("INSERT INTO orders VALUES (3, 'UNKNOWN_STATUS', 20.0);")
+            conn.commit()
+            conn.close()
+
+            res_fail = perform_data_quality_validation(
+                db_type="sqlite",
+                conn_str=f"sqlite:///{db_path}",
+                schema_name="",
+                table_name="orders",
+                schema_columns=schema_cols
+            )
+            self.assertEqual(res_fail["status"], "FAIL")
+            enum_check = [c for c in res_fail["checks"] if c["name"] == "Enum Domain Compliance"][0]
+            self.assertEqual(enum_check["status"], "FAIL")
+            self.assertIn("out-of-domain", enum_check["metric"])
+        finally:
+            if os.path.exists(db_path):
+                os.remove(db_path)
+
+
+
 
 
 

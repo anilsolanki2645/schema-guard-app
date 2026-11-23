@@ -219,6 +219,58 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
                     "metric": "No primary keys defined to check.",
                     "status": "PASS"
                 })
+
+            # 4. Column Allowed Values / Enum Assertion
+            enum_cols = [c for c in schema_columns if c.get("allowed_values") or c.get("enum")]
+            if enum_cols and total_rows > 0:
+                enum_failures = []
+                for col in enum_cols:
+                    col_name = col["name"]
+                    vals = col.get("allowed_values") or col.get("enum") or []
+                    if vals:
+                        safe_col = sanitize_sql_identifier(col_name, db_type)
+                        escaped_vals = ", ".join([f"'{str(v).replace("'", "''")}'" for v in vals])
+                        enum_q = text(f"SELECT COUNT(*) FROM {target_table} WHERE {safe_col} IS NOT NULL AND {safe_col} NOT IN ({escaped_vals})")
+                        invalid_count = conn.execute(enum_q).scalar() or 0
+                        if invalid_count > 0:
+                            enum_failures.append(f"{col_name}: {invalid_count} out-of-domain value(s)")
+
+                checks.append({
+                    "name": "Enum Domain Compliance",
+                    "description": "Verifies that column values adhere to allowed enum domain values",
+                    "metric": ", ".join(enum_failures) if enum_failures else "All domain constraints satisfied.",
+                    "status": "FAIL" if enum_failures else "PASS"
+                })
+                if enum_failures:
+                    status = "FAIL"
+
+            # 5. Range Constraints (Min / Max)
+            range_cols = [c for c in schema_columns if c.get("min_value") is not None or c.get("max_value") is not None]
+            if range_cols and total_rows > 0:
+                range_failures = []
+                for col in range_cols:
+                    col_name = col["name"]
+                    safe_col = sanitize_sql_identifier(col_name, db_type)
+                    conditions = []
+                    if col.get("min_value") is not None:
+                        conditions.append(f"{safe_col} < {col['min_value']}")
+                    if col.get("max_value") is not None:
+                        conditions.append(f"{safe_col} > {col['max_value']}")
+                    if conditions:
+                        cond_str = " OR ".join(conditions)
+                        range_q = text(f"SELECT COUNT(*) FROM {target_table} WHERE {safe_col} IS NOT NULL AND ({cond_str})")
+                        out_of_bounds = conn.execute(range_q).scalar() or 0
+                        if out_of_bounds > 0:
+                            range_failures.append(f"{col_name}: {out_of_bounds} record(s) out of bounds")
+
+                checks.append({
+                    "name": "Range Bound Compliance",
+                    "description": "Verifies numerical / date column values respect minimum and maximum bounds",
+                    "metric": ", ".join(range_failures) if range_failures else "All range constraints satisfied.",
+                    "status": "FAIL" if range_failures else "PASS"
+                })
+                if range_failures:
+                    status = "FAIL"
     except Exception as e:
         status = "FAIL"
         checks.append({
@@ -3274,6 +3326,140 @@ def diff_pipeline_timeline_api(request, id):
         "removed_columns": removed_cols,
         "altered_columns": altered_cols,
     })
+
+
+@require_login
+def pipeline_dq_rules_api(request, id):
+    """
+    Column-Level Data Quality Assertions API:
+    GET: inspects all column quality rules (nullable, pk, allowed_values, min/max).
+    POST: updates column quality assertions in the contract YAML and re-locks contract.
+    """
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, AuditLog
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    import yaml
+
+    if request.method == "GET":
+        contract_data = {}
+        if pipeline.contract_yaml:
+            try:
+                contract_data = yaml.safe_load(pipeline.contract_yaml) or {}
+            except Exception:
+                contract_data = {}
+
+        cols = contract_data.get("columns", [])
+        rules = []
+        for c in cols:
+            if isinstance(c, dict):
+                rules.append({
+                    "column": c.get("name"),
+                    "type": c.get("type", "varchar"),
+                    "nullable": c.get("nullable", True),
+                    "primary_key": c.get("primary_key", False),
+                    "allowed_values": c.get("allowed_values") or c.get("enum") or [],
+                    "min_value": c.get("min_value"),
+                    "max_value": c.get("max_value"),
+                })
+
+        return JsonResponse({
+            "success": True,
+            "pipeline_id": pipeline.id,
+            "pipeline_name": pipeline.name,
+            "table": pipeline.table,
+            "total_rules": len(rules),
+            "rules": rules
+        })
+
+    elif request.method == "POST":
+        user_perms = user_info.get('permissions', {})
+        if user_info.get('role') not in ('admin', 'subadmin') and not user_perms.get('edit', True):
+            return JsonResponse({"detail": "Forbidden: Requires edit permission to update contract rules."}, status=403)
+
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except Exception:
+            return JsonResponse({"detail": "Invalid JSON body"}, status=400)
+
+        updated_rules = data.get("rules", [])
+        if not isinstance(updated_rules, list):
+            return JsonResponse({"detail": "'rules' must be a list"}, status=400)
+
+        contract_data = {}
+        if pipeline.contract_yaml:
+            try:
+                contract_data = yaml.safe_load(pipeline.contract_yaml) or {}
+            except Exception:
+                contract_data = {}
+
+        existing_cols = contract_data.get("columns", [])
+        rules_by_col = {r.get("column"): r for r in updated_rules if isinstance(r, dict) and r.get("column")}
+
+        new_cols = []
+        for c in existing_cols:
+            if isinstance(c, dict):
+                col_name = c.get("name")
+                if col_name in rules_by_col:
+                    r = rules_by_col[col_name]
+                    if "nullable" in r:
+                        c["nullable"] = bool(r["nullable"])
+                    if "primary_key" in r:
+                        c["primary_key"] = bool(r["primary_key"])
+                    if "allowed_values" in r:
+                        c["allowed_values"] = r["allowed_values"]
+                    if "min_value" in r:
+                        c["min_value"] = r["min_value"]
+                    if "max_value" in r:
+                        c["max_value"] = r["max_value"]
+                new_cols.append(c)
+
+        contract_data["columns"] = new_cols
+        new_yaml = yaml.dump(contract_data, sort_keys=False)
+
+        pipeline.contract_yaml = new_yaml
+        pipeline.save()
+
+        contract_path, _ = ensure_contract_and_snapshot_files(pipeline)
+        if contract_path:
+            with open(contract_path, "w", encoding="utf-8") as f:
+                f.write(new_yaml)
+
+        new_sig = lock_contract(pipeline.id)
+        if new_sig:
+            pipeline.lock_signature = new_sig
+            pipeline.save()
+
+        actor = user_info.get('username') or 'user'
+        from core.views import record_contract_version
+        record_contract_version(pipeline, actor, f"Updated data quality assertions on {len(rules_by_col)} column(s)")
+
+        AuditLog.objects.create(
+            action='contract.lock',
+            actor=actor,
+            target_type='pipeline',
+            target_id=str(pipeline.id),
+            organization=pipeline.organization,
+            details={
+                "action": "update_dq_rules",
+                "rules_updated": len(rules_by_col),
+                "new_signature": new_sig
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Successfully updated data quality rules on {len(rules_by_col)} column(s). Contract baseline re-locked.",
+            "pipeline_id": pipeline.id,
+            "lock_signature": new_sig
+        })
+
+    return JsonResponse({"detail": "Method not allowed"}, status=405)
 
 
 @require_login
