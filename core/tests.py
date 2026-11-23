@@ -1365,5 +1365,139 @@ class RazorpayBillingTests(TestCase):
         self.assertEqual(self.org.max_pipelines, 1000)
 
 
+class ReverseEngineerContractTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Contract Eng Org", plan="pro")
+        self.user = User.objects.create(
+            username="contract_dev",
+            email="contract_dev@example.com",
+            password_hash=hash_password("DevPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+        yaml_content = """version: 1
+source:
+  name: orders_contract
+  type: postgres
+  connection: "env:DB_CONNECTION_STRING"
+  schema: public
+  table: orders
+
+columns:
+  - name: order_id
+    type: integer
+    nullable: false
+    primary_key: true
+  - name: customer_email
+    type: character varying(255)
+    nullable: false
+  - name: total_price
+    type: numeric(10,2)
+    nullable: true
+"""
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-reveng-test-01",
+            name="Orders Live Ingestion",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            contract_yaml=yaml_content,
+            organization=self.org
+        )
+
+    @patch('core.db_connector.get_db_columns')
+    @patch('core.db_connector.test_db_connection')
+    def test_reverse_engineer_contract_from_pipeline(self, mock_test, mock_get_cols):
+        mock_test.return_value = (True, "Connection OK")
+        mock_get_cols.return_value = {
+            "columns": [
+                {"name": "order_id", "type": "integer", "nullable": False, "primary_key": True},
+                {"name": "customer_email", "type": "varchar(255)", "nullable": False, "primary_key": False},
+                {"name": "total_price", "type": "numeric(10,2)", "nullable": True, "primary_key": False}
+            ]
+        }
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'contract_dev',
+            'password': 'DevPass123!',
+        })
+        url = reverse('reverse_engineer_contract_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"pipeline_id": self.pipeline.id}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(len(data["columns"]), 3)
+        self.assertTrue(len(data["signature"]) == 64)  # SHA-256
+        self.assertIn("version: 1", data["contract_yaml"])
+        self.assertIn("OrdersContractModel", data["pydantic_code"])
+        self.assertIn("IOrdersContract", data["typescript_code"])
+        self.assertIn("CREATE TABLE public.orders", data["sql_ddl"])
+        self.assertFalse(data["saved"])
+
+    @patch('core.db_connector.get_db_columns')
+    @patch('core.db_connector.test_db_connection')
+    def test_reverse_engineer_and_save_to_pipeline(self, mock_test, mock_get_cols):
+        mock_test.return_value = (True, "Connection OK")
+        mock_get_cols.return_value = {
+            "columns": [
+                {"name": "order_id", "type": "integer", "nullable": False, "primary_key": True},
+                {"name": "customer_email", "type": "varchar(255)", "nullable": False, "primary_key": False},
+                {"name": "total_price", "type": "numeric(10,2)", "nullable": True, "primary_key": False}
+            ]
+        }
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'contract_dev',
+            'password': 'DevPass123!',
+        })
+        url = reverse('reverse_engineer_contract_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "pipeline_id": self.pipeline.id,
+                "save_to_pipeline": True
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["saved"])
+
+        self.pipeline.refresh_from_db()
+        self.assertEqual(self.pipeline.lock_signature, data["signature"])
+        self.assertEqual(self.pipeline.status, "Clean")
+        self.assertIn("order_id", self.pipeline.contract_yaml)
+
+    def test_reverse_engineer_unauthenticated(self):
+        url = reverse('reverse_engineer_contract_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"pipeline_id": self.pipeline.id}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 302)
+
+    def test_reverse_engineer_nonexistent_pipeline(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'contract_dev',
+            'password': 'DevPass123!',
+        })
+        url = reverse('reverse_engineer_contract_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"pipeline_id": "nonexistent-pipeline-id-999"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 404)
+
+
+
 
 

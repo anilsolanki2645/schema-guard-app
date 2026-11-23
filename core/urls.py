@@ -40,6 +40,7 @@ urlpatterns = [
     path('pricing', views.pricing_page, name='pricing_page'),
     path('dashboard', views.dashboard_page, name='dashboard'),
     path('builder', views.builder_page, name='builder'),
+    path('api/contracts/reverse-engineer', views.reverse_engineer_contract_api, name='reverse_engineer_contract_api'),
     path('admin', views.admin_page, name='admin_panel'),
     path('troubleshooting', views.troubleshooting_page, name='troubleshooting'),
     path('auth/action', views.login_or_register_view, name='login_or_register'),

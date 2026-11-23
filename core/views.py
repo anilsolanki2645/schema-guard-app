@@ -833,10 +833,19 @@ def dashboard_page(request):
 @require_login
 def builder_page(request):
     # Require see / edit permissions
-    user_info = request.session.get('user')
+    user_info = request.session.get('user', {})
     if not user_info.get('permissions', {}).get('see', True) and user_info.get('role') not in ['admin', 'subadmin']:
         return HttpResponse("Unauthorized to view yaml builder.", status=403)
-    return render(request, 'core/builder.html')
+
+    from core.models import User, Pipeline
+    user = User.objects.filter(username=user_info.get('username')).first()
+    pipelines = []
+    if user and user.organization:
+        pipelines = list(Pipeline.objects.filter(organization=user.organization).values('id', 'name', 'db_type', 'schema', 'table'))
+    elif user:
+        pipelines = list(Pipeline.objects.all().values('id', 'name', 'db_type', 'schema', 'table')[:25])
+
+    return render(request, 'core/builder.html', {'pipelines': pipelines})
 
 @require_login
 @require_admin
@@ -1708,6 +1717,280 @@ def test_connection_api(request):
         return JsonResponse({"status": "success", "message": "Connection verified successfully."})
     except Exception as e:
         return JsonResponse({"status": "failed", "message": str(e)})
+
+
+@require_login
+def reverse_engineer_contract_api(request):
+    """
+    1-Click Live Schema Contract Generator.
+    Inspects live database metadata (columns, data types, primary keys, nullability)
+    and reverse-engineers a complete, locked Schema Guard YAML Contract, Pydantic model,
+    TypeScript interface, and SQL DDL.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON body"}, status=400)
+
+    from core.models import Pipeline, ConnectionProfile, User
+    from core.db_connector import test_db_connection, get_db_columns
+    import hashlib
+    import yaml
+
+    user_info = request.session.get('user', {})
+    user = User.objects.filter(username=user_info.get('username')).first()
+
+    pipeline_id = data.get("pipeline_id")
+    profile_name = data.get("profile_name")
+    save_to_pipeline = bool(data.get("save_to_pipeline", False))
+
+    p_obj = None
+    if pipeline_id:
+        p_obj = Pipeline.objects.filter(id=pipeline_id).first()
+        if not p_obj:
+            return JsonResponse({"detail": f"Pipeline '{pipeline_id}' not found."}, status=404)
+        if user and user.organization and p_obj.organization_id != user.organization_id:
+            if user.role not in ['admin', 'subadmin']:
+                return JsonResponse({"detail": "Unauthorized to inspect this pipeline."}, status=403)
+
+        db_type = p_obj.db_type
+        conn_str = p_obj.conn_str
+        schema = p_obj.schema
+        table = p_obj.table
+    elif profile_name:
+        profile = None
+        if user and user.organization:
+            profile = ConnectionProfile.objects.filter(name=profile_name, organization=user.organization).first()
+        if not profile:
+            profile = ConnectionProfile.objects.filter(name=profile_name).first()
+        if not profile:
+            return JsonResponse({"detail": f"Connection profile '{profile_name}' not found."}, status=404)
+        db_type = profile.db_type
+        conn_str = profile.connection_string
+        schema = data.get("schema") or "public"
+        table = data.get("table") or "orders"
+    else:
+        db_type = data.get("db_type") or data.get("dbType") or "postgres"
+        conn_str = data.get("conn_str") or data.get("connStr") or ""
+        schema = data.get("schema") or "public"
+        table = data.get("table") or "orders"
+
+    if not conn_str:
+        return JsonResponse({"detail": "A connection string, profile, or pipeline ID is required."}, status=400)
+
+    resolved_conn = resolve_connection_string(conn_str, db_type)
+    columns = []
+    connection_warning = None
+
+    # Attempt live inspection
+    try:
+        ok, msg = test_db_connection(db_type, resolved_conn)
+        if ok:
+            schema_info = get_db_columns(db_type, resolved_conn, schema, table)
+            columns = schema_info.get("columns", [])
+        else:
+            connection_warning = msg
+    except Exception as e:
+        connection_warning = str(e)
+
+    # Fallback to existing pipeline contract/schema if live connection was unavailable
+    if not columns and p_obj:
+        if getattr(p_obj, 'contract_yaml', None):
+            try:
+                cfg = yaml.safe_load(p_obj.contract_yaml)
+                if isinstance(cfg, dict) and cfg.get("columns"):
+                    for c in cfg["columns"]:
+                        columns.append({
+                            "name": c.get("name"),
+                            "type": c.get("type", "varchar(255)"),
+                            "nullable": c.get("nullable", True),
+                            "primary_key": bool(c.get("primary_key", False))
+                        })
+            except Exception:
+                pass
+        if not columns and getattr(p_obj, 'schema_map', None):
+            s_cols = p_obj.schema_map.get("columns") or p_obj.schema_map.get("left") or []
+            for c in s_cols:
+                columns.append({
+                    "name": c.get("name"),
+                    "type": c.get("type", "varchar(255)"),
+                    "nullable": not c.get("notNull", False),
+                    "primary_key": bool(c.get("pk", False))
+                })
+
+    if not columns:
+        err_msg = connection_warning or f"No columns could be inspected from table '{schema}.{table}'."
+        return JsonResponse({
+            "status": "failed",
+            "detail": f"Database introspection error: {err_msg}"
+        }, status=400)
+
+    # Build canonical contract artifacts
+    org_title = user.organization.name if (user and user.organization) else "Schema Guard Production"
+    table_pascal = ''.join(word.capitalize() for word in table.replace('-', '_').split('_')) or 'DataRecord'
+    
+    # 1. Deterministic Contract Signature (SHA-256)
+    sig_seed = f"{db_type.lower()}:{schema.lower()}:{table.lower()}:" + ";".join(
+        f"{c['name'].lower()}:{c['type'].lower()}:{c.get('nullable', True)}:{c.get('primary_key', False)}"
+        for c in columns
+    )
+    contract_signature = hashlib.sha256(sig_seed.encode('utf-8')).hexdigest()
+
+    # 2. Canonical Production YAML
+    from django.utils import timezone
+    now_str = timezone.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    yaml_lines = [
+        "# ============================================================",
+        f"# Schema Guard Production Data Contract",
+        f"# Reverse-Engineered: {now_str}",
+        f"# Organization: {org_title}",
+        f"# Target: {schema}.{table} ({db_type.upper()})",
+        f"# 🔒 SHA-256 Lock Signature: {contract_signature}",
+        "# ============================================================",
+        "version: 1",
+        "source:",
+        f"  name: {table}_contract",
+        f"  type: {db_type.lower()}",
+        '  connection: "env:DB_CONNECTION_STRING"',
+        f"  schema: {schema}",
+        f"  table: {table}",
+        "",
+        "policy:",
+        "  breaking_change_threshold: strict",
+        "  allow_type_widening: false",
+        "  allow_nullable_expansion: false",
+        "  allow_drop_column: false",
+        "",
+        "columns:"
+    ]
+    for c in columns:
+        yaml_lines.append(f"  - name: {c['name']}")
+        yaml_lines.append(f"    type: {c['type']}")
+        yaml_lines.append(f"    nullable: {'true' if c.get('nullable', True) else 'false'}")
+        if c.get('primary_key'):
+            yaml_lines.append("    primary_key: true")
+
+    contract_yaml_str = "\n".join(yaml_lines) + "\n"
+
+    # 3. Pydantic Model (Python SDK)
+    pydantic_lines = [
+        f"# Python Pydantic Model - {table_pascal} Contract",
+        "from typing import Optional",
+        "from decimal import Decimal",
+        "from datetime import datetime, date",
+        "from pydantic import BaseModel, Field",
+        "",
+        f"class {table_pascal}ContractModel(BaseModel):"
+    ]
+    for c in columns:
+        t_low = c['type'].lower()
+        if any(x in t_low for x in ['int', 'serial']):
+            py_type = 'int'
+        elif any(x in t_low for x in ['numeric', 'decimal', 'double', 'float', 'real']):
+            py_type = 'Decimal'
+        elif 'bool' in t_low:
+            py_type = 'bool'
+        elif 'timestamp' in t_low or 'datetime' in t_low:
+            py_type = 'datetime'
+        elif 'date' in t_low:
+            py_type = 'date'
+        else:
+            py_type = 'str'
+        
+        is_null = c.get('nullable', True)
+        field_annot = f"Optional[{py_type}] = None" if is_null else py_type
+        pydantic_lines.append(f"    {c['name']}: {field_annot}")
+    pydantic_code_str = "\n".join(pydantic_lines)
+
+    # 4. TypeScript Interface
+    ts_lines = [
+        f"// TypeScript Definition - {table_pascal} Contract",
+        f"export interface I{table_pascal}Contract {{"
+    ]
+    for c in columns:
+        t_low = c['type'].lower()
+        if any(x in t_low for x in ['int', 'serial', 'numeric', 'decimal', 'double', 'float', 'real']):
+            ts_type = 'number'
+        elif 'bool' in t_low:
+            ts_type = 'boolean'
+        elif any(x in t_low for x in ['date', 'time']):
+            ts_type = 'Date | string'
+        else:
+            ts_type = 'string'
+        is_null = c.get('nullable', True)
+        ts_lines.append(f"    {c['name']}{'?' if is_null else ''}: {ts_type}{' | null' if is_null else ''};")
+    ts_lines.append("}")
+    ts_code_str = "\n".join(ts_lines)
+
+    # 5. SQL DDL
+    ddl_lines = [f"CREATE TABLE {schema}.{table} ("]
+    col_defs = []
+    for c in columns:
+        null_clause = "" if c.get('nullable', True) else " NOT NULL"
+        pk_clause = " PRIMARY KEY" if c.get('primary_key') else ""
+        col_defs.append(f"    {c['name']} {c['type'].upper()}{null_clause}{pk_clause}")
+    ddl_lines.append(",\n".join(col_defs))
+    ddl_lines.append(");")
+    sql_ddl_str = "\n".join(ddl_lines)
+
+    # UI columns list for interactive editing table
+    ui_columns = [
+        {
+            "name": c["name"],
+            "type": c["type"],
+            "notNull": not c.get("nullable", True),
+            "pk": bool(c.get("primary_key", False)),
+            "allowedDrift": ""
+        }
+        for c in columns
+    ]
+
+    # Save directly to pipeline if requested
+    saved = False
+    if save_to_pipeline and p_obj:
+        p_obj.contract_yaml = contract_yaml_str
+        p_obj.lock_signature = contract_signature
+        p_obj.status = 'Clean'
+        p_obj.schema_map = {"columns": ui_columns}
+        p_obj.save(update_fields=['contract_yaml', 'lock_signature', 'status', 'schema_map'])
+        saved = True
+
+    # Audit Logging
+    log_action(
+        request,
+        'contract.reverse_engineered',
+        'pipeline' if p_obj else 'table',
+        str(p_obj.id) if p_obj else f"{schema}.{table}",
+        {
+            'columns_count': len(columns),
+            'db_type': db_type,
+            'schema': schema,
+            'table': table,
+            'saved': saved,
+            'signature': contract_signature
+        }
+    )
+
+    return JsonResponse({
+        "status": "success",
+        "pipeline_id": p_obj.id if p_obj else None,
+        "pipeline_name": p_obj.name if p_obj else f"{schema}.{table}",
+        "db_type": db_type,
+        "schema": schema,
+        "table": table,
+        "columns": ui_columns,
+        "contract_yaml": contract_yaml_str,
+        "signature": contract_signature,
+        "pydantic_code": pydantic_code_str,
+        "typescript_code": ts_code_str,
+        "sql_ddl": sql_ddl_str,
+        "saved": saved,
+        "message": f"Successfully reverse-engineered contract with {len(columns)} columns and locked SHA-256 signature!"
+    })
 
 def validate_pipeline_gate_api(request, id):
     if request.method != "POST":
