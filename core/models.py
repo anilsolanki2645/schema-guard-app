@@ -122,6 +122,10 @@ class AuditLog(models.Model):
         ('pipeline.promoted', 'Pipeline Contract Promoted'),
         ('webhook.delivery', 'Webhook Delivered'),
         ('pipeline.auto_repaired', 'Pipeline Safe Auto-Repaired'),
+        ('incident.create', 'Drift Incident Created'),
+        ('incident.acknowledge', 'Drift Incident Acknowledged'),
+        ('incident.resolve', 'Drift Incident Resolved'),
+        ('incident.snooze', 'Drift Incident Snoozed'),
         ('user.oauth_login', 'User OAuth Login'),
         ('org.member_invited', 'Team Member Invited'),
         ('org.invite_revoked', 'Invitation Revoked'),
@@ -170,6 +174,55 @@ class SchemaSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.pipeline_id} v{self.version} ({self.status})"
+
+
+class DriftIncident(models.Model):
+    """Tracks schema drift incident lifecycle, resolution workflow, and MTTR SLA."""
+    STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('ACKNOWLEDGED', 'Acknowledged'),
+        ('RESOLVED', 'Resolved'),
+        ('SNOOZED', 'Snoozed'),
+    ]
+    SEVERITY_CHOICES = [
+        ('CRITICAL', 'Critical'),  # Breaking changes (dropped columns, incompatible types)
+        ('HIGH', 'High'),          # Nullability constraints, missing primary/unique
+        ('MEDIUM', 'Medium'),      # Non-breaking column additions, wide type migrations
+        ('LOW', 'Low'),            # Non-blocking warnings or metadata drift
+    ]
+
+    incident_number = models.CharField(max_length=50, unique=True, db_index=True)
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='drift_incidents')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN', db_index=True)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='HIGH', db_index=True)
+    title = models.CharField(max_length=255)
+    violations = models.JSONField(default=list)
+    violations_count = models.PositiveIntegerField(default=1)
+
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_incidents')
+    acknowledged_by = models.CharField(max_length=150, blank=True, default='')
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+
+    resolved_by = models.CharField(max_length=150, blank=True, default='')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True, default='')
+    auto_resolved = models.BooleanField(default=False)
+
+    snoozed_until = models.DateTimeField(null=True, blank=True)
+    mttr_seconds = models.PositiveIntegerField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['pipeline', 'status', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.incident_number} [{self.severity}] - {self.pipeline.name} ({self.status})"
 
 
 class GateValidationLog(models.Model):

@@ -4,7 +4,8 @@ import json
 import logging
 import random
 import functools
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_exempt
@@ -737,6 +738,84 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
                 )
         except Exception as snap_save_err:
             logger.warning(f"Could not record SchemaSnapshot history: {snap_save_err}")
+
+        # Synchronize Drift Incident Lifecycle
+        try:
+            from core.models import DriftIncident, AuditLog
+            p_obj_inc = Pipeline.objects.filter(id=pipeline_id).first()
+            if p_obj_inc:
+                now_dt = datetime.now(timezone.utc)
+                if status_str == "Drifted" and violations:
+                    active_inc = DriftIncident.objects.filter(
+                        pipeline=p_obj_inc,
+                        status__in=['OPEN', 'ACKNOWLEDGED']
+                    ).first()
+
+                    v_upper = " ".join(str(v).upper() for v in violations)
+                    if any(kw in v_upper for kw in ["DROPPED", "MISSING", "NOT FOUND", "BREAKING", "TYPE"]):
+                        sev = "CRITICAL"
+                    elif any(kw in v_upper for kw in ["NULL", "PRIMARY", "UNIQUE"]):
+                        sev = "HIGH"
+                    else:
+                        sev = "MEDIUM"
+
+                    if not active_inc:
+                        inc_num = f"INC-{now_dt.year}-{uuid.uuid4().hex[:6].upper()}"
+                        DriftIncident.objects.create(
+                            incident_number=inc_num,
+                            pipeline=p_obj_inc,
+                            status='OPEN',
+                            severity=sev,
+                            title=f"Schema Drift: {len(violations)} contract violation(s) on {p_obj_inc.name}",
+                            violations=list(violations),
+                            violations_count=len(violations),
+                        )
+                        AuditLog.objects.create(
+                            action='incident.create',
+                            actor='system_check',
+                            target_type='drift_incident',
+                            target_id=inc_num,
+                            organization=p_obj_inc.organization,
+                            details={
+                                "pipeline_id": p_obj_inc.id,
+                                "pipeline_name": p_obj_inc.name,
+                                "severity": sev,
+                                "violations_count": len(violations)
+                            }
+                        )
+                    else:
+                        active_inc.violations = list(violations)
+                        active_inc.violations_count = len(violations)
+                        active_inc.severity = sev
+                        active_inc.save()
+                elif status_str == "Clean":
+                    active_incidents = DriftIncident.objects.filter(
+                        pipeline=p_obj_inc,
+                        status__in=['OPEN', 'ACKNOWLEDGED', 'SNOOZED']
+                    )
+                    for inc in active_incidents:
+                        inc.status = 'RESOLVED'
+                        inc.auto_resolved = True
+                        inc.resolved_by = 'system (auto-verified)'
+                        inc.resolved_at = now_dt
+                        inc.resolution_notes = 'Automatically resolved: Database schema verified in full alignment with locked contract baseline.'
+                        inc.mttr_seconds = int((now_dt - inc.created_at).total_seconds()) if inc.created_at else 0
+                        inc.save()
+                        AuditLog.objects.create(
+                            action='incident.resolve',
+                            actor='system_check',
+                            target_type='drift_incident',
+                            target_id=inc.incident_number,
+                            organization=p_obj_inc.organization,
+                            details={
+                                "pipeline_id": p_obj_inc.id,
+                                "pipeline_name": p_obj_inc.name,
+                                "auto_resolved": True,
+                                "mttr_seconds": inc.mttr_seconds
+                            }
+                        )
+        except Exception as inc_err:
+            logger.warning(f"Could not synchronize DriftIncident: {inc_err}")
 
         return db.get_pipeline(pipeline_id)
 
@@ -6032,6 +6111,277 @@ def compliance_report_export_api(request):
     response = JsonResponse(report_data, json_dumps_params={"indent": 2})
     response['Content-Disposition'] = f'attachment; filename="schema_guard_soc2_compliance_{now_ts[:10]}.json"'
     return response
+
+
+@require_login
+def list_drift_incidents_api(request):
+    """
+    List drift incidents with filtering by status, severity, or pipeline,
+    plus overall MTTR / SLA governance metrics.
+    """
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    org_id = user_info.get('organization_id')
+    role = user_info.get('role')
+
+    from core.models import DriftIncident, Pipeline
+    if role == 'admin' and not org_id:
+        inc_qs = DriftIncident.objects.all()
+    else:
+        pipeline_ids = list(Pipeline.objects.filter(organization_id=org_id).values_list('id', flat=True))
+        inc_qs = DriftIncident.objects.filter(pipeline_id__in=pipeline_ids)
+
+    # Filters
+    pipeline_filter = request.GET.get('pipeline_id')
+    if pipeline_filter:
+        inc_qs = inc_qs.filter(pipeline_id=pipeline_filter)
+
+    status_filter = request.GET.get('status')
+    if status_filter:
+        inc_qs = inc_qs.filter(status=status_filter.upper())
+
+    severity_filter = request.GET.get('severity')
+    if severity_filter:
+        inc_qs = inc_qs.filter(severity=severity_filter.upper())
+
+    total_incidents = inc_qs.count()
+    open_count = inc_qs.filter(status='OPEN').count()
+    ack_count = inc_qs.filter(status='ACKNOWLEDGED').count()
+    resolved_count = inc_qs.filter(status='RESOLVED').count()
+    snoozed_count = inc_qs.filter(status='SNOOZED').count()
+
+    resolved_with_mttr = inc_qs.filter(status='RESOLVED', mttr_seconds__isnull=False)
+    total_mttr_sec = sum(resolved_with_mttr.values_list('mttr_seconds', flat=True))
+    avg_mttr_min = round((total_mttr_sec / resolved_with_mttr.count()) / 60, 1) if resolved_with_mttr.exists() else 0.0
+
+    items = []
+    for inc in inc_qs.select_related('pipeline').order_by('-created_at')[:100]:
+        items.append({
+            "id": inc.id,
+            "incident_number": inc.incident_number,
+            "pipeline_id": inc.pipeline_id,
+            "pipeline_name": inc.pipeline.name if inc.pipeline else "Unknown",
+            "environment": getattr(inc.pipeline, "environment", "prod") if inc.pipeline else "prod",
+            "status": inc.status,
+            "severity": inc.severity,
+            "title": inc.title,
+            "violations": inc.violations,
+            "violations_count": inc.violations_count,
+            "acknowledged_by": inc.acknowledged_by,
+            "acknowledged_at": inc.acknowledged_at.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.acknowledged_at else None,
+            "resolved_by": inc.resolved_by,
+            "resolved_at": inc.resolved_at.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.resolved_at else None,
+            "resolution_notes": inc.resolution_notes,
+            "auto_resolved": inc.auto_resolved,
+            "snoozed_until": inc.snoozed_until.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.snoozed_until else None,
+            "mttr_seconds": inc.mttr_seconds,
+            "mttr_minutes": round(inc.mttr_seconds / 60, 1) if inc.mttr_seconds else None,
+            "created_at": inc.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        })
+
+    return JsonResponse({
+        "incidents": items,
+        "metrics": {
+            "total": total_incidents,
+            "open": open_count,
+            "acknowledged": ack_count,
+            "resolved": resolved_count,
+            "snoozed": snoozed_count,
+            "avg_mttr_minutes": avg_mttr_min,
+        }
+    })
+
+
+def _find_drift_incident(incident_id):
+    from core.models import DriftIncident
+    if str(incident_id).isdigit():
+        return DriftIncident.objects.filter(models.Q(id=int(incident_id)) | models.Q(incident_number=str(incident_id))).select_related('pipeline').first()
+    return DriftIncident.objects.filter(incident_number=str(incident_id)).select_related('pipeline').first()
+
+
+@require_login
+def get_drift_incident_detail_api(request, incident_id):
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    inc = _find_drift_incident(incident_id)
+    if not inc:
+        return JsonResponse({"detail": "Incident not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and inc.pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    return JsonResponse({
+        "id": inc.id,
+        "incident_number": inc.incident_number,
+        "pipeline_id": inc.pipeline_id,
+        "pipeline_name": inc.pipeline.name if inc.pipeline else "Unknown",
+        "environment": getattr(inc.pipeline, "environment", "prod") if inc.pipeline else "prod",
+        "status": inc.status,
+        "severity": inc.severity,
+        "title": inc.title,
+        "violations": inc.violations,
+        "violations_count": inc.violations_count,
+        "acknowledged_by": inc.acknowledged_by,
+        "acknowledged_at": inc.acknowledged_at.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.acknowledged_at else None,
+        "resolved_by": inc.resolved_by,
+        "resolved_at": inc.resolved_at.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.resolved_at else None,
+        "resolution_notes": inc.resolution_notes,
+        "auto_resolved": inc.auto_resolved,
+        "snoozed_until": inc.snoozed_until.strftime("%Y-%m-%d %H:%M:%S UTC") if inc.snoozed_until else None,
+        "mttr_seconds": inc.mttr_seconds,
+        "created_at": inc.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+    })
+
+
+@require_login
+def acknowledge_drift_incident_api(request, incident_id):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import AuditLog
+    inc = _find_drift_incident(incident_id)
+    if not inc:
+        return JsonResponse({"detail": "Incident not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and inc.pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    actor = user_info.get('username') or 'user'
+    now_dt = datetime.now(timezone.utc)
+    inc.status = 'ACKNOWLEDGED'
+    inc.acknowledged_by = actor
+    inc.acknowledged_at = now_dt
+    inc.save()
+
+    AuditLog.objects.create(
+        action='incident.acknowledge',
+        actor=actor,
+        target_type='drift_incident',
+        target_id=inc.incident_number,
+        organization=inc.pipeline.organization,
+        details={
+            "pipeline_id": inc.pipeline_id,
+            "incident_number": inc.incident_number,
+            "status": "ACKNOWLEDGED"
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Incident {inc.incident_number} acknowledged by {actor}.",
+        "incident_number": inc.incident_number,
+        "status": inc.status
+    })
+
+
+@require_login
+def resolve_drift_incident_api(request, incident_id):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import AuditLog
+    inc = _find_drift_incident(incident_id)
+    if not inc:
+        return JsonResponse({"detail": "Incident not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and inc.pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    actor = user_info.get('username') or 'user'
+    now_dt = datetime.now(timezone.utc)
+    notes = data.get('resolution_notes') or 'Resolved manually by engineer.'
+
+    inc.status = 'RESOLVED'
+    inc.resolved_by = actor
+    inc.resolved_at = now_dt
+    inc.resolution_notes = notes
+    inc.auto_resolved = False
+    inc.mttr_seconds = int((now_dt - inc.created_at).total_seconds()) if inc.created_at else 0
+    inc.save()
+
+    AuditLog.objects.create(
+        action='incident.resolve',
+        actor=actor,
+        target_type='drift_incident',
+        target_id=inc.incident_number,
+        organization=inc.pipeline.organization,
+        details={
+            "pipeline_id": inc.pipeline_id,
+            "incident_number": inc.incident_number,
+            "resolution_notes": notes,
+            "mttr_seconds": inc.mttr_seconds
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Incident {inc.incident_number} resolved.",
+        "incident_number": inc.incident_number,
+        "mttr_seconds": inc.mttr_seconds,
+        "status": inc.status
+    })
+
+
+@require_login
+def snooze_drift_incident_api(request, incident_id):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import AuditLog
+    inc = _find_drift_incident(incident_id)
+    if not inc:
+        return JsonResponse({"detail": "Incident not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and inc.pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    hours = int(data.get('hours', 4))
+    actor = user_info.get('username') or 'user'
+    now_dt = datetime.now(timezone.utc)
+    snooze_until = now_dt + timedelta(hours=hours)
+
+    inc.status = 'SNOOZED'
+    inc.snoozed_until = snooze_until
+    inc.save()
+
+    AuditLog.objects.create(
+        action='incident.snooze',
+        actor=actor,
+        target_type='drift_incident',
+        target_id=inc.incident_number,
+        organization=inc.pipeline.organization,
+        details={
+            "pipeline_id": inc.pipeline_id,
+            "incident_number": inc.incident_number,
+            "snoozed_until": snooze_until.isoformat(),
+            "hours": hours
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Incident {inc.incident_number} snoozed for {hours} hour(s).",
+        "incident_number": inc.incident_number,
+        "snoozed_until": snooze_until.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "status": inc.status
+    })
 
 
 def build_user_session_dict(user_obj):

@@ -2607,6 +2607,143 @@ class PipelineAutoRepairTests(TestCase):
         self.assertEqual(len(log.details.get("executed_statements")), 1)
 
 
+class DriftIncidentTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline, DriftIncident
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Incident Ops Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="incident_lead",
+            email="lead@ops.com",
+            password_hash=hash_password("OpsPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-inc-01",
+            organization=self.org,
+            name="Checkout Service",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            contract_yaml="columns:\n  - name: order_id\n    type: varchar\n",
+            lock_signature="b" * 64,
+            schema_map={"order_id": "varchar"},
+            status="Clean"
+        )
+
+    def test_list_drift_incidents_api_and_metrics(self):
+        from core.models import DriftIncident
+        DriftIncident.objects.create(
+            incident_number="INC-2026-0001",
+            pipeline=self.pipeline,
+            status="OPEN",
+            severity="CRITICAL",
+            title="Dropped column 'amount'",
+            violations=["DROPPED COLUMN: amount"],
+            violations_count=1
+        )
+        DriftIncident.objects.create(
+            incident_number="INC-2026-0002",
+            pipeline=self.pipeline,
+            status="RESOLVED",
+            severity="HIGH",
+            title="Type mismatch 'status'",
+            violations=["TYPE MISMATCH: status"],
+            violations_count=1,
+            mttr_seconds=300
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'incident_lead',
+            'password': 'OpsPass123!',
+        })
+        url = reverse('list_drift_incidents_api')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(len(data["incidents"]), 2)
+        metrics = data["metrics"]
+        self.assertEqual(metrics["total"], 2)
+        self.assertEqual(metrics["open"], 1)
+        self.assertEqual(metrics["resolved"], 1)
+        self.assertEqual(metrics["avg_mttr_minutes"], 5.0)
+
+    def test_acknowledge_and_resolve_drift_incident_api(self):
+        from core.models import DriftIncident, AuditLog
+        inc = DriftIncident.objects.create(
+            incident_number="INC-2026-0003",
+            pipeline=self.pipeline,
+            status="OPEN",
+            severity="CRITICAL",
+            title="Critical schema drift on orders",
+            violations=["DROPPED COLUMN: tax_id"],
+            violations_count=1
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'incident_lead',
+            'password': 'OpsPass123!',
+        })
+        # Acknowledge
+        ack_url = reverse('acknowledge_drift_incident_api', args=[inc.incident_number])
+        ack_res = self.client.post(ack_url)
+        self.assertEqual(ack_res.status_code, 200)
+        inc.refresh_from_db()
+        self.assertEqual(inc.status, "ACKNOWLEDGED")
+        self.assertEqual(inc.acknowledged_by, "incident_lead")
+
+        # Resolve
+        res_url = reverse('resolve_drift_incident_api', args=[inc.incident_number])
+        res_res = self.client.post(
+            res_url,
+            data=json.dumps({"resolution_notes": "Added missing tax_id column via migration script"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res_res.status_code, 200)
+        inc.refresh_from_db()
+        self.assertEqual(inc.status, "RESOLVED")
+        self.assertEqual(inc.resolved_by, "incident_lead")
+        self.assertIsNotNone(inc.mttr_seconds)
+
+        # AuditLog verification
+        audit = AuditLog.objects.filter(action="incident.resolve", target_id=inc.incident_number).first()
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.details.get("resolution_notes"), "Added missing tax_id column via migration script")
+
+    def test_snooze_drift_incident_api(self):
+        from core.models import DriftIncident
+        inc = DriftIncident.objects.create(
+            incident_number="INC-2026-0004",
+            pipeline=self.pipeline,
+            status="OPEN",
+            severity="MEDIUM",
+            title="Non-breaking warning",
+            violations=["ADDED COLUMN: promo_code"],
+            violations_count=1
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'incident_lead',
+            'password': 'OpsPass123!',
+        })
+        url = reverse('snooze_drift_incident_api', args=[inc.incident_number])
+        res = self.client.post(url, data=json.dumps({"hours": 8}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        inc.refresh_from_db()
+        self.assertEqual(inc.status, "SNOOZED")
+        self.assertIsNotNone(inc.snoozed_until)
+
+
+
 
 
 

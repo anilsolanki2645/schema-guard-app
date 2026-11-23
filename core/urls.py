@@ -112,6 +112,13 @@ urlpatterns = [
     path('api/audit-logs/export', views.audit_logs_export_csv, name='audit_logs_export_csv'),
     path('api/compliance/report', views.compliance_report_export_api, name='compliance_report_export_api'),
 
+    # Drift Incident Lifecycle endpoints
+    path('api/incidents', views.list_drift_incidents_api, name='list_drift_incidents_api'),
+    path('api/incidents/<str:incident_id>', views.get_drift_incident_detail_api, name='get_drift_incident_detail_api'),
+    path('api/incidents/<str:incident_id>/acknowledge', views.acknowledge_drift_incident_api, name='acknowledge_drift_incident_api'),
+    path('api/incidents/<str:incident_id>/resolve', views.resolve_drift_incident_api, name='resolve_drift_incident_api'),
+    path('api/incidents/<str:incident_id>/snooze', views.snooze_drift_incident_api, name='snooze_drift_incident_api'),
+
     # Health check endpoint
     path('api/health', views.health_check_api, name='health_check'),
     
