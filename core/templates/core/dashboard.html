@@ -124,6 +124,33 @@
         </div>
     </div>
 
+    <!-- Environment Filter Bar & Quick Search -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="display: flex; gap: 0.4rem; background: rgba(15, 23, 42, 0.6); padding: 0.3rem 0.45rem; border-radius: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.08); flex-wrap: wrap;">
+            <button type="button" id="env-filter-all" class="env-pill" onclick="filterPipelinesByEnv('all')"
+                style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: 0.5rem; border: none; cursor: pointer; background: var(--color-primary); color: #fff; transition: all 0.2s;">
+                All Environments (<span id="env-count-all">0</span>)
+            </button>
+            <button type="button" id="env-filter-prod" class="env-pill" onclick="filterPipelinesByEnv('prod')"
+                style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; background: transparent; color: #34d399; transition: all 0.2s;">
+                🟢 Production (<span id="env-count-prod">0</span>)
+            </button>
+            <button type="button" id="env-filter-staging" class="env-pill" onclick="filterPipelinesByEnv('staging')"
+                style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; background: transparent; color: #fbbf24; transition: all 0.2s;">
+                🟡 Staging (<span id="env-count-staging">0</span>)
+            </button>
+            <button type="button" id="env-filter-dev" class="env-pill" onclick="filterPipelinesByEnv('dev')"
+                style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; background: transparent; color: #38bdf8; transition: all 0.2s;">
+                🔵 Development (<span id="env-count-dev">0</span>)
+            </button>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="text" id="pipeline-search-input" oninput="onPipelineSearchInput(this.value)" placeholder="🔍 Search pipelines, tables..."
+                style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 0.5rem; padding: 0.35rem 0.75rem; color: #f1f5f9; font-size: 0.8rem; width: 220px;">
+        </div>
+    </div>
+
     <!-- List of active database pipelines -->
     <div class="glass-card" style="margin-bottom: 2rem; overflow-x: auto;">
         <table class="pipelines-table"
@@ -131,6 +158,7 @@
             <thead>
                 <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
                     <th style="padding: 1rem;">Pipeline Name</th>
+                    <th style="padding: 1rem;">Environment</th>
                     <th style="padding: 1rem;">DB Type</th>
                     <th style="padding: 1rem;">Schema/Table</th>
                     <th style="padding: 1rem;">Cron Schedule</th>
@@ -142,7 +170,7 @@
             <tbody id="pipelines-table-body">
                 <!-- Dynamically populated via JS -->
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading
+                    <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading
                         pipelines directory...</td>
                 </tr>
             </tbody>
@@ -162,6 +190,9 @@
                     targeting POSTGRES schemas.</p>
             </div>
             <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn-primary-sm" id="btn-promote-pipeline" onclick="openPromotionModal()"
+                    style="display: none; background: linear-gradient(135deg, #8b5cf6, #3b82f6); border-color: #8b5cf6; padding: 0.4rem 0.85rem; font-size: 0.85rem; font-weight: 700; align-items: center; gap: 0.35rem;"
+                    title="Promote contract to higher environment">🚀 Promote Environment</button>
                 <a href="/builder" id="btn-open-builder-contract" class="btn-secondary"
                     style="border-color: rgba(139, 92, 246, 0.4); color: #c084fc; text-decoration: none; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;"
                     title="1-Click generate and inspect schema contract in Builder">📜 Contract Builder</a>
@@ -561,10 +592,18 @@
                     </select>
                 </div>
 
-                <div class="responsive-grid-2" style="margin-bottom: 1.25rem;">
+                <div class="responsive-grid-3" style="margin-bottom: 1.25rem;">
                     <div class="form-group">
                         <label class="form-label" for="wiz-name">Pipeline Name</label>
                         <input class="form-input" type="text" id="wiz-name" placeholder="production_orders" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="wiz-environment">Environment</label>
+                        <select class="form-select" id="wiz-environment">
+                            <option value="prod" selected>🟢 Production</option>
+                            <option value="staging">🟡 Staging</option>
+                            <option value="dev">🔵 Development</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="wiz-db-type">Database Engine</label>
@@ -840,6 +879,15 @@
                         style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label" for="edit-environment" style="font-weight:600;">Environment</label>
+                    <select class="form-select" id="edit-environment">
+                        <option value="prod">🟢 Production</option>
+                        <option value="staging">🟡 Staging</option>
+                        <option value="dev">🔵 Development</option>
+                    </select>
+                </div>
+
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label" for="edit-conn-profile-select" style="font-weight:600;">📂 Load Saved
                         Connection Profile</label>
@@ -962,6 +1010,74 @@
                     <button type="submit" class="btn-primary" style="width: auto;">Save Changes 💾</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- PIPELINE ENVIRONMENT PROMOTION MODAL -->
+<div id="pipeline-promote-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closePromotionModal()">
+    <div class="modal-card" style="max-width: 580px; width: 94%;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 1.6rem;">🚀</span>
+                <div>
+                    <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #ffffff;">Promote Schema Contract</h3>
+                    <p style="font-size: 0.75rem; color: #94a3b8; margin: 0.2rem 0 0 0;">Deploy verified contract baseline across environments</p>
+                </div>
+            </div>
+            <button type="button" class="modal-close" onclick="closePromotionModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem 0;">
+            <!-- Source Pipeline Summary -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Source Pipeline</span>
+                    <span id="promote-source-env-badge" class="pipe-badge" style="font-size: 0.7rem; font-weight: 800;">DEV</span>
+                </div>
+                <div id="promote-source-title" style="font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.25rem;">-</div>
+                <div id="promote-source-table" style="font-size: 0.8rem; color: #cbd5e1; font-family: monospace;">-</div>
+                <div id="promote-source-signature" style="font-size: 0.72rem; color: #38bdf8; font-family: monospace; margin-top: 0.4rem;">🔒 SHA-256 Lock: -</div>
+            </div>
+
+            <!-- Target Environment Selector -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label" for="promote-target-env" style="font-size: 0.85rem; font-weight: 700;">Target Environment:</label>
+                <select class="form-select" id="promote-target-env" onchange="onPromoteTargetEnvChange()" style="font-size: 0.85rem;">
+                    <option value="staging">🟡 Staging (Pre-production testing)</option>
+                    <option value="prod">🟢 Production (Live mission-critical)</option>
+                </select>
+            </div>
+
+            <!-- Promotion Mode: Create vs Sync existing -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label" style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; display: block;">Deployment Mode:</label>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1;">
+                        <input type="radio" name="promote-mode" id="promote-mode-new" value="new" checked onchange="togglePromoteMode()">
+                        <span><strong>Clone & Create New Pipeline</strong> in target environment (preserves source pipeline)</span>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; color: #cbd5e1;">
+                        <input type="radio" name="promote-mode" id="promote-mode-sync" value="sync" onchange="togglePromoteMode()">
+                        <span><strong>Synchronize Contract</strong> into an existing target pipeline</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="promote-target-pipeline-group" class="form-group" style="display: none; margin-bottom: 1.25rem;">
+                <label class="form-label" for="promote-target-pipeline-select" style="font-size: 0.82rem; font-weight: 700;">Select Existing Target Pipeline:</label>
+                <select class="form-select" id="promote-target-pipeline-select" style="font-size: 0.85rem;">
+                    <option value="">-- Choose Pipeline --</option>
+                </select>
+            </div>
+
+            <div id="promote-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.65rem 0.85rem; border-radius: 0.5rem; font-size: 0.82rem; margin-bottom: 1rem;"></div>
+            <div id="promote-success-msg" style="display: none; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #4ade80; padding: 0.65rem 0.85rem; border-radius: 0.5rem; font-size: 0.82rem; margin-bottom: 1rem;"></div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+            <button type="button" class="btn-secondary" onclick="closePromotionModal()">Cancel</button>
+            <button type="button" class="btn-primary" id="btn-confirm-promote" onclick="executePromotion()" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); border-color: #8b5cf6;">
+                🚀 Confirm & Promote Contract
+            </button>
         </div>
     </div>
 </div>
@@ -1349,20 +1465,59 @@
         });
     }
 
+    let selectedEnvFilter = 'all';
+    let searchPipelineTerm = '';
+
+    function filterPipelinesByEnv(env) {
+        selectedEnvFilter = env;
+        ['all', 'prod', 'staging', 'dev'].forEach(e => {
+            const btn = document.getElementById(`env-filter-${e}`);
+            if (!btn) return;
+            if (e === env) {
+                btn.style.background = e === 'prod' ? 'rgba(16, 185, 129, 0.25)' : (e === 'staging' ? 'rgba(245, 158, 11, 0.25)' : (e === 'dev' ? 'rgba(56, 189, 248, 0.25)' : 'var(--color-primary)'));
+                btn.style.fontWeight = '700';
+                btn.style.color = '#fff';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.fontWeight = '600';
+                btn.style.color = e === 'prod' ? '#34d399' : (e === 'staging' ? '#fbbf24' : (e === 'dev' ? '#38bdf8' : 'var(--text-secondary)'));
+            }
+        });
+        renderPipelinesTable();
+    }
+
+    function onPipelineSearchInput(term) {
+        searchPipelineTerm = (term || '').trim().toLowerCase();
+        renderPipelinesTable();
+    }
+
     function renderCounters() {
         document.getElementById('cnt-total').innerText = pipelines.length;
         document.getElementById('cnt-clean').innerText = pipelines.filter(p => p.status === 'Clean').length;
         document.getElementById('cnt-drifted').innerText = pipelines.filter(p => p.status !== 'Clean').length;
         const quotaUsed = document.getElementById('quota-used');
         if (quotaUsed) quotaUsed.innerText = pipelines.length;
+
+        // Update environment filter pills counts
+        const countAll = pipelines.length;
+        const countProd = pipelines.filter(p => (p.environment || 'prod').toLowerCase() === 'prod').length;
+        const countStaging = pipelines.filter(p => (p.environment || '').toLowerCase() === 'staging').length;
+        const countDev = pipelines.filter(p => (p.environment || '').toLowerCase() === 'dev').length;
+
+        if (document.getElementById('env-count-all')) document.getElementById('env-count-all').innerText = countAll;
+        if (document.getElementById('env-count-prod')) document.getElementById('env-count-prod').innerText = countProd;
+        if (document.getElementById('env-count-staging')) document.getElementById('env-count-staging').innerText = countStaging;
+        if (document.getElementById('env-count-dev')) document.getElementById('env-count-dev').innerText = countDev;
     }
 
     function renderPipelinesTable() {
         const tbody = document.getElementById('pipelines-table-body');
+        renderCounters();
+
         if (pipelines.length === 0) {
             tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; padding: 3.5rem 1.5rem;">
+                <td colspan="8" style="text-align: center; padding: 3.5rem 1.5rem;">
                     <div style="max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 0.85rem;">
                         <span style="font-size: 2.8rem; filter: drop-shadow(0 0 12px rgba(139,92,246,0.6));">🛡️</span>
                         <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem; font-weight: 700;">No Database Pipelines Monitored Yet</h3>
@@ -1380,10 +1535,41 @@
             return;
         }
 
+        let filtered = pipelines;
+        if (selectedEnvFilter !== 'all') {
+            filtered = filtered.filter(p => (p.environment || 'prod').toLowerCase() === selectedEnvFilter);
+        }
+        if (searchPipelineTerm) {
+            filtered = filtered.filter(p =>
+                (p.name || '').toLowerCase().includes(searchPipelineTerm) ||
+                (p.table || '').toLowerCase().includes(searchPipelineTerm) ||
+                (p.schema || '').toLowerCase().includes(searchPipelineTerm) ||
+                (p.dbType || '').toLowerCase().includes(searchPipelineTerm)
+            );
+        }
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.9rem;">
+                    No pipelines found matching environment filter <strong>'${selectedEnvFilter.toUpperCase()}'</strong>${searchPipelineTerm ? ` and search query '${searchPipelineTerm}'` : ''}.
+                </td>
+            </tr>`;
+            return;
+        }
+
         let html = '';
-        pipelines.forEach(p => {
+        filtered.forEach(p => {
             const isSelected = activePipeline && activePipeline.id === p.id;
             const statusClass = p.status === 'Clean' ? 'status-clean' : (p.status === 'Failed' ? 'status-error' : 'status-drifted');
+
+            const env = (p.environment || 'prod').toLowerCase();
+            let envBadge = '<span class="pipe-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 800;">PROD</span>';
+            if (env === 'dev') {
+                envBadge = '<span class="pipe-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.72rem; font-weight: 800;">DEV</span>';
+            } else if (env === 'staging') {
+                envBadge = '<span class="pipe-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem; font-weight: 800;">STAGING</span>';
+            }
 
             let alertsHtml = [];
             if (p.alerts.email) alertsHtml.push('📧 Email');
@@ -1396,6 +1582,7 @@
             html += `
             <tr onclick="selectPipeline('${p.id}')" style="cursor: pointer; background: ${isSelected ? 'rgba(139, 92, 246, 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.02);">
                 <td data-label="Pipeline Name" style="padding: 1rem;"><strong>${p.name}</strong></td>
+                <td data-label="Environment" style="padding: 1rem;">${envBadge}</td>
                 <td data-label="DB Connector" style="padding: 1rem;"><code style="text-transform: uppercase;">${p.dbType}</code></td>
                 <td data-label="Schema / Table" style="padding: 1rem;"><code>${p.schema}.${p.table}</code></td>
                 <td data-label="Cron Schedule" style="padding: 1rem;"><code>${p.cron}</code></td>
@@ -1500,6 +1687,21 @@
         const builderBtn = document.getElementById('btn-open-builder-contract');
         if (builderBtn) {
             builderBtn.href = `/builder?pipeline_id=${encodeURIComponent(found.id)}`;
+        }
+
+        // Show promote button for dev & staging pipelines
+        const promoteBtn = document.getElementById('btn-promote-pipeline');
+        if (promoteBtn) {
+            const currentEnv = (found.environment || 'prod').toLowerCase();
+            if (currentEnv === 'dev') {
+                promoteBtn.style.display = 'inline-flex';
+                promoteBtn.innerHTML = '🚀 Promote to Staging';
+            } else if (currentEnv === 'staging') {
+                promoteBtn.style.display = 'inline-flex';
+                promoteBtn.innerHTML = '⭐ Promote to Production';
+            } else {
+                promoteBtn.style.display = 'none';
+            }
         }
 
         // Calculate health index
@@ -2404,10 +2606,12 @@ with DAG(
             alerts.webhook = document.getElementById('wiz-alert-webhook-val').value;
         }
 
+        const environment = document.getElementById('wiz-environment') ? document.getElementById('wiz-environment').value : 'prod';
+
         fetch('/api/pipelines', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ name, dbType, connStr, schema, table, cron, cronText, alerts })
+            body: JSON.stringify({ name, dbType, connStr, schema, table, cron, cronText, alerts, environment })
         })
             .then(async res => {
                 const data = await res.json();
@@ -2445,6 +2649,10 @@ with DAG(
         document.getElementById('edit-pipeline-id').value = p.id;
         document.getElementById('edit-name').value = p.name;
         document.getElementById('edit-conn-str').value = p.connStr;
+        const envEl = document.getElementById('edit-environment');
+        if (envEl) {
+            envEl.value = p.environment || 'prod';
+        }
         const profileSelect = document.getElementById('edit-conn-profile-select');
         if (profileSelect) {
             if (p.connStr && p.connStr.startsWith('profile:')) {
@@ -2559,10 +2767,12 @@ with DAG(
             alerts.webhook = document.getElementById('edit-alert-webhook-val').value;
         }
 
+        const environment = document.getElementById('edit-environment') ? document.getElementById('edit-environment').value : undefined;
+
         fetch(`/api/pipelines/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ connStr, cron, cronText, alerts })
+            body: JSON.stringify({ connStr, cron, cronText, alerts, environment })
         })
             .then(res => {
                 if (!res.ok) throw new Error('Save edits failed.');
@@ -2858,6 +3068,168 @@ with DAG(
                 feedbackEl.style.color = '#f87171';
                 feedbackEl.innerText = `❌ Network error: ${err.message || err}`;
             }
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Multi-Environment Promotion Logic
+    // -------------------------------------------------------------
+    function openPromotionModal() {
+        if (!activePipeline) {
+            alert('Please select a pipeline first.');
+            return;
+        }
+
+        if (!activePipeline.contractYaml || !activePipeline.lockSignature) {
+            alert('Cannot promote pipeline: This pipeline does not have a locked schema contract yet. Please lock or reverse-engineer a schema contract first.');
+            return;
+        }
+
+        const sourceEnv = (activePipeline.environment || 'prod').toLowerCase();
+        if (sourceEnv === 'prod') {
+            alert('Production pipelines are already at the highest environment tier.');
+            return;
+        }
+
+        document.getElementById('promote-source-title').innerText = activePipeline.name;
+        document.getElementById('promote-source-table').innerText = `${activePipeline.dbType.toUpperCase()} • ${activePipeline.schema}.${activePipeline.table}`;
+        document.getElementById('promote-source-signature').innerText = `🔒 SHA-256 Lock: ${activePipeline.lockSignature.slice(0, 24)}...`;
+
+        const badge = document.getElementById('promote-source-env-badge');
+        if (badge) {
+            badge.innerText = sourceEnv.toUpperCase();
+            if (sourceEnv === 'dev') {
+                badge.style.background = 'rgba(56, 189, 248, 0.15)';
+                badge.style.color = '#38bdf8';
+                badge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+            } else if (sourceEnv === 'staging') {
+                badge.style.background = 'rgba(245, 158, 11, 0.15)';
+                badge.style.color = '#fbbf24';
+                badge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+            }
+        }
+
+        // Populate Target Environment options based on current env
+        const targetEnvSelect = document.getElementById('promote-target-env');
+        targetEnvSelect.innerHTML = '';
+        if (sourceEnv === 'dev') {
+            targetEnvSelect.innerHTML = `
+                <option value="staging" selected>🟡 Staging (Pre-production testing)</option>
+                <option value="prod">🟢 Production (Live mission-critical)</option>
+            `;
+        } else if (sourceEnv === 'staging') {
+            targetEnvSelect.innerHTML = `
+                <option value="prod" selected>🟢 Production (Live mission-critical)</option>
+            `;
+        }
+
+        // Reset radio and inputs
+        document.getElementById('promote-mode-new').checked = true;
+        togglePromoteMode();
+        onPromoteTargetEnvChange();
+
+        document.getElementById('promote-error-msg').style.display = 'none';
+        document.getElementById('promote-success-msg').style.display = 'none';
+
+        const modal = document.getElementById('pipeline-promote-modal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closePromotionModal() {
+        const modal = document.getElementById('pipeline-promote-modal');
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            document.getElementById('promote-error-msg').style.display = 'none';
+            document.getElementById('promote-success-msg').style.display = 'none';
+        }, 300);
+    }
+
+    function togglePromoteMode() {
+        const isSync = document.getElementById('promote-mode-sync').checked;
+        const targetGroup = document.getElementById('promote-target-pipeline-group');
+        if (targetGroup) {
+            targetGroup.style.display = isSync ? 'block' : 'none';
+        }
+        if (isSync) {
+            onPromoteTargetEnvChange();
+        }
+    }
+
+    function onPromoteTargetEnvChange() {
+        const targetEnv = document.getElementById('promote-target-env').value;
+        const select = document.getElementById('promote-target-pipeline-select');
+        if (!select) return;
+
+        // Populate pipelines belonging to the target environment
+        const targetPipelines = pipelines.filter(p => (p.environment || 'prod').toLowerCase() === targetEnv.toLowerCase() && p.id !== (activePipeline ? activePipeline.id : ''));
+        select.innerHTML = '<option value="">-- Choose Existing Target Pipeline --</option>';
+        targetPipelines.forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${p.name} (${p.table || 'default'})</option>`;
+        });
+    }
+
+    function executePromotion() {
+        if (!activePipeline) return;
+
+        const targetEnv = document.getElementById('promote-target-env').value;
+        const mode = document.querySelector('input[name="promote-mode"]:checked').value;
+        const targetPipelineId = document.getElementById('promote-target-pipeline-select').value;
+        const btn = document.getElementById('btn-confirm-promote');
+        const errEl = document.getElementById('promote-error-msg');
+        const succEl = document.getElementById('promote-success-msg');
+
+        errEl.style.display = 'none';
+        succEl.style.display = 'none';
+
+        if (mode === 'sync' && !targetPipelineId) {
+            errEl.innerText = 'Please select a target pipeline to synchronize contract into.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Promoting...';
+
+        fetch(`/api/pipelines/${activePipeline.id}/promote`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                target_env: targetEnv,
+                mode: mode,
+                target_pipeline_id: targetPipelineId || null
+            })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.detail || data.message || 'Promotion failed.');
+            }
+            return data;
+        })
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Confirm & Promote Contract';
+            succEl.innerText = `✅ Successfully promoted contract to ${targetEnv.toUpperCase()} (${mode === 'new' ? 'Created new pipeline: ' + data.pipeline.name : 'Synchronized existing pipeline: ' + data.pipeline.name})!`;
+            succEl.style.display = 'block';
+
+            setTimeout(() => {
+                closePromotionModal();
+                syncPipelines();
+                if (data.pipeline && data.pipeline.id) {
+                    setTimeout(() => selectPipeline(data.pipeline.id), 250);
+                }
+            }, 1200);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Confirm & Promote Contract';
+            errEl.innerText = `❌ ${err.message}`;
+            errEl.style.display = 'block';
         });
     }
 </script>

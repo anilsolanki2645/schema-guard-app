@@ -71,6 +71,7 @@ def serialize_pipeline(p, mask_credentials=True):
         "connStr": conn_str_output,
         "schema": p.schema,
         "table": p.table,
+        "environment": getattr(p, "environment", "prod") or "prod",
         "cron": p.cron,
         "cronText": p.cron_text,
         "alerts": p.alerts,
@@ -157,6 +158,7 @@ def create_pipeline(p):
         conn_str=encrypted_conn,
         schema=p["schema"],
         table=p["table"],
+        environment=(p.get("environment") or "prod").lower(),
         cron=p.get("cron", "0 0 * * *"),
         cron_text=p.get("cronText", "Daily preset"),
         alerts=p.get("alerts", {}),
@@ -213,6 +215,8 @@ def update_pipeline(id, updates):
         pipe.contract_yaml = updates["contract_yaml"]
     if "logs" in updates:
         pipe.logs = updates["logs"]
+    if "environment" in updates and updates["environment"]:
+        pipe.environment = updates["environment"].lower()
     if "complianceHistory" in updates:
         pipe.compliance_history = updates["complianceHistory"]
         

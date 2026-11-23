@@ -60,8 +60,15 @@ class User(models.Model):
 
 
 class Pipeline(models.Model):
+    ENVIRONMENT_CHOICES = [
+        ('dev', 'Development'),
+        ('staging', 'Staging'),
+        ('prod', 'Production'),
+    ]
+
     id = models.CharField(max_length=150, unique=True, primary_key=True)
     name = models.CharField(max_length=255)
+    environment = models.CharField(max_length=20, choices=ENVIRONMENT_CHOICES, default='prod', db_index=True)
     db_type = models.CharField(max_length=50)
     conn_str = models.TextField()  # Encrypted at rest via core.security
     schema = models.CharField(max_length=255)
@@ -110,6 +117,7 @@ class AuditLog(models.Model):
         ('billing.qr_payment', 'UPI QR Payment Verified'),
         ('billing.razorpay_payment', 'Razorpay Automated Payment Verified'),
         ('contract.reverse_engineered', 'Contract Reverse Engineered'),
+        ('pipeline.promoted', 'Pipeline Contract Promoted'),
         ('user.oauth_login', 'User OAuth Login'),
         ('org.member_invited', 'Team Member Invited'),
         ('org.invite_revoked', 'Invitation Revoked'),

@@ -83,6 +83,7 @@ urlpatterns = [
     path('api/pipelines/download-airflow', views.download_airflow_operator, name='download_airflow_operator'),
     path('api/pipelines/<str:id>', pipelines_detail_api_dispatch, name='pipelines_detail_api'),
     path('api/pipelines/<str:id>/run', views.run_pipeline_check_api, name='run_pipeline_check_api'),
+    path('api/pipelines/<str:id>/promote', views.promote_pipeline_api, name='promote_pipeline_api'),
     path('api/pipelines/<str:id>/ai-diagnostics', views.run_ai_diagnostics_api, name='run_ai_diagnostics_api'),
     path('api/pipelines/<str:id>/badge', views.pipeline_badge_api, name='pipeline_badge_api'),
     path('api/pipelines/<str:id>/validate-gate', csrf_exempt(views.validate_pipeline_gate_api), name='validate_pipeline_gate_api'),

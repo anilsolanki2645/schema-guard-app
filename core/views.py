@@ -1331,6 +1331,7 @@ def create_pipeline_api(request):
         "connStr": data.get("connStr"),
         "schema": data.get("schema"),
         "table": data.get("table"),
+        "environment": (data.get("environment") or "prod").strip().lower(),
         "cron": data.get("cron", "0 0 * * *"),
         "cronText": data.get("cronText", "Daily preset"),
         "alerts": data.get("alerts", {}),
@@ -1537,6 +1538,8 @@ def edit_pipeline_api(request, id):
         "cronText": data.get("cronText"),
         "alerts": data.get("alerts", {})
     }
+    if "environment" in data and data.get("environment"):
+        updates["environment"] = data.get("environment").strip().lower()
     
     db.update_pipeline(id, updates)
     updated = db.get_pipeline(id)
@@ -1586,6 +1589,135 @@ def delete_pipeline_api(request, id):
     db.delete_pipeline(id)
     log_action(request, 'pipeline.delete', 'pipeline', id)
     return JsonResponse({"status": "success"})
+
+
+@require_login
+def promote_pipeline_api(request, id):
+    """
+    Multi-Environment Promotion API (Dev -> Staging -> Prod).
+    Promotes a verified schema contract and its lock signature from a lower environment
+    to a higher environment (e.g. dev -> staging, or staging -> prod).
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+        return JsonResponse({
+            "detail": "Permission denied: Promoting contracts across environments requires Admin, Subadmin, or Operator role."
+        }, status=403)
+
+    from core.models import Pipeline, User
+    from core.db_impl import serialize_pipeline
+
+    source_p = Pipeline.objects.filter(id=id).first()
+    if not source_p:
+        return JsonResponse({"detail": "Source pipeline not found."}, status=404)
+
+    # Enforce organization boundary
+    if user_info.get('role') != 'admin' and source_p.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    source_env = (source_p.environment or "prod").lower()
+    target_env = (data.get("target_environment") or data.get("target_env") or "").strip().lower()
+
+    if not target_env:
+        # Auto-compute next environment in progression: dev -> staging -> prod
+        if source_env == 'dev':
+            target_env = 'staging'
+        elif source_env == 'staging':
+            target_env = 'prod'
+        else:
+            return JsonResponse({"detail": "Pipeline is already in Production (highest environment)."}, status=400)
+
+    valid_targets = ['staging', 'prod'] if source_env == 'dev' else ['prod'] if source_env == 'staging' else []
+    if target_env not in valid_targets:
+        return JsonResponse({
+            "detail": f"Cannot promote pipeline from '{source_env.upper()}' to '{target_env.upper()}'. Valid target environments: {', '.join(valid_targets).upper()}"
+        }, status=400)
+
+    target_pipeline_id = data.get("target_pipeline_id")
+    target_p = None
+    if target_pipeline_id:
+        target_p = Pipeline.objects.filter(id=target_pipeline_id).first()
+        if not target_p:
+            return JsonResponse({"detail": f"Target pipeline '{target_pipeline_id}' not found."}, status=404)
+        if user_info.get('role') != 'admin' and target_p.organization_id != user_info.get('organization_id'):
+            return JsonResponse({"detail": "Unauthorized target pipeline access."}, status=403)
+
+    # Contract to promote
+    contract_yaml = source_p.contract_yaml
+    lock_signature = source_p.lock_signature
+    schema_map = source_p.schema_map
+
+    if not contract_yaml:
+        return JsonResponse({
+            "detail": "Cannot promote: Source pipeline does not have a defined YAML contract. Please build or reverse-engineer a contract first."
+        }, status=400)
+
+    if target_p:
+        # Update existing target pipeline with promoted contract & signature
+        target_p.contract_yaml = contract_yaml
+        target_p.lock_signature = lock_signature
+        target_p.schema_map = schema_map
+        target_p.status = 'Clean'
+        target_p.environment = target_env
+        target_p.save(update_fields=['contract_yaml', 'lock_signature', 'schema_map', 'status', 'environment'])
+        action_msg = f"Promoted and synchronized contract to existing {target_env.upper()} pipeline '{target_p.name}'"
+    else:
+        # Clone / Create a new pipeline in target environment
+        import uuid
+        target_name = (data.get("target_name") or f"{source_p.name} [{target_env.upper()}]").strip()
+        new_pipe_id = f"pipe-{uuid.uuid4().hex[:12]}"
+        target_conn = data.get("target_conn_str") or source_p.conn_str
+
+        target_p = Pipeline.objects.create(
+            id=new_pipe_id,
+            name=target_name,
+            environment=target_env,
+            db_type=source_p.db_type,
+            conn_str=target_conn,
+            schema=source_p.schema,
+            table=source_p.table,
+            cron=source_p.cron,
+            cron_text=source_p.cron_text,
+            alerts=source_p.alerts,
+            status='Clean',
+            lock_signature=lock_signature,
+            schema_map=schema_map,
+            contract_yaml=contract_yaml,
+            organization=source_p.organization
+        )
+        action_msg = f"Created new {target_env.upper()} pipeline '{target_p.name}' with promoted contract"
+
+    log_action(
+        request,
+        'pipeline.promoted',
+        'pipeline',
+        str(source_p.id),
+        {
+            'source_environment': source_env,
+            'target_environment': target_env,
+            'target_pipeline_id': target_p.id,
+            'target_pipeline_name': target_p.name,
+            'signature': lock_signature
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"🚀 Successfully promoted schema contract from {source_env.upper()} to {target_env.upper()}! {action_msg}.",
+        "source_environment": source_env,
+        "target_environment": target_env,
+        "mode": "sync" if target_pipeline_id else "new",
+        "pipeline": serialize_pipeline(target_p),
+        "promoted_pipeline": serialize_pipeline(target_p)
+    })
 
 
 @require_login

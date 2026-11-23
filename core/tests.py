@@ -1498,6 +1498,216 @@ columns:
         self.assertEqual(res.status_code, 404)
 
 
+class PipelinePromotionTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Promo Org", plan="pro")
+        self.admin = User.objects.create(
+            username="promo_admin",
+            email="admin@promo.com",
+            password_hash=hash_password("AdminPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.viewer = User.objects.create(
+            username="promo_viewer",
+            email="viewer@promo.com",
+            password_hash=hash_password("ViewerPass123!"),
+            organization=self.org,
+            role="viewer",
+            is_verified=True,
+            permissions={"see": True, "create": False, "edit": False, "delete": False}
+        )
+        self.dev_pipeline = Pipeline.objects.create(
+            id="pipe-promo-dev-01",
+            organization=self.org,
+            name="Orders Stream DEV",
+            environment="dev",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            cron="0 * * * *",
+            cron_text="Hourly",
+            alerts={},
+            contract_yaml="columns:\n  - name: id\n    type: integer\n  - name: amount\n    type: numeric\n",
+            lock_signature="f3a5b6c7d8e90123456789abcdef0123456789abcdef0123456789abcdef0123",
+            schema_map={"id": "integer", "amount": "numeric"},
+            status="Clean"
+        )
+
+    def test_promote_dev_to_staging_clones_new_pipeline(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'promo_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('promote_pipeline_api', args=[self.dev_pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "target_env": "staging",
+                "mode": "new"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["mode"], "new")
+        self.assertEqual(data["pipeline"]["environment"], "staging")
+        self.assertEqual(data["pipeline"]["lockSignature"], self.dev_pipeline.lock_signature)
+
+        # Check DB pipeline count
+        promoted = Pipeline.objects.get(id=data["pipeline"]["id"])
+        self.assertEqual(promoted.environment, "staging")
+        self.assertIn("STAGING", promoted.name)
+        self.assertEqual(promoted.table, "orders")
+
+        # Check AuditLog
+        log = AuditLog.objects.filter(action="pipeline.promoted", actor="promo_admin").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.details.get("target_environment"), "staging")
+
+    def test_promote_staging_to_prod_syncs_existing_pipeline(self):
+        staging_pipeline = Pipeline.objects.create(
+            id="pipe-promo-staging-01",
+            organization=self.org,
+            name="Payments Stream STAGING",
+            environment="staging",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="payments",
+            cron="0 * * * *",
+            contract_yaml="columns:\n  - name: txn_id\n    type: varchar\n",
+            lock_signature="aaaaabbbbbcccccdddddeeeeefffff0000011111222223333344444555556666",
+            schema_map={"txn_id": "varchar"},
+            status="Clean"
+        )
+        prod_pipeline = Pipeline.objects.create(
+            id="pipe-promo-prod-01",
+            organization=self.org,
+            name="Payments Stream PROD",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="payments",
+            cron="0 * * * *",
+            contract_yaml="",
+            lock_signature="",
+            schema_map={},
+            status="Drifted"
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'promo_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('promote_pipeline_api', args=[staging_pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "target_env": "prod",
+                "mode": "sync",
+                "target_pipeline_id": prod_pipeline.id
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["mode"], "sync")
+
+        prod_pipeline.refresh_from_db()
+        self.assertEqual(prod_pipeline.contract_yaml, staging_pipeline.contract_yaml)
+        self.assertEqual(prod_pipeline.lock_signature, staging_pipeline.lock_signature)
+        self.assertEqual(prod_pipeline.status, "Clean")
+
+    def test_promote_viewer_role_rejected_403(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'promo_viewer',
+            'password': 'ViewerPass123!',
+        })
+        url = reverse('promote_pipeline_api', args=[self.dev_pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "target_env": "staging",
+                "mode": "new"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_promote_missing_contract_rejected_400(self):
+        empty_pipeline = Pipeline.objects.create(
+            id="pipe-promo-empty-01",
+            organization=self.org,
+            name="Empty DEV",
+            environment="dev",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="empty_table",
+            cron="0 * * * *",
+            contract_yaml="",
+            lock_signature=""
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'promo_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('promote_pipeline_api', args=[empty_pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "target_env": "staging",
+                "mode": "new"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.content)
+        self.assertIn("YAML contract", data.get("detail", ""))
+
+    def test_promote_invalid_environment_transition_400(self):
+        prod_pipe = Pipeline.objects.create(
+            id="pipe-promo-top-prod-01",
+            organization=self.org,
+            name="Top PROD",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            cron="0 * * * *",
+            contract_yaml="col: int",
+            lock_signature="12345"
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'promo_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('promote_pipeline_api', args=[prod_pipe.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "target_env": "dev",
+                "mode": "new"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+
 
 
 
