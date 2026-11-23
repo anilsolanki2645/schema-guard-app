@@ -117,6 +117,8 @@ class AuditLog(models.Model):
         ('billing.qr_payment', 'UPI QR Payment Verified'),
         ('billing.razorpay_payment', 'Razorpay Automated Payment Verified'),
         ('contract.reverse_engineered', 'Contract Reverse Engineered'),
+        ('contract.version_created', 'Contract Version Created'),
+        ('contract.rollback', 'Contract Rolled Back'),
         ('pipeline.promoted', 'Pipeline Contract Promoted'),
         ('user.oauth_login', 'User OAuth Login'),
         ('org.member_invited', 'Team Member Invited'),
@@ -268,5 +270,30 @@ class OrganizationInvitation(models.Model):
 
     def __str__(self):
         return f"Invite for {self.email} to {self.organization.name} ({self.status})"
+
+
+class ContractVersion(models.Model):
+    """Immutable revision history for schema contracts."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='contract_versions')
+    version_number = models.PositiveIntegerField(db_index=True)
+    contract_yaml = models.TextField()
+    lock_signature = models.CharField(max_length=255, blank=True, default='')
+    schema_map = models.JSONField(default=dict)
+    change_summary = models.CharField(max_length=255, default='Contract baseline update')
+    created_by = models.CharField(max_length=150, default='system')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-version_number']
+        unique_together = ('pipeline', 'version_number')
+        indexes = [
+            models.Index(fields=['pipeline', 'version_number']),
+            models.Index(fields=['pipeline', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.pipeline.name} (v{self.version_number})"
+
 
 

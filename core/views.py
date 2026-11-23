@@ -1669,6 +1669,7 @@ def promote_pipeline_api(request, id):
         target_p.environment = target_env
         target_p.save(update_fields=['contract_yaml', 'lock_signature', 'schema_map', 'status', 'environment'])
         action_msg = f"Promoted and synchronized contract to existing {target_env.upper()} pipeline '{target_p.name}'"
+        record_contract_version(target_p, user_info.get('username', 'system'), f"Promoted and synchronized from {source_env.upper()}")
     else:
         # Clone / Create a new pipeline in target environment
         import uuid
@@ -1694,6 +1695,7 @@ def promote_pipeline_api(request, id):
             organization=source_p.organization
         )
         action_msg = f"Created new {target_env.upper()} pipeline '{target_p.name}' with promoted contract"
+        record_contract_version(target_p, user_info.get('username', 'system'), f"Created in {target_env.upper()} via promotion from {source_env.upper()}")
 
     log_action(
         request,
@@ -2090,6 +2092,7 @@ def reverse_engineer_contract_api(request):
         p_obj.schema_map = {"columns": ui_columns}
         p_obj.save(update_fields=['contract_yaml', 'lock_signature', 'status', 'schema_map'])
         saved = True
+        record_contract_version(p_obj, request.session.get('user', {}).get('username', 'system'), "Reverse-engineered schema contract baseline")
 
     # Audit Logging
     log_action(
@@ -2425,6 +2428,170 @@ def download_pipeline_migration_api(request, id):
     response = HttpResponse(content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+def record_contract_version(pipeline, actor_username: str, change_summary: str = "Contract baseline update"):
+    """Creates a new immutable ContractVersion snapshot for the given pipeline."""
+    from core.models import ContractVersion
+    if not pipeline or not pipeline.contract_yaml:
+        return None
+
+    last_version = ContractVersion.objects.filter(pipeline=pipeline).order_by('-version_number').first()
+    next_ver = (last_version.version_number + 1) if last_version else 1
+
+    # Don't create duplicate if content and signature are identical to last_version
+    if last_version and last_version.contract_yaml == pipeline.contract_yaml and last_version.lock_signature == pipeline.lock_signature:
+        return last_version
+
+    cv = ContractVersion.objects.create(
+        pipeline=pipeline,
+        version_number=next_ver,
+        contract_yaml=pipeline.contract_yaml,
+        lock_signature=pipeline.lock_signature or '',
+        schema_map=pipeline.schema_map or {},
+        change_summary=change_summary,
+        created_by=actor_username or 'system'
+    )
+    return cv
+
+
+@require_login
+def list_contract_versions_api(request, id):
+    """
+    List all immutable contract versions for a given pipeline.
+    """
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, ContractVersion
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    versions = list(ContractVersion.objects.filter(pipeline=pipeline).order_by('-version_number'))
+
+    # Auto-seed v1 baseline if versions empty but contract exists
+    if not versions and pipeline.contract_yaml:
+        v1 = record_contract_version(pipeline, 'system', 'Initial baseline contract')
+        if v1:
+            versions = [v1]
+
+    data = []
+    for v in versions:
+        is_active = (v.contract_yaml == pipeline.contract_yaml and v.lock_signature == pipeline.lock_signature)
+        data.append({
+            "id": str(v.id),
+            "version_number": v.version_number,
+            "signature": v.lock_signature,
+            "change_summary": v.change_summary,
+            "created_by": v.created_by,
+            "created_at": v.created_at.isoformat(),
+            "is_active": is_active,
+            "columns_count": len(v.schema_map.get("columns", [])) if isinstance(v.schema_map, dict) and "columns" in v.schema_map else 0
+        })
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": pipeline.id,
+        "pipeline_name": pipeline.name,
+        "current_signature": pipeline.lock_signature,
+        "versions": data
+    })
+
+
+@require_login
+def get_contract_version_detail_api(request, id, version_number):
+    """
+    Retrieve full details and YAML content for a specific contract version.
+    """
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, ContractVersion
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    cv = ContractVersion.objects.filter(pipeline=pipeline, version_number=version_number).first()
+    if not cv:
+        return JsonResponse({"detail": f"Version v{version_number} not found for this pipeline."}, status=404)
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": pipeline.id,
+        "version_number": cv.version_number,
+        "contract_yaml": cv.contract_yaml,
+        "lock_signature": cv.lock_signature,
+        "schema_map": cv.schema_map,
+        "change_summary": cv.change_summary,
+        "created_by": cv.created_by,
+        "created_at": cv.created_at.isoformat(),
+        "is_active": (cv.contract_yaml == pipeline.contract_yaml and cv.lock_signature == pipeline.lock_signature)
+    })
+
+
+@require_login
+def rollback_contract_version_api(request, id, version_number):
+    """
+    Rolls back pipeline contract to a specific previous version.
+    Restores YAML, signature, schema map, resets status to Clean, and records a new version snapshot.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+        return JsonResponse({"detail": "Permission denied: Contract rollback requires Admin, Subadmin, or Operator role."}, status=403)
+
+    from core.models import Pipeline, ContractVersion
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    target_v = ContractVersion.objects.filter(pipeline=pipeline, version_number=version_number).first()
+    if not target_v:
+        return JsonResponse({"detail": f"Contract version v{version_number} not found."}, status=404)
+
+    # Roll back pipeline state
+    pipeline.contract_yaml = target_v.contract_yaml
+    pipeline.lock_signature = target_v.lock_signature
+    pipeline.schema_map = target_v.schema_map
+    pipeline.status = 'Clean'
+    pipeline.save(update_fields=['contract_yaml', 'lock_signature', 'schema_map', 'status'])
+
+    # Create new ContractVersion recording the rollback
+    username = user_info.get('username', 'system')
+    new_cv = record_contract_version(
+        pipeline,
+        username,
+        f"Rollback to contract v{version_number}"
+    )
+
+    # Audit Log
+    log_action(
+        request,
+        'contract.rollback',
+        'pipeline',
+        pipeline.id,
+        {
+            'restored_version': version_number,
+            'new_version': new_cv.version_number if new_cv else None,
+            'lock_signature': pipeline.lock_signature
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Successfully rolled back contract to v{version_number}.",
+        "restored_version": version_number,
+        "new_version": new_cv.version_number if new_cv else version_number,
+        "lock_signature": pipeline.lock_signature
+    })
 
 
 @require_login

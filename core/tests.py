@@ -5,7 +5,7 @@ Tests for models, views, API endpoints, authentication, and permission boundarie
 import json
 from django.test import TestCase, Client
 from django.urls import reverse
-from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot
+from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot, ContractVersion
 from core.views import hash_password, verify_password, generate_code
 from unittest.mock import patch, Mock, MagicMock
 
@@ -1840,6 +1840,158 @@ class SchemaMigrationGeneratorTests(TestCase):
         url = reverse('generate_pipeline_migration_api', args=[self.pipeline.id])
         res = self.client.post(url, data=json.dumps({}), content_type="application/json")
         self.assertEqual(res.status_code, 302)
+
+
+class ContractVersioningTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Version Org", plan="pro")
+        self.admin = User.objects.create(
+            username="ver_admin",
+            email="admin@ver.com",
+            password_hash=hash_password("AdminPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.viewer = User.objects.create(
+            username="ver_viewer",
+            email="viewer@ver.com",
+            password_hash=hash_password("ViewerPass123!"),
+            organization=self.org,
+            role="viewer",
+            is_verified=True,
+            permissions={"see": True, "create": False, "edit": False, "delete": False}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-version-test-01",
+            organization=self.org,
+            name="Audited Orders",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            cron="0 * * * *",
+            contract_yaml="columns:\n  - name: id\n    type: integer\n",
+            lock_signature="1111111111111111111111111111111111111111111111111111111111111111",
+            schema_map={"columns": [{"name": "id", "type": "integer"}]},
+            status="Clean"
+        )
+
+    def test_list_contract_versions_auto_creates_v1_baseline(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ver_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('list_contract_versions_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(len(data["versions"]), 1)
+        self.assertEqual(data["versions"][0]["version_number"], 1)
+        self.assertTrue(data["versions"][0]["is_active"])
+
+    def test_get_version_detail(self):
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=1,
+            contract_yaml="columns:\n  - name: id\n    type: integer\n",
+            lock_signature="1111111111111111111111111111111111111111111111111111111111111111",
+            change_summary="Initial baseline",
+            created_by="ver_admin"
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ver_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('get_contract_version_detail_api', args=[self.pipeline.id, 1])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["version_number"], 1)
+        self.assertIn("columns:", data["contract_yaml"])
+
+    def test_rollback_contract_version_creates_new_version(self):
+        # Create v1
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=1,
+            contract_yaml="columns:\n  - name: id\n    type: integer\n",
+            lock_signature="1111111111111111111111111111111111111111111111111111111111111111",
+            change_summary="Initial baseline v1",
+            created_by="ver_admin"
+        )
+        # Create v2 and mutate pipeline to v2
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=2,
+            contract_yaml="columns:\n  - name: id\n    type: integer\n  - name: bad_col\n    type: text\n",
+            lock_signature="2222222222222222222222222222222222222222222222222222222222222222",
+            change_summary="Faulty change v2",
+            created_by="ver_admin"
+        )
+        self.pipeline.contract_yaml = "columns:\n  - name: id\n    type: integer\n  - name: bad_col\n    type: text\n"
+        self.pipeline.lock_signature = "2222222222222222222222222222222222222222222222222222222222222222"
+        self.pipeline.status = "Drifted"
+        self.pipeline.save()
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ver_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('rollback_contract_version_api', args=[self.pipeline.id, 1])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["restored_version"], 1)
+        self.assertEqual(data["new_version"], 3)
+
+        # Verify pipeline state restored to v1
+        self.pipeline.refresh_from_db()
+        self.assertEqual(self.pipeline.lock_signature, "1111111111111111111111111111111111111111111111111111111111111111")
+        self.assertNotIn("bad_col", self.pipeline.contract_yaml)
+        self.assertEqual(self.pipeline.status, "Clean")
+
+        # Verify AuditLog logged
+        log = AuditLog.objects.filter(action="contract.rollback", actor="ver_admin").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.details.get("restored_version"), 1)
+
+    def test_rollback_viewer_role_rejected_403(self):
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=1,
+            contract_yaml="columns:\n  - name: id\n    type: integer\n",
+            lock_signature="1111111111111111111111111111111111111111111111111111111111111111",
+            change_summary="Initial baseline v1",
+            created_by="ver_admin"
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ver_viewer',
+            'password': 'ViewerPass123!',
+        })
+        url = reverse('rollback_contract_version_api', args=[self.pipeline.id, 1])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 403)
+
+    def test_rollback_nonexistent_version_404(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ver_admin',
+            'password': 'AdminPass123!',
+        })
+        url = reverse('rollback_contract_version_api', args=[self.pipeline.id, 999])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 404)
+
 
 
 
