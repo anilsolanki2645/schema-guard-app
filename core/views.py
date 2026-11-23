@@ -447,6 +447,71 @@ def send_password_reset_email(email: str, code: str) -> bool:
     print(f"\n========================================\n[EMAIL] Password reset code to {email}: {code}\n========================================\n")
     return send_email_helper(subject, message, email, html_message=html_message)
 
+
+def send_invitation_email(email: str, org_name: str, invited_by: str, role: str, invite_url: str) -> bool:
+    subject = f"You've been invited to join {org_name} on Schema Guard"
+    message = (
+        f"Hello,\n\n"
+        f"{invited_by} has invited you to join the '{org_name}' workspace on Schema Guard as an {role.title()}.\n\n"
+        f"Accept your invitation here:\n{invite_url}\n\n"
+        f"This invitation link will expire in 7 days.\n\n"
+        f"— Schema Guard Team"
+    )
+    role_bg = "#8b5cf6" if role == 'subadmin' else ("#0ea5e9" if role == 'operator' else "#10b981")
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Join {org_name} on Schema Guard</title>
+    </head>
+    <body style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #030712; color: #f3f4f6; margin: 0; padding: 40px 20px;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background: linear-gradient(135deg, #0b0f19 0%, #111827 100%); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.7); border-collapse: collapse;">
+            <tr>
+                <td height="4" style="background: linear-gradient(90deg, #8b5cf6, #38bdf8, #22c55e);"></td>
+            </tr>
+            <tr>
+                <td style="padding: 40px 40px 20px 40px; text-align: center;">
+                    <div style="display: inline-block; background: rgba(139, 92, 246, 0.08); border: 1.5px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 12px 20px; text-align: center; margin-bottom: 25px;">
+                        <span style="font-size: 24px; vertical-align: middle;">🛡️</span>
+                        <span style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1px; vertical-align: middle; margin-left: 8px;">Schema <span style="color: #a78bfa;">Guard</span></span>
+                    </div>
+                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.02em;">Team Workspace Invitation</h1>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 0 40px 30px 40px;">
+                    <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                        <strong style="color: #ffffff;">{invited_by}</strong> has invited you to join and collaborate in the <strong style="color: #38bdf8;">{org_name}</strong> workspace on Schema Guard.
+                    </p>
+                    <div style="background: #0f172a; border-radius: 10px; padding: 16px 20px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="margin-bottom: 8px;">
+                            <span style="color: #64748b; font-size: 12px; text-transform: uppercase; font-weight: 700;">Workspace Role: </span>
+                            <span style="background: {role_bg}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">{role.upper()}</span>
+                        </div>
+                        <div style="color: #94a3b8; font-size: 13px; line-height: 1.5;">
+                            Collaborate on data contracts, shadow-simulate SQL DDL migrations, and monitor automated schema drift checks.
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{invite_url}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);">Accept Invitation & Join Workspace →</a>
+                    </div>
+                    <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0; text-align: center;">
+                        This invitation link is valid for 7 days.<br>
+                        If the button above does not work, copy and paste this URL into your browser:<br>
+                        <a href="{invite_url}" style="color: #8b5cf6; word-break: break-all;">{invite_url}</a>
+                    </p>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    print(f"\n========================================\n[EMAIL] Workspace invitation to {email} for {org_name}: {invite_url}\n========================================\n")
+    return send_email_helper(subject, message, email, html_message=html_message)
+
+
 # -------------------------------------------------------------
 # Unified Compliance Gate Check Engine
 # -------------------------------------------------------------
@@ -2127,6 +2192,16 @@ def create_user_api(request):
             role = 'operator'
     else:
         org_id = data.get("organization_id")
+
+    if org_id:
+        from core.models import Organization
+        target_org = Organization.objects.filter(id=org_id).first()
+        if target_org and target_org.get_active_seat_count() >= target_org.get_seat_quota():
+            quota = target_org.get_seat_quota()
+            plan_name = target_org.plan.upper()
+            return JsonResponse({
+                "detail": f"Organization seat quota reached ({quota} seat(s) on {plan_name} plan). Upgrade plan to add more members."
+            }, status=403)
         
     verification_code = generate_code()
     new_user = db.create_user(
@@ -2257,6 +2332,373 @@ def create_organization_api(request):
         "organization": {"id": org.id, "name": org.name},
         "subadmin": subadmin
     })
+
+
+# -------------------------------------------------------------
+# Workspace Team & Invitation Management Endpoints
+# -------------------------------------------------------------
+@require_login
+def organization_members_api(request):
+    """
+    GET: Returns active members, pending invitations, and seat quota details for the user's workspace.
+    POST: Invites a new team member with role & permissions, validating against seat limits.
+    """
+    user_info = request.session.get('user')
+    from core.models import Organization, OrganizationInvitation
+    from django.utils import timezone
+    import secrets
+
+    org_id = user_info.get('organization_id')
+    # If superadmin and no org_id in session, optionally accept ?org_id or pick first
+    if not org_id and user_info.get('role') == 'admin':
+        param_org = request.GET.get('org_id')
+        if param_org:
+            org = Organization.objects.filter(id=param_org).first()
+        else:
+            org = Organization.objects.first()
+    else:
+        org = Organization.objects.filter(id=org_id).first() if org_id else None
+
+    if not org:
+        return JsonResponse({"detail": "Workspace organization not found."}, status=404)
+
+    can_manage = user_info.get('role') in ['admin', 'subadmin']
+
+    if request.method == "GET":
+        members = []
+        for u in org.users.all().order_by('-created_at'):
+            members.append({
+                "username": u.username,
+                "email": u.email,
+                "full_name": u.full_name or u.username,
+                "role": u.role,
+                "job_title": u.job_title,
+                "avatar_url": f"/api/user/avatar/{u.username}",
+                "permissions": u.permissions,
+                "is_verified": u.is_verified,
+                "joined_at": u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "",
+                "is_current_user": (u.username == user_info.get('username'))
+            })
+
+        invitations = []
+        for inv in org.invitations.filter(status='pending', expires_at__gt=timezone.now()).order_by('-created_at'):
+            invitations.append({
+                "id": str(inv.id),
+                "email": inv.email,
+                "role": inv.role,
+                "permissions": inv.permissions,
+                "invited_by": inv.invited_by,
+                "created_at": inv.created_at.strftime("%Y-%m-%d %H:%M"),
+                "expires_at": inv.expires_at.strftime("%Y-%m-%d %H:%M"),
+                "token": inv.token,
+                "invite_url": request.build_absolute_uri(f"/invite/accept/{inv.token}")
+            })
+
+        seat_quota = org.get_seat_quota()
+        active_seats = org.users.count()
+        pending_seats = len(invitations)
+        used_seats = active_seats + pending_seats
+
+        return JsonResponse({
+            "success": True,
+            "organization": {
+                "id": org.id,
+                "name": org.name,
+                "plan": org.plan,
+                "seat_quota": seat_quota,
+                "active_members_count": active_seats,
+                "pending_invites_count": pending_seats,
+                "used_seats": used_seats,
+                "available_seats": max(0, seat_quota - used_seats) if seat_quota < 999999 else "Unlimited"
+            },
+            "members": members,
+            "invitations": invitations,
+            "can_manage": can_manage
+        })
+
+    elif request.method == "POST":
+        if not can_manage:
+            return JsonResponse({"detail": "Only workspace administrators can invite team members."}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({"detail": "Invalid JSON payload."}, status=400)
+
+        email = (data.get("email") or "").strip().lower()
+        role = (data.get("role") or "operator").strip().lower()
+        custom_permissions = data.get("permissions")
+
+        if not email or "@" not in email:
+            return JsonResponse({"detail": "A valid email address is required."}, status=400)
+
+        if role not in ['operator', 'viewer', 'subadmin']:
+            role = 'operator'
+
+        # Subadmin cannot grant roles higher than operator or viewer unless superadmin
+        if user_info.get('role') == 'subadmin' and role not in ['operator', 'viewer']:
+            role = 'operator'
+
+        # Enforce seat quota
+        if org.get_active_seat_count() >= org.get_seat_quota():
+            quota = org.get_seat_quota()
+            plan_name = org.plan.upper()
+            return JsonResponse({
+                "detail": f"Seat quota reached ({quota} seat(s) on {plan_name} plan). Upgrade to Team Pro (10 seats) or Enterprise (unlimited) to invite more members."
+            }, status=403)
+
+        # Check if already an active member of this workspace
+        if org.users.filter(email__iexact=email).exists():
+            return JsonResponse({"detail": f"User with email '{email}' is already an active member of this workspace."}, status=400)
+
+        # Check for existing active invite
+        existing_invite = org.invitations.filter(email__iexact=email, status='pending', expires_at__gt=timezone.now()).first()
+        if existing_invite:
+            invite_url = request.build_absolute_uri(f"/invite/accept/{existing_invite.token}")
+            return JsonResponse({
+                "detail": f"An active invitation for '{email}' already exists.",
+                "invite_url": invite_url
+            }, status=400)
+
+        # Resolve permissions
+        if custom_permissions and isinstance(custom_permissions, dict):
+            permissions = custom_permissions
+        elif role == 'viewer':
+            permissions = {"see": True, "create": False, "edit": False, "delete": False}
+        elif role == 'operator':
+            permissions = {"see": True, "create": True, "edit": True, "delete": False}
+        else:
+            permissions = {"see": True, "create": True, "edit": True, "delete": True}
+
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timezone.timedelta(days=7)
+
+        invitation = OrganizationInvitation.objects.create(
+            organization=org,
+            email=email,
+            role=role,
+            permissions=permissions,
+            token=token,
+            invited_by=user_info.get('username'),
+            expires_at=expires_at,
+            status='pending'
+        )
+
+        invite_url = request.build_absolute_uri(f"/invite/accept/{token}")
+        send_invitation_email(email, org.name, user_info.get('username'), role, invite_url)
+
+        log_action(request, 'org.member_invited', 'organization', str(org.id), {
+            'email': email,
+            'role': role,
+            'token': token
+        })
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Invitation successfully sent to {email}",
+            "invitation": {
+                "id": str(invitation.id),
+                "email": invitation.email,
+                "role": invitation.role,
+                "invite_url": invite_url,
+                "expires_at": invitation.expires_at.strftime("%Y-%m-%d %H:%M")
+            }
+        })
+
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@require_login
+def revoke_invitation_api(request, invite_id):
+    """Cancels/revokes a pending workspace invitation."""
+    if request.method != "DELETE":
+        return HttpResponseNotAllowed(["DELETE"])
+
+    user_info = request.session.get('user')
+    if user_info.get('role') not in ['admin', 'subadmin']:
+        return JsonResponse({"detail": "Only workspace administrators can revoke invitations."}, status=403)
+
+    from core.models import OrganizationInvitation
+    inv = OrganizationInvitation.objects.filter(id=invite_id).first()
+    if not inv:
+        return JsonResponse({"detail": "Invitation not found."}, status=404)
+
+    if user_info.get('role') == 'subadmin' and inv.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized to revoke invitations for this workspace."}, status=403)
+
+    inv.status = 'revoked'
+    inv.save()
+
+    log_action(request, 'org.invite_revoked', 'invitation', str(inv.id), {
+        'email': inv.email,
+        'organization': inv.organization.name
+    })
+
+    return JsonResponse({"success": True, "message": f"Invitation for {inv.email} revoked."})
+
+
+@require_login
+def remove_organization_member_api(request, username):
+    """Removes a team member from the workspace."""
+    if request.method != "DELETE":
+        return HttpResponseNotAllowed(["DELETE"])
+
+    user_info = request.session.get('user')
+    if user_info.get('role') not in ['admin', 'subadmin']:
+        return JsonResponse({"detail": "Only workspace administrators can remove team members."}, status=403)
+
+    if username == user_info.get('username'):
+        return JsonResponse({"detail": "You cannot remove yourself from the workspace."}, status=400)
+
+    if username == 'admin':
+        return JsonResponse({"detail": "Cannot remove the primary system administrator."}, status=400)
+
+    from core.models import User
+    member = User.objects.filter(username=username).first()
+    if not member:
+        return JsonResponse({"detail": "Member not found."}, status=404)
+
+    if user_info.get('role') == 'subadmin':
+        if member.organization_id != user_info.get('organization_id'):
+            return JsonResponse({"detail": "Unauthorized to remove member from another workspace."}, status=403)
+        if member.role == 'subadmin':
+            return JsonResponse({"detail": "Cannot remove a fellow workspace administrator."}, status=400)
+
+    org_name = member.organization.name if member.organization else "None"
+    member.organization = None
+    member.save()
+
+    log_action(request, 'org.member_removed', 'user', username, {
+        'organization': org_name
+    })
+
+    return JsonResponse({"success": True, "message": f"Member {username} removed from workspace."})
+
+
+def accept_invitation_view(request, token):
+    """
+    GET: Displays the invitation accept page or error state.
+    POST: Finalizes user account creation, links them to the organization, and logs them in.
+    """
+    from core.models import OrganizationInvitation, User
+    from django.utils import timezone
+    import re
+
+    invitation = OrganizationInvitation.objects.filter(token=token).first()
+    if not invitation:
+        return render(request, 'core/accept_invite.html', {
+            'error': 'Invalid invitation link. This link does not exist or was deleted.',
+            'invitation': None
+        })
+
+    if invitation.status != 'pending' or invitation.expires_at <= timezone.now():
+        msg = "This invitation has already been accepted." if invitation.status == 'accepted' else "This invitation has expired or was revoked."
+        return render(request, 'core/accept_invite.html', {
+            'error': msg,
+            'invitation': None
+        })
+
+    role_label = 'Workspace Admin' if invitation.role == 'subadmin' else ('Data Engineer / Operator' if invitation.role == 'operator' else 'Read-Only Viewer')
+
+    if request.method == "GET":
+        return render(request, 'core/accept_invite.html', {
+            'invitation': invitation,
+            'organization': invitation.organization,
+            'role_label': role_label,
+            'error': None
+        })
+
+    elif request.method == "POST":
+        # Handle both JSON fetch and traditional Form POST
+        is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
+        if request.content_type == 'application/json':
+            try:
+                body = json.loads(request.body)
+            except Exception:
+                body = {}
+            username = body.get('username', '').strip()
+            password = body.get('password', '').strip()
+            full_name = body.get('full_name', '').strip()
+        else:
+            username = request.POST.get('username', '').strip()
+            password = request.POST.get('password', '').strip()
+            full_name = request.POST.get('full_name', '').strip()
+
+        def return_error(err_msg):
+            if is_json:
+                return JsonResponse({"detail": err_msg}, status=400)
+            return render(request, 'core/accept_invite.html', {
+                'invitation': invitation,
+                'organization': invitation.organization,
+                'role_label': role_label,
+                'error': err_msg,
+                'saved_username': username,
+                'saved_fullname': full_name
+            })
+
+        if not username or len(username) < 3:
+            return return_error("Username must be at least 3 characters long.")
+
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', username):
+            return return_error("Username can only contain letters, numbers, underscores, and dashes.")
+
+        if User.objects.filter(username=username).exists():
+            return return_error(f"Username '{username}' is already taken. Please choose another username.")
+
+        if not password or len(password) < 6:
+            return return_error("Password must be at least 6 characters long.")
+
+        # Check if user with this email already exists
+        existing_email_user = User.objects.filter(email=invitation.email).first()
+        if existing_email_user:
+            existing_email_user.organization = invitation.organization
+            existing_email_user.role = invitation.role
+            existing_email_user.permissions = invitation.permissions
+            existing_email_user.is_verified = True
+            if full_name and not existing_email_user.full_name:
+                existing_email_user.full_name = full_name
+            existing_email_user.save()
+            new_user = existing_email_user
+        else:
+            new_user = User.objects.create(
+                username=username,
+                email=invitation.email,
+                password_hash=hash_password(password),
+                full_name=full_name,
+                role=invitation.role,
+                permissions=invitation.permissions,
+                organization=invitation.organization,
+                is_verified=True
+            )
+
+        # Mark invitation accepted
+        invitation.status = 'accepted'
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+
+        # Log audit action
+        log_action(request, 'org.member_joined', 'user', new_user.username, {
+            'organization': invitation.organization.name,
+            'role': invitation.role,
+            'email': invitation.email
+        })
+
+        # Set session to immediately log the user in
+        request.session['user'] = {
+            'username': new_user.username,
+            'role': new_user.role,
+            'permissions': new_user.permissions,
+            'organization_id': new_user.organization_id,
+            'organization_name': new_user.organization.name if new_user.organization else "Personal Org",
+            'plan': new_user.organization.plan if new_user.organization else "free",
+            'max_pipelines': new_user.organization.max_pipelines if new_user.organization else 5,
+            'is_verified': True
+        }
+
+        if is_json:
+            return JsonResponse({"success": True, "redirect_url": "/dashboard"})
+        return redirect('dashboard')
+
 
 # -------------------------------------------------------------
 # Health Check Endpoint

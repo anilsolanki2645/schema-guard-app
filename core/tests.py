@@ -1020,3 +1020,145 @@ class DemoPipelineAndRateLimitTests(TestCase):
         self.assertEqual(res.status_code, 429)
         cache.delete(f"ai_diag_rate_{self.user.username}")
 
+
+class TeamInvitationAndRBACTests(TestCase):
+    def setUp(self):
+        self.pro_org = Organization.objects.create(name="Pro Company", plan="pro")
+        self.free_org = Organization.objects.create(name="Free Solo Org", plan="free")
+
+        self.subadmin = User.objects.create(
+            username="pro_admin",
+            email="admin@procompany.com",
+            password_hash=hash_password("Pass123!"),
+            role="subadmin",
+            organization=self.pro_org,
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+
+        self.operator = User.objects.create(
+            username="pro_operator",
+            email="op@procompany.com",
+            password_hash=hash_password("Pass123!"),
+            role="operator",
+            organization=self.pro_org,
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": False}
+        )
+
+        self.free_user = User.objects.create(
+            username="free_user",
+            email="free@solo.com",
+            password_hash=hash_password("Pass123!"),
+            role="subadmin",
+            organization=self.free_org,
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+
+    def test_seat_quota_calculation(self):
+        self.assertEqual(self.free_org.get_seat_quota(), 1)
+        self.assertEqual(self.pro_org.get_seat_quota(), 10)
+        # free_user is 1 active user => active seat count is 1
+        self.assertEqual(self.free_org.get_active_seat_count(), 1)
+
+    def test_free_plan_invitation_quota_blocked(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'free_user',
+            'password': 'Pass123!',
+        })
+        res = self.client.post(
+            reverse('organization_members_api'),
+            data=json.dumps({"email": "colleague@solo.com", "role": "operator"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 403)
+        data = json.loads(res.content)
+        self.assertIn("quota reached", data["detail"].lower())
+
+    def test_pro_plan_invite_success_and_acceptance(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'pro_admin',
+            'password': 'Pass123!',
+        })
+        res = self.client.post(
+            reverse('organization_members_api'),
+            data=json.dumps({"email": "newteammate@procompany.com", "role": "operator"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        invite_data = data["invitation"]
+        token = invite_data["invite_url"].split('/')[-1]
+
+        from core.models import OrganizationInvitation
+        inv = OrganizationInvitation.objects.get(email="newteammate@procompany.com")
+        self.assertTrue(inv.is_valid())
+
+        # Test accept invitation page GET
+        accept_url = reverse('accept_invitation', args=[token])
+        get_res = self.client.get(accept_url)
+        self.assertEqual(get_res.status_code, 200)
+        self.assertContains(get_res, "newteammate@procompany.com")
+
+        # Test accept invitation POST creates new user
+        post_res = self.client.post(
+            accept_url,
+            data=json.dumps({
+                "username": "new_operator",
+                "password": "SecurePassword123!",
+                "full_name": "New Teammate"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(post_res.status_code, 200)
+        accept_data = json.loads(post_res.content)
+        self.assertTrue(accept_data["success"])
+        self.assertEqual(accept_data["redirect_url"], "/dashboard")
+
+        new_u = User.objects.get(username="new_operator")
+        self.assertEqual(new_u.organization, self.pro_org)
+        self.assertEqual(new_u.role, "operator")
+        self.assertTrue(new_u.is_verified)
+
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, "accepted")
+
+    def test_revoke_invitation(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'pro_admin',
+            'password': 'Pass123!',
+        })
+        res = self.client.post(
+            reverse('organization_members_api'),
+            data=json.dumps({"email": "cancelme@procompany.com", "role": "viewer"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        invite_id = json.loads(res.content)["invitation"]["id"]
+
+        del_res = self.client.delete(reverse('revoke_invitation_api', args=[invite_id]))
+        self.assertEqual(del_res.status_code, 200)
+
+        from core.models import OrganizationInvitation
+        inv = OrganizationInvitation.objects.get(id=invite_id)
+        self.assertEqual(inv.status, "revoked")
+        self.assertFalse(inv.is_valid())
+
+    def test_remove_organization_member(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'pro_admin',
+            'password': 'Pass123!',
+        })
+        del_res = self.client.delete(reverse('remove_organization_member_api', args=["pro_operator"]))
+        self.assertEqual(del_res.status_code, 200)
+
+        self.operator.refresh_from_db()
+        self.assertIsNone(self.operator.organization)
+
+

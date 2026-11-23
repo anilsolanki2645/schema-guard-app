@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 
 
@@ -18,6 +19,21 @@ class Organization(models.Model):
         else:
             self.plan = 'free'
         super().save(*args, **kwargs)
+
+    def get_seat_quota(self):
+        plan = (self.plan or 'free').lower().strip()
+        if plan == 'enterprise':
+            return 999999
+        elif plan == 'pro':
+            return 10
+        return 1
+
+    def get_active_seat_count(self):
+        from django.utils import timezone
+        active_members = self.users.count()
+        # Pending valid invitations also reserve a seat
+        pending_invites = self.invitations.filter(status='pending', expires_at__gt=timezone.now()).count()
+        return active_members + pending_invites
 
     def __str__(self):
         return self.name
@@ -93,6 +109,10 @@ class AuditLog(models.Model):
         ('billing.subscription_cancelled', 'Stripe Subscription Cancelled'),
         ('billing.qr_payment', 'UPI QR Payment Verified'),
         ('user.oauth_login', 'User OAuth Login'),
+        ('org.member_invited', 'Team Member Invited'),
+        ('org.invite_revoked', 'Invitation Revoked'),
+        ('org.member_joined', 'Team Member Joined'),
+        ('org.member_removed', 'Team Member Removed'),
     ]
     
     action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
@@ -210,4 +230,33 @@ class PaymentTransaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_id} - {self.plan} ({self.status})"
+
+
+class OrganizationInvitation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='invitations')
+    email = models.EmailField(db_index=True)
+    role = models.CharField(max_length=50, default='operator')  # 'subadmin', 'operator', 'viewer'
+    permissions = models.JSONField(default=dict)
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    invited_by = models.CharField(max_length=150)
+    status = models.CharField(max_length=20, default='pending')  # 'pending', 'accepted', 'revoked', 'expired'
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'status']),
+            models.Index(fields=['email', 'status']),
+        ]
+
+    def is_valid(self):
+        from django.utils import timezone
+        return self.status == 'pending' and self.expires_at > timezone.now()
+
+    def __str__(self):
+        return f"Invite for {self.email} to {self.organization.name} ({self.status})"
+
 

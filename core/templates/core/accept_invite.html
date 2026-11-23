@@ -1,0 +1,114 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Accept Workspace Invitation — Schema Guard{% endblock %}
+
+{% block content %}
+<div style="min-height: 75vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;">
+    <div class="glass-card" style="width: 100%; max-width: 520px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 1.25rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85); padding: 2.25rem; position: relative;">
+        
+        <!-- TOP NEON ACCENT -->
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #8b5cf6, #38bdf8, #22c55e); border-top-left-radius: 1.25rem; border-top-right-radius: 1.25rem;"></div>
+
+        {% if error %}
+            <!-- ERROR STATE -->
+            <div style="text-align: center; padding: 1.5rem 0;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                <h2 style="font-size: 1.4rem; font-weight: 800; color: #f87171; margin-bottom: 0.75rem;">Invitation Issue</h2>
+                <p style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 2rem;">
+                    {{ error }}
+                </p>
+                <div style="display: flex; justify-content: center; gap: 1rem;">
+                    <a href="{% url 'login_page' %}" class="btn-primary" style="text-decoration: none; padding: 0.6rem 1.5rem; font-size: 0.9rem;">
+                        Go to Sign In
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <!-- VALID INVITATION FORM -->
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.35); font-size: 1.75rem; margin-bottom: 1rem;">
+                    🛡️
+                </div>
+                <h2 style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin: 0 0 0.5rem 0;">
+                    Join <span style="background: linear-gradient(135deg, #a78bfa, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{ organization.name }}</span>
+                </h2>
+                <p style="color: #94a3b8; font-size: 0.88rem; margin: 0; line-height: 1.5;">
+                    <strong style="color: #e2e8f0;">{{ invitation.invited_by }}</strong> has invited you to collaborate on schema drift protection.
+                </p>
+
+                <!-- WORKSPACE ROLE PILL -->
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.35rem 0.85rem; border-radius: 2rem; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(129, 140, 248, 0.25);">
+                    <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Role:</span>
+                    <span style="font-size: 0.75rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">{{ role_label }}</span>
+                </div>
+            </div>
+
+            <!-- INVITATION ACCEPTANCE FORM -->
+            <form method="POST" id="accept-invite-form" onsubmit="return validateAcceptForm(event)">
+                {% csrf_token %}
+
+                <!-- EMAIL (LOCKED) -->
+                <div class="form-group" style="margin-bottom: 1.15rem;">
+                    <label class="form-label" style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1; display: flex; justify-content: space-between;">
+                        <span>Invited Email Address</span>
+                        <span style="color: #4ade80; font-size: 0.75rem;">✓ Verified Email</span>
+                    </label>
+                    <input type="email" class="form-input" value="{{ invitation.email }}" readonly style="width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.08); color: #94a3b8; cursor: not-allowed;">
+                </div>
+
+                <!-- FULL NAME (OPTIONAL) -->
+                <div class="form-group" style="margin-bottom: 1.15rem;">
+                    <label class="form-label" for="invite-fullname" style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">Full Name (Optional)</label>
+                    <input type="text" name="full_name" id="invite-fullname" class="form-input" placeholder="e.g. Alex Morgan" value="{{ saved_fullname|default:'' }}" style="width: 100%; box-sizing: border-box;">
+                </div>
+
+                <!-- USERNAME -->
+                <div class="form-group" style="margin-bottom: 1.15rem;">
+                    <label class="form-label" for="invite-username" style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">Choose Username</label>
+                    <input type="text" name="username" id="invite-username" class="form-input" required placeholder="e.g. alex_data" value="{{ saved_username|default:'' }}" style="width: 100%; box-sizing: border-box;" autocomplete="username">
+                    <span style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem; display: block;">Letters, numbers, underscores, and dashes only.</span>
+                </div>
+
+                <!-- PASSWORD -->
+                <div class="form-group" style="margin-bottom: 1.15rem;">
+                    <label class="form-label" for="invite-password" style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">Create Password</label>
+                    <input type="password" name="password" id="invite-password" class="form-input" required placeholder="Min. 6 characters" style="width: 100%; box-sizing: border-box;" autocomplete="new-password">
+                </div>
+
+                <!-- CONFIRM PASSWORD -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" for="invite-password-confirm" style="font-size: 0.8rem; font-weight: 600; color: #cbd5e1;">Confirm Password</label>
+                    <input type="password" id="invite-password-confirm" class="form-input" required placeholder="Repeat password" style="width: 100%; box-sizing: border-box;" autocomplete="new-password">
+                    <span id="pw-match-error" style="display: none; font-size: 0.72rem; color: #f87171; margin-top: 0.25rem;">Passwords do not match.</span>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <button type="submit" id="accept-submit-btn" class="btn-primary" style="width: 100%; padding: 0.85rem; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <span>🚀</span> Accept Invitation & Enter Workspace
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function validateAcceptForm(e) {
+    const p1 = document.getElementById('invite-password').value;
+    const p2 = document.getElementById('invite-password-confirm').value;
+    const errSpan = document.getElementById('pw-match-error');
+    
+    if (p1 !== p2) {
+        e.preventDefault();
+        errSpan.style.display = 'block';
+        return false;
+    }
+    errSpan.style.display = 'none';
+    
+    const btn = document.getElementById('accept-submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px; display: inline-block;"></div> Joining Workspace...';
+    return true;
+}
+</script>
+{% endblock %}

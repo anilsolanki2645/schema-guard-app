@@ -2,16 +2,16 @@
 <!-- USER PROFILE & ACCOUNT SETTINGS MODAL                     -->
 <!-- ========================================================= -->
 <div id="editProfileModal" class="sg-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 2500; align-items: center; justify-content: center; padding: 1rem; overflow-y: auto;" onclick="if(event.target === this) closeProfileModal();">
-    <div class="glass-card" style="width: 100%; max-width: 580px; margin: auto; padding: 2rem; border-radius: 1.25rem; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(129, 140, 248, 0.3); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85); position: relative; animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+    <div class="glass-card" style="width: 100%; max-width: 680px; margin: auto; padding: 2rem; border-radius: 1.25rem; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(129, 140, 248, 0.3); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85); position: relative; animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
         
         <!-- Modal Header -->
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.4); padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.4); padding-bottom: 1rem; margin-bottom: 1.25rem;">
             <div>
                 <h3 style="font-size: 1.25rem; font-weight: 800; color: #ffffff; margin: 0; display: flex; align-items: center; gap: 0.6rem;">
-                    <span>👤</span> Account Profile Settings
+                    <span>⚙️</span> Workspace & Account Settings
                 </h3>
                 <p style="font-size: 0.82rem; color: #94a3b8; margin: 0.35rem 0 0 0;">
-                    Manage your personal credentials, custom avatar photo, and organization role.
+                    Manage your personal credentials, custom avatar photo, and workspace team members.
                 </p>
             </div>
             <button type="button" onclick="closeProfileModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0.25rem; transition: color 0.15s ease;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='#94a3b8'">
@@ -22,119 +22,227 @@
         <!-- Alert Banner -->
         <div id="profile-modal-alert" style="display: none; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;"></div>
 
-        <!-- WORKSPACE TIER & SEAT QUOTA BADGE -->
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-radius: 0.65rem; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); margin-bottom: 1.25rem;">
-            <div>
-                <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;">Active Workspace</div>
-                <div style="font-size: 0.95rem; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.15rem;">
-                    <span>{{ request.session.user.organization_name|default:"Production Org" }}</span>
-                    <span class="pipe-badge" style="{% if request.session.user.plan == 'pro' %}background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;{% elif request.session.user.plan == 'enterprise' %}background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #fff;{% else %}background: rgba(255, 255, 255, 0.12); color: #94a3b8;{% endif %} font-size: 0.68rem; font-weight: 800; padding: 0.1rem 0.45rem;">
-                        {% if request.session.user.plan == 'pro' %}TEAM PRO{% elif request.session.user.plan == 'enterprise' %}ENTERPRISE{% else %}FREE TIER{% endif %}
-                    </span>
-                </div>
-                <div style="font-size: 0.74rem; color: #cbd5e1; margin-top: 0.2rem;">
-                    Capacity: <strong>{{ request.session.user.max_pipelines|default:5 }} Pipelines</strong> • 
-                    {% if request.session.user.plan == 'pro' %}<strong>10 Team Seats</strong>{% elif request.session.user.plan == 'enterprise' %}<strong>Unlimited Seats</strong>{% else %}<strong>1 Solo Seat</strong>{% endif %}
-                </div>
-            </div>
-            <a href="{% url 'pricing_page' %}" class="btn-primary-sm" style="text-decoration: none; font-size: 0.75rem; padding: 0.35rem 0.7rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem;">
-                Upgrade 💎
-            </a>
+        <!-- MODAL NAVIGATION TABS -->
+        <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid rgba(51, 65, 85, 0.4); margin-bottom: 1.25rem;">
+            <button type="button" id="tab-btn-profile" onclick="switchProfileModalTab('profile')" style="background: none; border: none; border-bottom: 2px solid #818cf8; color: #ffffff; font-size: 0.88rem; font-weight: 700; padding: 0.45rem 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                <span>👤</span> Personal Profile
+            </button>
+            <button type="button" id="tab-btn-team" onclick="switchProfileModalTab('team')" style="background: none; border: none; border-bottom: 2px solid transparent; color: #94a3b8; font-size: 0.88rem; font-weight: 700; padding: 0.45rem 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                <span>👥</span> Team & Seats <span id="team-seats-badge" class="pipe-badge" style="background: rgba(129, 140, 248, 0.2); color: #c084fc; font-size: 0.68rem; padding: 0.1rem 0.4rem;">1</span>
+            </button>
         </div>
 
-        <!-- Modal Form -->
-        <form id="profile-edit-form" onsubmit="saveProfileChanges(event)">
-            {% csrf_token %}
-            <!-- AVATAR MANAGEMENT SECTION -->
-            <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1.5rem;">
-                <div style="position: relative; width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2.5px solid #818cf8; background: #080d1a; flex-shrink: 0; box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);">
-                    <img id="modal-avatar-preview" src="/api/user/avatar/{{ request.session.user.username|default:'user' }}" alt="Profile Avatar" style="width: 100%; height: 100%; object-fit: cover;">
-                </div>
-                
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <input type="file" id="profile-file-input" accept="image/*" style="display: none;" onchange="handleAvatarFileSelect(event)">
-                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('profile-file-input').click()" style="padding: 0.4rem 0.85rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem;">
-                            📷 Upload Photo
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="resetAvatarToDefault()" style="padding: 0.4rem 0.85rem; font-size: 0.8rem; color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
-                            🗑️ Reset
-                        </button>
+        <!-- ========================================== -->
+        <!-- TAB 1: PERSONAL PROFILE FORM               -->
+        <!-- ========================================== -->
+        <div id="profile-tab-content">
+            <!-- WORKSPACE TIER & SEAT QUOTA BADGE -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-radius: 0.65rem; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); margin-bottom: 1.25rem;">
+                <div>
+                    <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;">Active Workspace</div>
+                    <div style="font-size: 0.95rem; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.15rem;">
+                        <span id="profile-modal-orgname">{{ request.session.user.organization_name|default:"Production Org" }}</span>
+                        <span id="profile-modal-planbadge" class="pipe-badge" style="{% if request.session.user.plan == 'pro' %}background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;{% elif request.session.user.plan == 'enterprise' %}background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #fff;{% else %}background: rgba(255, 255, 255, 0.12); color: #94a3b8;{% endif %} font-size: 0.68rem; font-weight: 800; padding: 0.1rem 0.45rem;">
+                            {% if request.session.user.plan == 'pro' %}TEAM PRO{% elif request.session.user.plan == 'enterprise' %}ENTERPRISE{% else %}FREE TIER{% endif %}
+                        </span>
                     </div>
-
-                    <!-- Quick Preset Avatars -->
-                    <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.25rem;">
-                        <span style="font-size: 0.72rem; color: #94a3b8;">Presets:</span>
-                        <button type="button" onclick="selectPresetEmoji('👨‍💻')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Developer">👨‍💻</button>
-                        <button type="button" onclick="selectPresetEmoji('👩‍💻')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Engineer">👩‍💻</button>
-                        <button type="button" onclick="selectPresetEmoji('🛡️')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Gatekeeper">🛡️</button>
-                        <button type="button" onclick="selectPresetEmoji('⚡')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Lightning">⚡</button>
-                        <button type="button" onclick="selectPresetEmoji('🚀')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="Rocket">🚀</button>
-                        <button type="button" onclick="selectPresetEmoji('🤖')" style="background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.1rem;" title="AI Bot">🤖</button>
+                    <div id="profile-modal-seatinfo" style="font-size: 0.74rem; color: #cbd5e1; margin-top: 0.2rem;">
+                        Capacity: <strong>{{ request.session.user.max_pipelines|default:5 }} Pipelines</strong> • 
+                        {% if request.session.user.plan == 'pro' %}<strong>10 Team Seats</strong>{% elif request.session.user.plan == 'enterprise' %}<strong>Unlimited Seats</strong>{% else %}<strong>1 Solo Seat</strong>{% endif %}
                     </div>
                 </div>
-            </div>
-
-            <!-- FORM FIELDS GRID -->
-            <div class="responsive-grid-2" style="gap: 1.15rem; margin-bottom: 1.25rem;">
-                <div class="form-group">
-                    <label class="form-label" for="profile-input-fullname" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Full Name</label>
-                    <input type="text" id="profile-input-fullname" class="form-input" placeholder="e.g. Anil Solanki" style="width: 100%; box-sizing: border-box;">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="profile-input-jobtitle" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Job Title / Specialty</label>
-                    <input type="text" id="profile-input-jobtitle" class="form-input" placeholder="e.g. Lead Data Engineer, DBA" style="width: 100%; box-sizing: border-box;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button type="button" class="btn-secondary" onclick="switchProfileModalTab('team')" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;">
+                        Manage Team 👥
+                    </button>
+                    <a href="{% url 'pricing_page' %}" class="btn-primary-sm" style="text-decoration: none; font-size: 0.75rem; padding: 0.35rem 0.7rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem;">
+                        Upgrade 💎
+                    </a>
                 </div>
             </div>
 
-            <div class="responsive-grid-2" style="gap: 1.15rem; margin-bottom: 1.25rem;">
-                <div class="form-group">
-                    <label class="form-label" for="profile-input-username" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Username (Account ID)</label>
-                    <input type="text" id="profile-input-username" class="form-input" readonly style="width: 100%; box-sizing: border-box; opacity: 0.65; cursor: not-allowed; background: rgba(0,0,0,0.25);">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="profile-input-email" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Email Address</label>
-                    <input type="email" id="profile-input-email" class="form-input" placeholder="name@company.com" required style="width: 100%; box-sizing: border-box;">
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label class="form-label" for="profile-input-bio" style="font-size: 0.82rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.4rem; display: block;">Bio & Scope</label>
-                <textarea id="profile-input-bio" class="form-input" rows="2" placeholder="e.g. Overseeing Snowflake & PostgreSQL data contracts and CI/CD drift automation..." style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
-            </div>
-
-            <!-- SECURITY / PASSWORD ACCORDION -->
-            <div style="border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 1rem; margin-top: 1rem;">
-                <button type="button" onclick="togglePasswordSection()" style="background: none; border: none; color: #38bdf8; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; padding: 0;">
-                    <span id="pw-toggle-chevron">▶</span> Change Password (Optional)
-                </button>
-                
-                <div id="profile-pw-section" style="display: none; margin-top: 0.85rem; padding: 0.85rem; border-radius: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
-                    <div class="responsive-grid-2" style="gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label" style="font-size: 0.75rem;">Current Password</label>
-                            <input type="password" id="profile-current-pw" class="form-input" placeholder="••••••••" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+            <!-- Modal Form -->
+            <form id="profile-edit-form" onsubmit="saveProfileChanges(event)">
+                {% csrf_token %}
+                <!-- AVATAR MANAGEMENT SECTION -->
+                <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1.25rem;">
+                    <div style="position: relative; width: 75px; height: 75px; border-radius: 50%; overflow: hidden; border: 2.5px solid #818cf8; background: #080d1a; flex-shrink: 0; box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);">
+                        <img id="modal-avatar-preview" src="/api/user/avatar/{{ request.session.user.username|default:'user' }}" alt="Profile Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <input type="file" id="profile-file-input" accept="image/*" style="display: none;" onchange="handleAvatarFileSelect(event)">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('profile-file-input').click()" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                📷 Upload Photo
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="resetAvatarToDefault()" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
+                                🗑️ Reset
+                            </button>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label" style="font-size: 0.75rem;">New Password</label>
-                            <input type="password" id="profile-new-pw" class="form-input" placeholder="Min. 6 chars" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+
+                        <!-- Quick Preset Avatars -->
+                        <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem;">
+                            <span style="font-size: 0.7rem; color: #94a3b8;">Presets:</span>
+                            <button type="button" onclick="selectPresetEmoji('👨‍💻')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="Developer">👨‍💻</button>
+                            <button type="button" onclick="selectPresetEmoji('👩‍💻')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="Engineer">👩‍💻</button>
+                            <button type="button" onclick="selectPresetEmoji('🛡️')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="Gatekeeper">🛡️</button>
+                            <button type="button" onclick="selectPresetEmoji('⚡')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="Lightning">⚡</button>
+                            <button type="button" onclick="selectPresetEmoji('🚀')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="Rocket">🚀</button>
+                            <button type="button" onclick="selectPresetEmoji('🤖')" style="background: none; border: none; font-size: 1rem; cursor: pointer; padding: 0.1rem;" title="AI Bot">🤖</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- FORM FIELDS GRID -->
+                <div class="responsive-grid-2" style="gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="profile-input-fullname" style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.35rem; display: block;">Full Name</label>
+                        <input type="text" id="profile-input-fullname" class="form-input" placeholder="e.g. Anil Solanki" style="width: 100%; box-sizing: border-box;">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="profile-input-jobtitle" style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.35rem; display: block;">Job Title / Specialty</label>
+                        <input type="text" id="profile-input-jobtitle" class="form-input" placeholder="e.g. Lead Data Engineer" style="width: 100%; box-sizing: border-box;">
+                    </div>
+                </div>
+
+                <div class="responsive-grid-2" style="gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="profile-input-username" style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.35rem; display: block;">Username (Account ID)</label>
+                        <input type="text" id="profile-input-username" class="form-input" readonly style="width: 100%; box-sizing: border-box; opacity: 0.65; cursor: not-allowed; background: rgba(0,0,0,0.25);">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="profile-input-email" style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.35rem; display: block;">Email Address</label>
+                        <input type="email" id="profile-input-email" class="form-input" placeholder="name@company.com" required style="width: 100%; box-sizing: border-box;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" for="profile-input-bio" style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.35rem; display: block;">Bio & Scope</label>
+                    <textarea id="profile-input-bio" class="form-input" rows="2" placeholder="Overseeing Snowflake & PostgreSQL data contracts..." style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+                </div>
+
+                <!-- SECURITY / PASSWORD ACCORDION -->
+                <div style="border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 0.85rem; margin-top: 0.85rem;">
+                    <button type="button" onclick="togglePasswordSection()" style="background: none; border: none; color: #38bdf8; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; padding: 0;">
+                        <span id="pw-toggle-chevron">▶</span> Change Password (Optional)
+                    </button>
+                    
+                    <div id="profile-pw-section" style="display: none; margin-top: 0.75rem; padding: 0.85rem; border-radius: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="responsive-grid-2" style="gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label" style="font-size: 0.75rem;">Current Password</label>
+                                <input type="password" id="profile-current-pw" class="form-input" placeholder="••••••••" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="font-size: 0.75rem;">New Password</label>
+                                <input type="password" id="profile-new-pw" class="form-input" placeholder="Min. 6 chars" style="width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS -->
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">Cancel</button>
+                    <button type="submit" id="profile-save-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                        <span>💾</span> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: TEAM MEMBERS & SEATS                -->
+        <!-- ========================================== -->
+        <div id="team-tab-content" style="display: none;">
+            <!-- SEAT USAGE PROGRESS BANNER -->
+            <div style="padding: 1rem; border-radius: 0.75rem; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: #ffffff;">Team Seat Allocation</span>
+                        <span id="team-plan-pill" class="pipe-badge" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;">FREE TIER</span>
+                    </div>
+                    <span id="team-seat-ratio" style="font-size: 0.8rem; font-weight: 800; color: #a78bfa; font-family: var(--font-mono);">1 / 1 Seats</span>
+                </div>
+                <!-- Progress bar -->
+                <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; margin-top: 0.4rem;">
+                    <div id="team-seat-progress" style="height: 100%; width: 100%; background: linear-gradient(90deg, #8b5cf6, #38bdf8); border-radius: 3px; transition: width 0.3s ease;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <span id="team-seat-status-desc" style="font-size: 0.72rem; color: #94a3b8;">1 Active Member • 0 Pending</span>
+                    <a href="{% url 'pricing_page' %}" id="team-upgrade-link" style="color: #c084fc; font-size: 0.74rem; font-weight: 700; text-decoration: none;">Upgrade Plan for 10 Seats →</a>
+                </div>
             </div>
 
-            <!-- ACTION BUTTONS -->
-            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; margin-top: 1.75rem; border-top: 1px solid rgba(51, 65, 85, 0.4); padding-top: 1.25rem;">
-                <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">Cancel</button>
-                <button type="submit" id="profile-save-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
-                    <span>💾</span> Save Changes
-                </button>
+            <!-- INVITE TEAM MEMBER FORM SECTION -->
+            <div id="team-invite-box" style="padding: 1rem; border-radius: 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.4rem;">
+                        <span>✉️</span> Invite Colleague to Workspace
+                    </span>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Sends instant email invite link</span>
+                </div>
+                
+                <form id="team-invite-form" onsubmit="submitTeamInvite(event)">
+                    <div style="display: grid; grid-template-columns: 1.8fr 1.2fr auto; gap: 0.6rem; align-items: end;">
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 0.25rem; display: block;">Teammate Email</label>
+                            <input type="email" id="invite-input-email" class="form-input" required placeholder="colleague@company.com" style="width: 100%; box-sizing: border-box; font-size: 0.8rem; padding: 0.45rem 0.65rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 0.25rem; display: block;">Assigned Role</label>
+                            <select id="invite-input-role" class="form-select" style="width: 100%; box-sizing: border-box; font-size: 0.8rem; padding: 0.45rem 0.65rem; height: 34px;">
+                                <option value="operator" selected>Operator (Data Engineer)</option>
+                                <option value="viewer">Viewer (Read-Only)</option>
+                                <option value="subadmin">Admin (Workspace Co-Admin)</option>
+                            </select>
+                        </div>
+                        <button type="submit" id="team-invite-btn" class="btn-primary" style="padding: 0.45rem 0.9rem; font-size: 0.8rem; height: 34px; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700;">
+                            <span>🚀</span> Send Invite
+                        </button>
+                    </div>
+                </form>
+
+                <!-- INVITE GENERATED LINK NOTIFICATION BOX -->
+                <div id="invite-link-toast" style="display: none; margin-top: 0.85rem; padding: 0.75rem; border-radius: 0.5rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.76rem; color: #6ee7b7; font-weight: 700;">✅ Invitation Created & Link Ready</span>
+                        <button type="button" onclick="copyInviteLinkToast()" class="btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);">
+                            📋 Copy Invite Link
+                        </button>
+                    </div>
+                    <input type="text" id="invite-toast-url" readonly style="width: 100%; margin-top: 0.4rem; font-size: 0.72rem; font-family: var(--font-mono); background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); color: #94a3b8; padding: 0.25rem 0.5rem; border-radius: 0.25rem; box-sizing: border-box;">
+                </div>
             </div>
-        </form>
+
+            <!-- ACTIVE MEMBERS & PENDING INVITATIONS LISTS -->
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Section 1: Active Workspace Members -->
+                <div>
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                        <span>Active Team Members (<span id="team-active-count">0</span>)</span>
+                    </div>
+                    <div id="team-members-list" style="display: flex; flex-direction: column; gap: 0.45rem; max-height: 200px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">Loading team members...</div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Pending Invitations -->
+                <div id="team-pending-section" style="display: none;">
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                        <span>Pending Invitations (<span id="team-pending-count">0</span>)</span>
+                    </div>
+                    <div id="team-invites-list" style="display: flex; flex-direction: column; gap: 0.45rem; max-height: 150px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
+
 
 <script>
 let currentAvatarData = null; // null means keep existing; string means new avatar; "" means clear
@@ -147,7 +255,8 @@ function openProfileModal(e) {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     
-    // Fetch fresh user profile details
+    // Fetch fresh user profile details & team members
+    loadWorkspaceTeamData();
     fetch('/api/user/profile')
         .then(r => r.json())
         .then(data => {
@@ -369,4 +478,324 @@ function saveProfileChanges(e) {
         showProfileAlert("Unexpected error: " + unexpectedErr, 'error');
     }
 }
+
+// ==========================================
+// TEAM & INVITATION WORKSPACE MANAGEMENT JS
+// ==========================================
+let currentWorkspaceData = null;
+
+function switchProfileModalTab(tab) {
+    const profileTab = document.getElementById('profile-tab-content');
+    const teamTab = document.getElementById('team-tab-content');
+    const btnProfile = document.getElementById('tab-btn-profile');
+    const btnTeam = document.getElementById('tab-btn-team');
+
+    if (tab === 'team') {
+        if (profileTab) profileTab.style.display = 'none';
+        if (teamTab) teamTab.style.display = 'block';
+        if (btnProfile) {
+            btnProfile.style.color = '#94a3b8';
+            btnProfile.style.borderBottomColor = 'transparent';
+        }
+        if (btnTeam) {
+            btnTeam.style.color = '#ffffff';
+            btnTeam.style.borderBottomColor = '#818cf8';
+        }
+        loadWorkspaceTeamData();
+    } else {
+        if (teamTab) teamTab.style.display = 'none';
+        if (profileTab) profileTab.style.display = 'block';
+        if (btnTeam) {
+            btnTeam.style.color = '#94a3b8';
+            btnTeam.style.borderBottomColor = 'transparent';
+        }
+        if (btnProfile) {
+            btnProfile.style.color = '#ffffff';
+            btnProfile.style.borderBottomColor = '#818cf8';
+        }
+    }
+}
+
+function loadWorkspaceTeamData() {
+    fetch('/api/organization/members')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            currentWorkspaceData = data;
+            renderTeamMembersUI(data);
+        })
+        .catch(err => {
+            console.error("Failed to load workspace team members:", err);
+        });
+}
+
+function renderTeamMembersUI(data) {
+    const org = data.organization || {};
+    const members = data.members || [];
+    const invites = data.invitations || [];
+    const canManage = data.can_manage;
+
+    // Update seat badge on tab
+    const tabBadge = document.getElementById('team-seats-badge');
+    if (tabBadge) tabBadge.innerText = org.used_seats || members.length;
+
+    // Update Plan Pill
+    const planPill = document.getElementById('team-plan-pill');
+    if (planPill) {
+        const plan = (org.plan || 'free').toUpperCase();
+        planPill.innerText = plan === 'PRO' ? 'TEAM PRO' : (plan === 'ENTERPRISE' ? 'ENTERPRISE' : 'FREE TIER');
+        planPill.style.background = plan === 'PRO' ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : (plan === 'ENTERPRISE' ? 'linear-gradient(135deg, #0ea5e9, #2563eb)' : 'rgba(255, 255, 255, 0.12)');
+        planPill.style.color = '#ffffff';
+    }
+
+    // Update ratio & progress
+    const ratioEl = document.getElementById('team-seat-ratio');
+    const quota = org.seat_quota >= 999999 ? '∞' : org.seat_quota;
+    if (ratioEl) ratioEl.innerText = `${org.used_seats} / ${quota} Seats`;
+
+    const progressEl = document.getElementById('team-seat-progress');
+    if (progressEl) {
+        if (org.seat_quota >= 999999) {
+            progressEl.style.width = '15%';
+        } else {
+            const pct = Math.min(100, Math.round((org.used_seats / org.seat_quota) * 100));
+            progressEl.style.width = `${pct}%`;
+            progressEl.style.background = pct >= 100 ? '#f87171' : 'linear-gradient(90deg, #8b5cf6, #38bdf8)';
+        }
+    }
+
+    const descEl = document.getElementById('team-seat-status-desc');
+    if (descEl) {
+        descEl.innerText = `${org.active_members_count} Active Member${org.active_members_count === 1 ? '' : 's'} • ${org.pending_invites_count} Pending Invite${org.pending_invites_count === 1 ? '' : 's'}`;
+    }
+
+    const upgradeLink = document.getElementById('team-upgrade-link');
+    if (upgradeLink) {
+        if (org.plan === 'enterprise') {
+            upgradeLink.style.display = 'none';
+        } else if (org.plan === 'pro') {
+            upgradeLink.innerText = 'Upgrade to Enterprise for Unlimited Seats →';
+            upgradeLink.style.display = 'inline';
+        } else {
+            upgradeLink.innerText = 'Upgrade to Pro for 10 Seats →';
+            upgradeLink.style.display = 'inline';
+        }
+    }
+
+    // Toggle invite box visibility if not allowed
+    const inviteBox = document.getElementById('team-invite-box');
+    if (inviteBox) {
+        inviteBox.style.display = canManage ? 'block' : 'none';
+    }
+
+    // Render Active Members
+    const membersList = document.getElementById('team-members-list');
+    const countEl = document.getElementById('team-active-count');
+    if (countEl) countEl.innerText = members.length;
+
+    if (membersList) {
+        if (members.length === 0) {
+            membersList.innerHTML = '<div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No members in workspace.</div>';
+        } else {
+            membersList.innerHTML = members.map(m => {
+                const roleBadgeBg = m.role === 'admin' || m.role === 'subadmin' ? '#8b5cf6' : (m.role === 'operator' ? '#0ea5e9' : '#10b981');
+                const roleDisplay = m.role === 'subadmin' || m.role === 'admin' ? 'ADMIN' : (m.role === 'operator' ? 'OPERATOR' : 'VIEWER');
+                const isSelf = m.is_current_user;
+                const canRemove = canManage && !isSelf && m.username !== 'admin' && m.role !== 'subadmin';
+
+                return `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.75rem; border-radius: 0.5rem; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <img src="${m.avatar_url}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid #818cf8; background: #080d1a;">
+                            <div style="display: flex; flex-direction: column;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #ffffff;">${escapeHtml(m.full_name || m.username)}</span>
+                                    ${isSelf ? '<span style="font-size: 0.65rem; color: #38bdf8; font-weight: 700;">(You)</span>' : ''}
+                                </div>
+                                <span style="font-size: 0.72rem; color: #94a3b8;">@${escapeHtml(m.username)} • ${escapeHtml(m.email)}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span class="pipe-badge" style="background: ${roleBadgeBg}; color: #ffffff; font-size: 0.65rem; padding: 0.15rem 0.45rem; font-weight: 800;">
+                                ${roleDisplay}
+                            </span>
+                            ${canRemove ? `
+                                <button type="button" onclick="removeWorkspaceMember('${escapeHtml(m.username)}')" style="background: none; border: none; color: #f87171; font-size: 0.75rem; cursor: pointer; padding: 0.2rem 0.4rem; opacity: 0.8; transition: opacity 0.15s ease;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'" title="Remove from workspace">
+                                    🗑️
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Render Pending Invitations
+    const pendingSection = document.getElementById('team-pending-section');
+    const invitesList = document.getElementById('team-invites-list');
+    const pendingCountEl = document.getElementById('team-pending-count');
+
+    if (pendingCountEl) pendingCountEl.innerText = invites.length;
+    if (pendingSection) {
+        pendingSection.style.display = invites.length > 0 ? 'block' : 'none';
+    }
+
+    if (invitesList && invites.length > 0) {
+        invitesList.innerHTML = invites.map(inv => {
+            const roleBadgeBg = inv.role === 'subadmin' ? '#8b5cf6' : (inv.role === 'operator' ? '#0ea5e9' : '#10b981');
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2);">
+                    <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                            <span style="font-size: 0.8rem; font-weight: 700; color: #fef3c7;">${escapeHtml(inv.email)}</span>
+                            <span class="pipe-badge" style="background: ${roleBadgeBg}; color: #ffffff; font-size: 0.62rem; padding: 0.1rem 0.35rem; font-weight: 800;">
+                                ${inv.role.toUpperCase()}
+                            </span>
+                        </div>
+                        <span style="font-size: 0.7rem; color: #d97706;">Invited by ${escapeHtml(inv.invited_by)} • Expires in 7 days</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <button type="button" class="btn-secondary" onclick="copySpecificInviteLink('${escapeHtml(inv.invite_url)}')" style="padding: 0.2rem 0.45rem; font-size: 0.68rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
+                            📋 Copy Link
+                        </button>
+                        ${canManage ? `
+                            <button type="button" onclick="revokeInvitation('${inv.id}')" style="background: none; border: none; color: #f87171; font-size: 0.72rem; cursor: pointer; padding: 0.2rem 0.4rem;" title="Cancel invitation">
+                                ✕ Revoke
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+function submitTeamInvite(e) {
+    e.preventDefault();
+    const emailInput = document.getElementById('invite-input-email');
+    const roleSelect = document.getElementById('invite-input-role');
+    const inviteBtn = document.getElementById('team-invite-btn');
+
+    const email = (emailInput.value || '').trim();
+    const role = roleSelect.value;
+    if (!email) return;
+
+    inviteBtn.disabled = true;
+    inviteBtn.innerHTML = '<span>⏳</span> Sending...';
+
+    const csrfToken = getProfileCsrfToken();
+
+    fetch('/api/organization/members', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ email: email, role: role })
+    })
+    .then(r => r.json().then(data => ({ status: r.status, data: data })))
+    .then(res => {
+        inviteBtn.disabled = false;
+        inviteBtn.innerHTML = '<span>🚀</span> Send Invite';
+
+        if (res.status >= 400) {
+            showProfileAlert(res.data.detail || "Failed to invite teammate.", "error");
+        } else {
+            emailInput.value = '';
+            showProfileAlert(res.data.message || "Invitation sent successfully!", "success");
+
+            // Show instant link box
+            if (res.data.invitation && res.data.invitation.invite_url) {
+                const toast = document.getElementById('invite-link-toast');
+                const urlEl = document.getElementById('invite-toast-url');
+                if (toast && urlEl) {
+                    urlEl.value = res.data.invitation.invite_url;
+                    toast.style.display = 'block';
+                }
+            }
+            loadWorkspaceTeamData();
+        }
+    })
+    .catch(err => {
+        inviteBtn.disabled = false;
+        inviteBtn.innerHTML = '<span>🚀</span> Send Invite';
+        showProfileAlert("Network error sending invite: " + err, "error");
+    });
+}
+
+function copyInviteLinkToast() {
+    const urlEl = document.getElementById('invite-toast-url');
+    if (!urlEl || !urlEl.value) return;
+    navigator.clipboard.writeText(urlEl.value).then(() => {
+        showProfileAlert("Invitation link copied to clipboard!", "success");
+    }).catch(() => {
+        urlEl.select();
+        document.execCommand('copy');
+        showProfileAlert("Invitation link copied!", "success");
+    });
+}
+
+function copySpecificInviteLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        showProfileAlert("Invitation link copied to clipboard!", "success");
+    }).catch(() => {
+        prompt("Copy this invitation link:", url);
+    });
+}
+
+function revokeInvitation(inviteId) {
+    if (!confirm("Are you sure you want to revoke this pending invitation?")) return;
+
+    const csrfToken = getProfileCsrfToken();
+    fetch(`/api/organization/invitations/${inviteId}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showProfileAlert("Invitation revoked.", "info");
+            loadWorkspaceTeamData();
+        } else {
+            showProfileAlert(data.detail || "Failed to revoke invitation.", "error");
+        }
+    })
+    .catch(err => {
+        showProfileAlert("Network error revoking invite: " + err, "error");
+    });
+}
+
+function removeWorkspaceMember(username) {
+    if (!confirm(`Are you sure you want to remove @${username} from this workspace? They will lose access immediately.`)) return;
+
+    const csrfToken = getProfileCsrfToken();
+    fetch(`/api/organization/members/${username}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showProfileAlert(`Member @${username} removed from workspace.`, "info");
+            loadWorkspaceTeamData();
+        } else {
+            showProfileAlert(data.detail || "Failed to remove member.", "error");
+        }
+    })
+    .catch(err => {
+        showProfileAlert("Network error removing member: " + err, "error");
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 </script>

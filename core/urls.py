@@ -110,4 +110,10 @@ urlpatterns = [
     # User Profile & Avatar endpoints
     path('api/user/profile', views.user_profile_api, name='user_profile_api'),
     path('api/user/avatar/<str:username>', views.user_avatar_api, name='user_avatar_api'),
+
+    # Workspace Team Members & Invitation endpoints
+    path('invite/accept/<str:token>', views.accept_invitation_view, name='accept_invitation'),
+    path('api/organization/members', views.organization_members_api, name='organization_members_api'),
+    path('api/organization/members/<str:username>', views.remove_organization_member_api, name='remove_organization_member_api'),
+    path('api/organization/invitations/<uuid:invite_id>', views.revoke_invitation_api, name='revoke_invitation_api'),
 ]

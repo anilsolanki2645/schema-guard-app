@@ -143,7 +143,12 @@
   <div class="glass-card">
       <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3);">
           <h3 class="card-title" style="margin: 0; border: none; padding: 0;">👥 Team Access Permissions Directory</h3>
-          <button class="btn-primary-sm" onclick="openUserModal()">➕ Add Team User</button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button type="button" class="btn-secondary" onclick="openProfileModal(event); setTimeout(() => switchProfileModalTab('team'), 150);" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; border-color: rgba(139, 92, 246, 0.4); color: #c084fc; cursor: pointer;">
+                  ✉️ Invite by Email
+              </button>
+              <button class="btn-primary-sm" onclick="openUserModal()">➕ Create Direct User</button>
+          </div>
       </div>
       <div class="admin-table-container" style="overflow-x: auto; margin-top: 1rem;">
           <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
