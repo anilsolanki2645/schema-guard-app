@@ -22,6 +22,7 @@ from schema_guard.diff_engine import compare_schemas, normalize_type
 from schema_guard.alerter import send_alert, send_email_alert, send_slack_alert, send_whatsapp_alert
 from passlib.context import CryptContext
 from core.audit import log_action
+from core.db_connector import create_db_engine
 from core.security import (
     encrypt_secret,
     decrypt_secret,
@@ -128,7 +129,6 @@ def ensure_contract_and_snapshot_files(pipeline_obj):
 
 def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, schema_columns):
     from sqlalchemy import text
-    from core.db_connector import create_db_engine
     
     resolved_conn = resolve_connection_string(conn_str, db_type)
     engine, _ = create_db_engine(db_type, resolved_conn, timeout=10)
@@ -147,7 +147,11 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
         with engine.connect() as conn:
             # 1. Row Count Check
             row_count_q = text(f"SELECT COUNT(*) FROM {target_table}")
-            total_rows = conn.execute(row_count_q).scalar() or 0
+            raw_rows = conn.execute(row_count_q).scalar()
+            try:
+                total_rows = int(raw_rows) if raw_rows is not None else 0
+            except (TypeError, ValueError):
+                total_rows = 0
             
             checks.append({
                 "name": "Table Ingestion Volume",
@@ -167,7 +171,11 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
                     col_name = col["name"]
                     safe_col = sanitize_sql_identifier(col_name, db_type)
                     null_q = text(f"SELECT COUNT(*) FROM {target_table} WHERE {safe_col} IS NULL")
-                    null_count = conn.execute(null_q).scalar() or 0
+                    raw_null = conn.execute(null_q).scalar()
+                    try:
+                        null_count = int(raw_null) if raw_null is not None else 0
+                    except (TypeError, ValueError):
+                        null_count = 0
                     null_metrics.append(f"{col_name}: {null_count} nulls")
                     if null_count > 0:
                         failed_cols.append(col_name)
@@ -198,7 +206,11 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
                     col_name = col["name"]
                     safe_col = sanitize_sql_identifier(col_name, db_type)
                     dup_q = text(f"SELECT COUNT({safe_col}) - COUNT(DISTINCT {safe_col}) FROM {target_table}")
-                    dup_count = conn.execute(dup_q).scalar() or 0
+                    raw_dup = conn.execute(dup_q).scalar()
+                    try:
+                        dup_count = int(raw_dup) if raw_dup is not None else 0
+                    except (TypeError, ValueError):
+                        dup_count = 0
                     pk_metrics.append(f"{col_name}: {dup_count} duplicates")
                     if dup_count > 0:
                         failed_pks.append(col_name)
@@ -231,7 +243,11 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
                         safe_col = sanitize_sql_identifier(col_name, db_type)
                         escaped_vals = ", ".join([f"'{str(v).replace("'", "''")}'" for v in vals])
                         enum_q = text(f"SELECT COUNT(*) FROM {target_table} WHERE {safe_col} IS NOT NULL AND {safe_col} NOT IN ({escaped_vals})")
-                        invalid_count = conn.execute(enum_q).scalar() or 0
+                        raw_invalid = conn.execute(enum_q).scalar()
+                        try:
+                            invalid_count = int(raw_invalid) if raw_invalid is not None else 0
+                        except (TypeError, ValueError):
+                            invalid_count = 0
                         if invalid_count > 0:
                             enum_failures.append(f"{col_name}: {invalid_count} out-of-domain value(s)")
 
@@ -259,7 +275,11 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
                     if conditions:
                         cond_str = " OR ".join(conditions)
                         range_q = text(f"SELECT COUNT(*) FROM {target_table} WHERE {safe_col} IS NOT NULL AND ({cond_str})")
-                        out_of_bounds = conn.execute(range_q).scalar() or 0
+                        raw_oob = conn.execute(range_q).scalar()
+                        try:
+                            out_of_bounds = int(raw_oob) if raw_oob is not None else 0
+                        except (TypeError, ValueError):
+                            out_of_bounds = 0
                         if out_of_bounds > 0:
                             range_failures.append(f"{col_name}: {out_of_bounds} record(s) out of bounds")
 
@@ -2952,7 +2972,7 @@ def auto_repair_pipeline_api(request, id):
     executed_stmts = []
 
     try:
-        engine = sqlalchemy.create_engine(resolved_conn, echo=False)
+        engine, _ = create_db_engine(p_obj.db_type, resolved_conn, timeout=15)
         with engine.begin() as conn:
             for s in statements:
                 conn.execute(sqlalchemy.text(s))

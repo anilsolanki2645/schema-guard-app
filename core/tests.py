@@ -2569,9 +2569,9 @@ class PipelineAutoRepairTests(TestCase):
         self.assertIn("ADD COLUMN currency", data["statements_to_execute"][0])
 
     @patch('core.views.perform_pipeline_check')
-    @patch('sqlalchemy.create_engine')
+    @patch('core.views.create_db_engine')
     @patch('core.migration_generator.generate_migration_bundle')
-    def test_auto_repair_safe_execution_and_audit(self, mock_bundle, mock_engine_factory, mock_check):
+    def test_auto_repair_safe_execution_and_audit(self, mock_bundle, mock_create_engine, mock_check):
         from unittest.mock import MagicMock
         from core.models import AuditLog
 
@@ -2584,7 +2584,7 @@ class PipelineAutoRepairTests(TestCase):
         mock_engine = MagicMock()
         mock_conn = MagicMock()
         mock_engine.begin.return_value.__enter__.return_value = mock_conn
-        mock_engine_factory.return_value = mock_engine
+        mock_create_engine.return_value = (mock_engine, {})
         mock_check.return_value = {"status": "Clean", "logs": []}
 
         self.client.post(reverse('login_or_register'), {
@@ -2955,7 +2955,7 @@ class ColumnDataQualityRulesTests(TestCase):
         os.close(fd)
         try:
             conn = sqlite3.connect(db_path)
-            conn.execute("CREATE TABLE orders (id INT PRIMARYKEY, status TEXT, amount REAL);")
+            conn.execute("CREATE TABLE orders (id INT PRIMARY KEY, status TEXT, amount REAL);")
             conn.execute("INSERT INTO orders VALUES (1, 'PAID', 50.0);")
             conn.execute("INSERT INTO orders VALUES (2, 'PENDING', 120.0);")
             conn.commit()
@@ -2975,7 +2975,7 @@ class ColumnDataQualityRulesTests(TestCase):
                 table_name="orders",
                 schema_columns=schema_cols
             )
-            self.assertEqual(res["status"], "PASS")
+            self.assertEqual(res["status"], "PASS", msg=f"Checks: {res.get('checks')}")
 
             # 2. Insert invalid enum value -> should FAIL
             conn = sqlite3.connect(db_path)
