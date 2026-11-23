@@ -47,6 +47,27 @@
         justify-content: flex-end !important;
     }
 }
+.mig-tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #94a3b8;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.mig-tab-btn:hover {
+    color: #f1f5f9;
+    background: rgba(255,255,255,0.05);
+}
+.mig-tab-btn.active {
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+}
 </style>
 <section id="dashboard-view" class="view-section active">
     <div class="dashboard-header-bar"
@@ -198,6 +219,9 @@
                     title="1-Click generate and inspect schema contract in Builder">📜 Contract Builder</a>
                 <button class="btn-primary-sm" id="btn-trigger-check" onclick="triggerCheck()">Trigger Validation
                     Check</button>
+                <button class="btn-secondary" id="btn-migration-generator" onclick="openMigrationModal()"
+                    style="border-color: #3b82f6; color: #60a5fa; display: none; align-items: center; gap: 0.35rem;"
+                    title="Generate SQL, Flyway, Liquibase, or Alembic schema migration script">📦 Generate Migration</button>
                 <button class="btn-secondary" id="btn-ask-ai" onclick="openAiDrawer()"
                     style="border-color: var(--color-warning); display: none;">🤖 Ask AI Analyzer</button>
             </div>
@@ -297,9 +321,14 @@
 
         <!-- Side-by-Side visual schema comparisons -->
         <div class="glass-card" style="background: rgba(3, 7, 18, 0.4); margin-bottom: 2rem;">
-            <h3 class="card-title"
-                style="font-size: 1rem; border-bottom: 1px solid rgba(51, 65, 85, 0.3); margin-top: 0; padding-bottom: 0.75rem;">
-                🗺️ Visual Schema Comparison Map</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(51, 65, 85, 0.3); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+                <h3 class="card-title" style="font-size: 1rem; margin: 0; padding: 0; border: none;">
+                    🗺️ Visual Schema Comparison Map</h3>
+                <button type="button" class="btn-secondary" onclick="openMigrationModal()"
+                    style="font-size: 0.78rem; padding: 0.25rem 0.65rem; border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    📦 Generate Migration DDL
+                </button>
+            </div>
 
             <div class="drift-mapper">
                 <!-- Left: Baseline Contract -->
@@ -1082,6 +1111,98 @@
     </div>
 </div>
 
+<!-- AUTOMATED SCHEMA MIGRATION SCRIPT GENERATOR MODAL -->
+<div id="migration-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeMigrationModal()">
+    <div class="modal-card" style="max-width: 940px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; background: #0b1120; border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 1.25rem; box-shadow: 0 25px 70px rgba(0,0,0,0.85), 0 0 40px rgba(59, 130, 246, 0.15); overflow: hidden;">
+        
+        <!-- Modal Header -->
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.7);">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(139,92,246,0.25)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid rgba(59,130,246,0.4); box-shadow: 0 0 15px rgba(59,130,246,0.25);">
+                    📦
+                </div>
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                        <h2 style="font-weight: 800; font-size: 1.2rem; margin: 0; background: linear-gradient(135deg, #60a5fa, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Automated Schema Migration Generator</h2>
+                        <span id="mig-dialect-badge" class="pipe-badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem;">POSTGRESQL</span>
+                    </div>
+                    <p id="mig-modal-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                        Auto-generated forward & rollback DDL scripts to synchronize database with verified contract baseline
+                    </p>
+                </div>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <label for="mig-engine-select" style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Engine:</label>
+                    <select id="mig-engine-select" class="form-select" onchange="fetchMigrationScript()" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; width: auto; background: rgba(15,23,42,0.8); border-color: rgba(255,255,255,0.15);">
+                        <option value="postgres">PostgreSQL</option>
+                        <option value="mysql">MySQL</option>
+                        <option value="snowflake">Snowflake</option>
+                        <option value="sqlite">SQLite</option>
+                        <option value="bigquery">BigQuery</option>
+                    </select>
+                </div>
+                <button type="button" class="modal-close" onclick="closeMigrationModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer;">&times;</button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="modal-body" style="padding: 1.25rem 1.75rem; overflow-y: auto; flex: 1;">
+            
+            <!-- Risk & Diff Summary Banner -->
+            <div id="mig-summary-banner" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; padding: 0.85rem 1.15rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #e2e8f0;">Drift Detection Summary:</span>
+                    <span id="mig-badge-total" class="pipe-badge" style="background: rgba(255,255,255,0.08); color: #f1f5f9; border-color: rgba(255,255,255,0.15); font-size: 0.72rem;">0 Diffs</span>
+                    <span id="mig-badge-safe" class="pipe-badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); font-size: 0.72rem;">0 Safe</span>
+                    <span id="mig-badge-warning" class="pipe-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-size: 0.72rem;">0 Warnings</span>
+                    <span id="mig-badge-breaking" class="pipe-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); font-size: 0.72rem;">0 Breaking</span>
+                </div>
+                <div id="mig-warnings-container" style="display: none; width: 100%; margin-top: 0.4rem; padding: 0.5rem 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 0.5rem; font-size: 0.75rem; color: #fbbf24;"></div>
+            </div>
+
+            <!-- Format Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem; overflow-x: auto;">
+                <button type="button" class="mig-tab-btn active" id="tab-mig-sql-up" onclick="switchMigrationTab('sql_up')">🚀 SQL Forward (UP)</button>
+                <button type="button" class="mig-tab-btn" id="tab-mig-sql-down" onclick="switchMigrationTab('sql_down')">↩️ SQL Rollback (DOWN)</button>
+                <button type="button" class="mig-tab-btn" id="tab-mig-flyway" onclick="switchMigrationTab('flyway')">🦅 Flyway (V & U)</button>
+                <button type="button" class="mig-tab-btn" id="tab-mig-liquibase" onclick="switchMigrationTab('liquibase')">💧 Liquibase (YAML)</button>
+                <button type="button" class="mig-tab-btn" id="tab-mig-alembic" onclick="switchMigrationTab('alembic')">🐍 Alembic (Python)</button>
+            </div>
+
+            <!-- Code Preview Box -->
+            <div style="position: relative; background: #030712; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.8); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0.45rem 1rem; font-size: 0.75rem;">
+                    <span id="mig-filename-display" style="font-family: var(--font-mono); color: #38bdf8; font-weight: 600;">migration.sql</span>
+                    <span id="mig-tab-description" style="color: #94a3b8; font-size: 0.72rem;">Forward migration script to apply changes</span>
+                </div>
+                <pre id="mig-code-display" style="margin: 0; padding: 1.15rem; font-family: 'JetBrains Mono', Consolas, Monaco, monospace; font-size: 0.82rem; line-height: 1.55; color: #f1f5f9; white-space: pre-wrap; word-break: break-all; max-height: 380px; overflow-y: auto; background: transparent;"></pre>
+            </div>
+
+            <div id="mig-copy-toast" style="display: none; margin-top: 0.75rem; padding: 0.5rem 0.85rem; border-radius: 0.5rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; font-size: 0.8rem; font-weight: 600;">
+                ✅ Copied script to clipboard!
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.08); padding: 1rem 1.75rem; background: rgba(15, 23, 42, 0.5);">
+            <div style="font-size: 0.75rem; color: #94a3b8;">
+                ⚠️ Always test DDL migrations in a staging environment before running against production.
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <button type="button" class="btn-secondary" onclick="closeMigrationModal()">Close</button>
+                <button type="button" class="btn-secondary" onclick="copyMigrationCode()" style="border-color: rgba(59,130,246,0.5); color: #60a5fa; font-weight: 600;">
+                    📋 Copy Script
+                </button>
+                <button type="button" class="btn-primary" onclick="downloadCurrentMigration()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-color: #3b82f6; font-weight: 700;">
+                    💾 Download Script
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- AI DIAGNOSTICS MODAL POPUP -->
 <div id="ai-drawer" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeAiDrawer()">
     <div class="modal-card" style="max-width: 920px; width: 94%; max-height: 90vh; display: flex; flex-direction: column; background: #0b1120; border: 1px solid rgba(139, 92, 246, 0.35); border-radius: 1.25rem; box-shadow: 0 25px 70px rgba(0,0,0,0.85), 0 0 40px rgba(139, 92, 246, 0.15); overflow: hidden;">
@@ -1684,6 +1805,19 @@
 
         // Render AI drawer button if not clean
         document.getElementById('btn-ask-ai').style.display = found.status !== 'Clean' ? 'block' : 'none';
+        const migBtn = document.getElementById('btn-migration-generator');
+        if (migBtn) {
+            migBtn.style.display = 'inline-flex';
+            if (found.status !== 'Clean') {
+                migBtn.style.background = 'rgba(239, 68, 68, 0.15)';
+                migBtn.style.borderColor = '#ef4444';
+                migBtn.style.color = '#fca5a5';
+            } else {
+                migBtn.style.background = 'rgba(59, 130, 246, 0.15)';
+                migBtn.style.borderColor = '#3b82f6';
+                migBtn.style.color = '#60a5fa';
+            }
+        }
         const builderBtn = document.getElementById('btn-open-builder-contract');
         if (builderBtn) {
             builderBtn.href = `/builder?pipeline_id=${encodeURIComponent(found.id)}`;
@@ -3231,6 +3365,176 @@ with DAG(
             errEl.innerText = `❌ ${err.message}`;
             errEl.style.display = 'block';
         });
+    }
+
+    // -------------------------------------------------------------
+    // Automated Schema Migration Generator Logic
+    // -------------------------------------------------------------
+    let currentMigrationBundle = null;
+    let currentMigrationTab = 'sql_up';
+
+    function openMigrationModal() {
+        if (!activePipeline) {
+            alert('Please select a pipeline first.');
+            return;
+        }
+
+        const modal = document.getElementById('migration-modal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+
+        // Pre-select engine matching pipeline dbType
+        const engineSelect = document.getElementById('mig-engine-select');
+        if (engineSelect) {
+            const dbType = (activePipeline.dbType || 'postgres').toLowerCase();
+            if (['postgres', 'mysql', 'snowflake', 'sqlite', 'bigquery'].includes(dbType)) {
+                engineSelect.value = dbType;
+            } else {
+                engineSelect.value = 'postgres';
+            }
+        }
+
+        fetchMigrationScript();
+    }
+
+    function closeMigrationModal() {
+        const modal = document.getElementById('migration-modal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function fetchMigrationScript() {
+        if (!activePipeline) return;
+
+        const engineSelect = document.getElementById('mig-engine-select');
+        const targetEngine = engineSelect ? engineSelect.value : (activePipeline.dbType || 'postgres');
+        const codeDisplay = document.getElementById('mig-code-display');
+        const dialectBadge = document.getElementById('mig-dialect-badge');
+        if (dialectBadge) dialectBadge.innerText = targetEngine.toUpperCase();
+
+        if (codeDisplay) {
+            codeDisplay.innerHTML = '<span class="loading-spinner" style="width: 16px; height: 16px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Generating schema migration scripts...';
+        }
+
+        fetch(`/api/pipelines/${activePipeline.id}/migration`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ target_engine: targetEngine })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Failed to generate migration scripts.');
+            return data;
+        })
+        .then(bundle => {
+            currentMigrationBundle = bundle;
+            renderMigrationBundle(bundle);
+        })
+        .catch(err => {
+            if (codeDisplay) {
+                codeDisplay.innerText = `-- Error generating migration: ${err.message}`;
+            }
+        });
+    }
+
+    function renderMigrationBundle(bundle) {
+        if (!bundle) return;
+
+        // Render summary badges
+        const r = bundle.risk_summary || { safe: 0, warning: 0, breaking: 0, total: 0 };
+        document.getElementById('mig-badge-total').innerText = `${r.total} Diffs`;
+        document.getElementById('mig-badge-safe').innerText = `${r.safe} Safe`;
+        document.getElementById('mig-badge-warning').innerText = `${r.warning} Warnings`;
+        document.getElementById('mig-badge-breaking').innerText = `${r.breaking} Breaking`;
+
+        const warnEl = document.getElementById('mig-warnings-container');
+        if (warnEl) {
+            if (bundle.warnings && bundle.warnings.length > 0) {
+                warnEl.style.display = 'block';
+                warnEl.innerHTML = '<strong>Safety Advisories:</strong><ul style="margin: 0.25rem 0 0 1.25rem; padding: 0;">' + 
+                    bundle.warnings.map(w => `<li>${w}</li>`).join('') + '</ul>';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        }
+
+        switchMigrationTab(currentMigrationTab);
+    }
+
+    function switchMigrationTab(tabKey) {
+        currentMigrationTab = tabKey;
+
+        // Update active class on tab buttons
+        const tabs = ['sql_up', 'sql_down', 'flyway', 'liquibase', 'alembic'];
+        tabs.forEach(t => {
+            const el = document.getElementById(`tab-mig-${t.replace('_', '-')}`);
+            if (el) {
+                if (t === tabKey) el.classList.add('active');
+                else el.classList.remove('active');
+            }
+        });
+
+        if (!currentMigrationBundle) return;
+
+        const codeDisplay = document.getElementById('mig-code-display');
+        const filenameDisplay = document.getElementById('mig-filename-display');
+        const descDisplay = document.getElementById('mig-tab-description');
+
+        if (tabKey === 'sql_up') {
+            filenameDisplay.innerText = currentMigrationBundle.sql.filename_up;
+            descDisplay.innerText = 'Forward migration script to apply missing schema changes';
+            codeDisplay.innerText = currentMigrationBundle.sql.up;
+        } else if (tabKey === 'sql_down') {
+            filenameDisplay.innerText = currentMigrationBundle.sql.filename_down;
+            descDisplay.innerText = 'Rollback migration script to safely revert changes';
+            codeDisplay.innerText = currentMigrationBundle.sql.down;
+        } else if (tabKey === 'flyway') {
+            filenameDisplay.innerText = `${currentMigrationBundle.flyway.versioned_filename} (Versioned + Undo)`;
+            descDisplay.innerText = 'Flyway versioned SQL deployment artifacts';
+            codeDisplay.innerText = currentMigrationBundle.flyway.versioned_sql + '\n\n' + currentMigrationBundle.flyway.undo_sql;
+        } else if (tabKey === 'liquibase') {
+            filenameDisplay.innerText = currentMigrationBundle.liquibase.filename;
+            descDisplay.innerText = 'Liquibase declarative YAML databaseChangeLog with rollback';
+            codeDisplay.innerText = currentMigrationBundle.liquibase.yaml;
+        } else if (tabKey === 'alembic') {
+            filenameDisplay.innerText = currentMigrationBundle.alembic.filename;
+            descDisplay.innerText = 'Python Alembic revision migration with upgrade() and downgrade()';
+            codeDisplay.innerText = currentMigrationBundle.alembic.python;
+        }
+    }
+
+    function copyMigrationCode() {
+        const codeDisplay = document.getElementById('mig-code-display');
+        if (!codeDisplay) return;
+
+        const text = codeDisplay.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const toast = document.getElementById('mig-copy-toast');
+            if (toast) {
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 3000);
+            }
+        }).catch(() => {
+            alert('Copied to clipboard!');
+        });
+    }
+
+    function downloadCurrentMigration() {
+        if (!activePipeline) return;
+        const engineSelect = document.getElementById('mig-engine-select');
+        const targetEngine = engineSelect ? engineSelect.value : (activePipeline.dbType || 'postgres');
+
+        let fmt = 'sql_up';
+        if (currentMigrationTab === 'sql_down') fmt = 'sql_down';
+        else if (currentMigrationTab === 'flyway') fmt = 'flyway_v';
+        else if (currentMigrationTab === 'liquibase') fmt = 'liquibase';
+        else if (currentMigrationTab === 'alembic') fmt = 'alembic';
+
+        const downloadUrl = `/api/pipelines/${activePipeline.id}/migration/download?format=${fmt}&target_engine=${encodeURIComponent(targetEngine)}`;
+        window.location.href = downloadUrl;
     }
 </script>
 {% endblock %}

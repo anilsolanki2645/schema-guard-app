@@ -2338,6 +2338,96 @@ def run_pipeline_check_api(request, id):
         return JsonResponse({"detail": err_msg}, status=400)
 
 @require_login
+def generate_pipeline_migration_api(request, id):
+    """
+    Automated Schema Migration Script Generator API.
+    Computes schema drift between locked contract and live database,
+    and returns forward (UP) and rollback (DOWN) migration scripts
+    for SQL, Flyway, Liquibase, and Alembic.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    target_engine = data.get("target_engine") or p_obj.db_type
+
+    from core.migration_generator import generate_migration_bundle
+    bundle = generate_migration_bundle(p_obj, target_engine=target_engine)
+    return JsonResponse(bundle)
+
+
+@require_login
+def download_pipeline_migration_api(request, id):
+    """
+    Direct file download endpoint for generated schema migration scripts.
+    Supports formats: sql_up, sql_down, flyway_v, flyway_u, liquibase, alembic.
+    """
+    if request.method != "GET":
+        return HttpResponse("Method not allowed", status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return HttpResponse("Pipeline not found", status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return HttpResponse("Unauthorized", status=403)
+
+    target_engine = request.GET.get("target_engine") or p_obj.db_type
+    fmt = (request.GET.get("format") or "sql_up").lower()
+
+    from core.migration_generator import generate_migration_bundle
+    bundle = generate_migration_bundle(p_obj, target_engine=target_engine)
+
+    if fmt == "sql_up":
+        filename = bundle["sql"]["filename_up"]
+        content = bundle["sql"]["up"]
+        content_type = "text/x-sql; charset=utf-8"
+    elif fmt == "sql_down":
+        filename = bundle["sql"]["filename_down"]
+        content = bundle["sql"]["down"]
+        content_type = "text/x-sql; charset=utf-8"
+    elif fmt == "flyway_v":
+        filename = bundle["flyway"]["versioned_filename"]
+        content = bundle["flyway"]["versioned_sql"]
+        content_type = "text/x-sql; charset=utf-8"
+    elif fmt == "flyway_u":
+        filename = bundle["flyway"]["undo_filename"]
+        content = bundle["flyway"]["undo_sql"]
+        content_type = "text/x-sql; charset=utf-8"
+    elif fmt == "liquibase":
+        filename = bundle["liquibase"]["filename"]
+        content = bundle["liquibase"]["yaml"]
+        content_type = "text/yaml; charset=utf-8"
+    elif fmt == "alembic":
+        filename = bundle["alembic"]["filename"]
+        content = bundle["alembic"]["python"]
+        content_type = "text/x-python; charset=utf-8"
+    else:
+        filename = bundle["sql"]["filename_up"]
+        content = bundle["sql"]["up"]
+        content_type = "text/x-sql; charset=utf-8"
+
+    response = HttpResponse(content, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_login
 def run_ai_diagnostics_api(request, id):
     if request.method != "POST":
         return JsonResponse({"detail": "Method not allowed"}, status=405)

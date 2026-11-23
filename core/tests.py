@@ -1707,6 +1707,142 @@ class PipelinePromotionTests(TestCase):
         self.assertEqual(res.status_code, 400)
 
 
+class SchemaMigrationGeneratorTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Migration Org", plan="pro")
+        self.user = User.objects.create(
+            username="mig_user",
+            email="mig@org.com",
+            password_hash=hash_password("MigPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-mig-test-01",
+            organization=self.org,
+            name="Invoices Stream",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="invoices",
+            cron="0 * * * *",
+            contract_yaml=(
+                "columns:\n"
+                "  - name: id\n"
+                "    type: integer\n"
+                "    nullable: false\n"
+                "  - name: amount\n"
+                "    type: numeric(12,2)\n"
+                "    nullable: true\n"
+                "  - name: invoice_status\n"
+                "    type: varchar(50)\n"
+                "    nullable: false\n"
+            ),
+            lock_signature="abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            schema_map={
+                "left": [
+                    {"name": "id", "type": "integer", "nullable": False, "status": "clean"},
+                    {"name": "amount", "type": "numeric(12,2)", "nullable": True, "status": "clean"},
+                    {"name": "invoice_status", "type": "varchar(50)", "nullable": False, "status": "clean"}
+                ],
+                "right": [
+                    {"name": "id", "type": "integer", "nullable": False, "status": "clean"}
+                ]
+            },
+            status="Drifted"
+        )
+
+    def test_generate_migration_bundle_missing_columns(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'mig_user',
+            'password': 'MigPass123!',
+        })
+        url = reverse('generate_pipeline_migration_api', args=[self.pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({"target_engine": "postgres"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["table"], "invoices")
+        self.assertEqual(data["db_type"], "postgres")
+        self.assertEqual(data["diff_count"], 2)
+
+        # Check SQL UP contains ADD COLUMN for amount and invoice_status
+        self.assertIn("ADD COLUMN IF NOT EXISTS amount numeric(12,2)", data["sql"]["up"])
+        self.assertIn("ADD COLUMN IF NOT EXISTS invoice_status varchar(50)", data["sql"]["up"])
+        # Check SQL DOWN contains DROP COLUMN
+        self.assertIn("DROP COLUMN IF EXISTS amount", data["sql"]["down"])
+        self.assertIn("DROP COLUMN IF EXISTS invoice_status", data["sql"]["down"])
+
+        # Check Flyway
+        self.assertIn("Flyway Versioned Migration", data["flyway"]["versioned_sql"])
+        self.assertTrue(data["flyway"]["versioned_filename"].startswith("V"))
+
+        # Check Liquibase
+        self.assertIn("databaseChangeLog:", data["liquibase"]["yaml"])
+        self.assertIn("addColumn:", data["liquibase"]["yaml"])
+
+        # Check Alembic
+        self.assertIn("def upgrade() -> None:", data["alembic"]["python"])
+        self.assertIn("op.add_column('invoices'", data["alembic"]["python"])
+
+    def test_generate_migration_bundle_mysql_dialect(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'mig_user',
+            'password': 'MigPass123!',
+        })
+        url = reverse('generate_pipeline_migration_api', args=[self.pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({"target_engine": "mysql"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["db_type"], "mysql")
+        self.assertIn("ALTER TABLE `invoices` ADD COLUMN `amount`", data["sql"]["up"])
+
+    def test_download_migration_file_sql_up(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'mig_user',
+            'password': 'MigPass123!',
+        })
+        url = reverse('download_pipeline_migration_api', args=[self.pipeline.id]) + "?format=sql_up&target_engine=postgres"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn(".sql", res["Content-Disposition"])
+        self.assertIn("ADD COLUMN IF NOT EXISTS amount", res.content.decode("utf-8"))
+
+    def test_download_migration_file_alembic(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'mig_user',
+            'password': 'MigPass123!',
+        })
+        url = reverse('download_pipeline_migration_api', args=[self.pipeline.id]) + "?format=alembic"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn(".py", res["Content-Disposition"])
+        self.assertIn("def upgrade() -> None:", res.content.decode("utf-8"))
+
+    def test_generate_migration_unauthenticated(self):
+        url = reverse('generate_pipeline_migration_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({}), content_type="application/json")
+        self.assertEqual(res.status_code, 302)
+
+
+
 
 
 
