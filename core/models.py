@@ -120,6 +120,8 @@ class AuditLog(models.Model):
         ('contract.version_created', 'Contract Version Created'),
         ('contract.rollback', 'Contract Rolled Back'),
         ('pipeline.promoted', 'Pipeline Contract Promoted'),
+        ('webhook.delivery', 'Webhook Delivered'),
+        ('pipeline.auto_repaired', 'Pipeline Safe Auto-Repaired'),
         ('user.oauth_login', 'User OAuth Login'),
         ('org.member_invited', 'Team Member Invited'),
         ('org.invite_revoked', 'Invitation Revoked'),
@@ -189,6 +191,34 @@ class GateValidationLog(models.Model):
 
     def __str__(self):
         return f"{self.pipeline_id} check {self.commit_sha[:7]} -> {self.status}"
+
+
+class WebhookDeliveryLog(models.Model):
+    """Tracks outgoing webhook delivery attempts, HMAC signatures, latency, and responses."""
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, null=True, blank=True, related_name='webhook_delivery_logs')
+    url = models.TextField()
+    webhook_type = models.CharField(max_length=50, default='custom')  # 'custom', 'slack', 'teams'
+    event = models.CharField(max_length=100, default='schema_guard.drift_detected')
+    status_code = models.IntegerField(null=True, blank=True)
+    request_headers = models.JSONField(default=dict)
+    request_payload = models.JSONField(default=dict)
+    response_body = models.TextField(blank=True, default='')
+    latency_ms = models.PositiveIntegerField(default=0)
+    success = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, default='')
+    retry_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['pipeline', '-created_at']),
+            models.Index(fields=['success', '-created_at']),
+        ]
+
+    def __str__(self):
+        status = f"HTTP {self.status_code}" if self.status_code else ("OK" if self.success else "FAIL")
+        return f"{self.event} -> {self.url[:30]} ({status})"
 
 
 class ConnectionProfile(models.Model):

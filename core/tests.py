@@ -2214,6 +2214,157 @@ class ScheduledCronRunnerTests(TestCase):
         self.assertGreaterEqual(data["stats"]["executed_count"], 1)
 
 
+class WebhookDeliveryTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+        self.org = Organization.objects.create(name="Webhook Org", plan="pro")
+        self.user = User.objects.create(
+            username="wh_user",
+            email="wh_user@example.com",
+            password_hash=hash_password("WhPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-wh-test-01",
+            organization=self.org,
+            name="Analytics Ingestion",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="events",
+            contract_yaml="columns:\n  - name: event_id\n    type: varchar\n",
+            alerts={"webhook": "https://hooks.external.com/schema-events", "webhook_secret": "whsec_test_secret_123"},
+            status="Clean"
+        )
+
+    def test_hmac_signature_generation_and_verification(self):
+        from core.notifications import sign_webhook_payload, verify_webhook_signature
+        payload_bytes = b'{"event":"schema_drift","violations":["MISSING COLUMN: age"]}'
+        secret = "super_secure_key_456"
+
+        sig = sign_webhook_payload(payload_bytes, secret)
+        self.assertTrue(len(sig) == 64)  # SHA256 hex digest length
+        self.assertTrue(verify_webhook_signature(payload_bytes, secret, f"sha256={sig}"))
+        self.assertFalse(verify_webhook_signature(payload_bytes, "wrong_secret", f"sha256={sig}"))
+        self.assertFalse(verify_webhook_signature(b'different payload', secret, f"sha256={sig}"))
+
+    @patch('urllib.request.urlopen')
+    def test_dispatch_signed_webhook_success_creates_log(self, mock_urlopen):
+        from io import BytesIO
+        from unittest.mock import MagicMock
+        from core.notifications import dispatch_signed_webhook
+        from core.models import WebhookDeliveryLog
+
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"received": true}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        payload = {"event": "schema_drift", "pipeline": "Analytics Ingestion"}
+        ok, msg, meta = dispatch_signed_webhook(
+            url="https://hooks.external.com/schema-events",
+            payload=payload,
+            secret="whsec_test_secret_123",
+            event="schema_guard.drift_detected",
+            pipeline=self.pipeline,
+            allow_internal=True
+        )
+
+        self.assertTrue(ok)
+        self.assertEqual(meta["status_code"], 200)
+
+        log = WebhookDeliveryLog.objects.filter(pipeline=self.pipeline).first()
+        self.assertIsNotNone(log)
+        self.assertTrue(log.success)
+        self.assertEqual(log.status_code, 200)
+        self.assertEqual(log.event, "schema_guard.drift_detected")
+        self.assertIn("X-Schema-Guard-Signature", log.request_headers)
+        self.assertIn("masked", log.request_headers["X-Schema-Guard-Signature"].lower())
+
+    def test_dispatch_signed_webhook_ssrf_blocked(self):
+        from core.notifications import dispatch_signed_webhook
+        from core.models import WebhookDeliveryLog
+
+        ok, msg, meta = dispatch_signed_webhook(
+            url="http://169.254.169.254/latest/meta-data",
+            payload={"event": "test"},
+            allow_internal=False
+        )
+        self.assertFalse(ok)
+        self.assertIn("SSRF", msg)
+        log = WebhookDeliveryLog.objects.filter(url__contains="169.254.169.254").first()
+        self.assertIsNotNone(log)
+        self.assertFalse(log.success)
+
+    def test_get_webhook_logs_api(self):
+        from core.models import WebhookDeliveryLog
+        WebhookDeliveryLog.objects.create(
+            pipeline=self.pipeline,
+            url="https://hooks.external.com/schema-events",
+            event="schema_guard.drift_detected",
+            status_code=200,
+            success=True,
+            latency_ms=120,
+            request_payload={"event": "drift"}
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'wh_user',
+            'password': 'WhPass123!',
+        })
+        url = reverse('get_webhook_logs_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        logs = json.loads(res.content)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["status_code"], 200)
+        self.assertTrue(logs[0]["success"])
+
+    @patch('urllib.request.urlopen')
+    def test_retry_webhook_log_api(self, mock_urlopen):
+        from unittest.mock import MagicMock
+        from core.models import WebhookDeliveryLog, AuditLog
+
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"ok": true}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        failed_log = WebhookDeliveryLog.objects.create(
+            pipeline=self.pipeline,
+            url="https://hooks.external.com/schema-events",
+            event="schema_guard.drift_detected",
+            status_code=500,
+            success=False,
+            latency_ms=45,
+            request_payload={"event": "drift", "retry": True}
+        )
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'wh_user',
+            'password': 'WhPass123!',
+        })
+        url = reverse('retry_webhook_log_api', args=[self.pipeline.id, failed_log.id])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+
+        audit = AuditLog.objects.filter(action="webhook.delivery", actor="wh_user").first()
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.details.get("action"), "retry_webhook")
+
+
+
 
 
 

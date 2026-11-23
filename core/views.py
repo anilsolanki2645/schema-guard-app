@@ -234,15 +234,16 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
         "checks": checks
     }
 
-def send_custom_webhook_alert(violations, dq_report, webhook_url, pipeline_name, status_str) -> bool:
-    import json
-    import urllib.request
+def send_custom_webhook_alert(violations, dq_report, webhook_url, pipeline_name, status_str, pipeline_id=None, secret=None) -> bool:
     from datetime import datetime, timezone
+    from core.notifications import dispatch_signed_webhook
+    from django.conf import settings
 
     payload = {
         "event": "schema_guard.drift_detected" if violations else "schema_guard.data_quality_failure",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "pipeline": pipeline_name,
+        "pipeline_id": pipeline_id,
         "status": status_str,
         "schema_violations": list(violations),
         "data_quality": {
@@ -259,42 +260,26 @@ def send_custom_webhook_alert(violations, dq_report, webhook_url, pipeline_name,
         }
     }
 
-    # SSRF Protection: Validate target URL against private/internal networks
-    from urllib.parse import urlparse
-    import ipaddress
-    from django.conf import settings
-    
-    parsed = urlparse(webhook_url)
-    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
-        logger.warning(f"Rejected invalid webhook URL scheme: {webhook_url}")
-        return False
-        
-    host = (parsed.hostname or '').lower()
-    blocked_hosts = {'localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', 'metadata.google.internal'}
-    if not getattr(settings, 'DEBUG', False) and not getattr(settings, 'IS_TESTING', False):
-        if host in blocked_hosts or host.endswith('.internal') or host.endswith('.local'):
-            logger.warning(f"SSRF protection: Rejected internal webhook host: {host}")
-            return False
+    pipeline_obj = None
+    if pipeline_id:
         try:
-            ip = ipaddress.ip_address(host)
-            if ip.is_private or ip.is_loopback or ip.is_link_local:
-                logger.warning(f"SSRF protection: Rejected private webhook IP: {host}")
-                return False
-        except ValueError:
+            from core.models import Pipeline
+            pipeline_obj = Pipeline.objects.filter(id=pipeline_id).first()
+        except Exception:
             pass
 
-    try:
-        req = urllib.request.Request(
-            webhook_url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "SchemaGuard-Webhook-Dispatcher/1.0"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=8) as response:
-            return response.status in [200, 201, 202, 204]
-    except Exception as e:
-        logger.error(f"Failed to dispatch custom webhook payload: {e}")
-        return False
+    allow_internal = getattr(settings, 'IS_TESTING', False)
+    ok, reason, meta = dispatch_signed_webhook(
+        url=webhook_url,
+        payload=payload,
+        secret=secret,
+        event=payload["event"],
+        pipeline=pipeline_obj,
+        max_retries=1,
+        webhook_type="custom",
+        allow_internal=allow_internal
+    )
+    return ok
 
 # -------------------------------------------------------------
 # Email Helper Functions
@@ -691,7 +676,15 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
             
             # Custom Webhook Event Dispatcher
             if p["alerts"].get("webhook"):
-                if send_custom_webhook_alert(violations, dq_report, p["alerts"]["webhook"], p["name"], status_str):
+                if send_custom_webhook_alert(
+                    violations,
+                    dq_report,
+                    p["alerts"]["webhook"],
+                    p["name"],
+                    status_str,
+                    pipeline_id=p.get("id"),
+                    secret=p["alerts"].get("webhook_secret")
+                ):
                     alert_sent = True
                     logs.append(f"[INFO] Custom Webhook payload successfully dispatched to {p['alerts']['webhook']}.")
                 else:
@@ -2577,6 +2570,100 @@ def get_gate_logs_api(request, id):
     } for log in logs_qs]
     
     return JsonResponse(logs_data, safe=False)
+
+
+@require_login
+def get_webhook_logs_api(request, id):
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user')
+    from core.models import Pipeline, WebhookDeliveryLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    logs_qs = WebhookDeliveryLog.objects.filter(pipeline=p_obj).order_by('-created_at')[:50]
+    logs_data = [{
+        "id": log.id,
+        "url": log.url,
+        "webhook_type": log.webhook_type,
+        "event": log.event,
+        "status_code": log.status_code,
+        "request_headers": log.request_headers,
+        "request_payload": log.request_payload,
+        "response_body": log.response_body,
+        "latency_ms": log.latency_ms,
+        "success": log.success,
+        "error_message": log.error_message,
+        "retry_count": log.retry_count,
+        "created_at": log.created_at.strftime("%Y-%m-%d %H:%M:%S")
+    } for log in logs_qs]
+
+    return JsonResponse(logs_data, safe=False)
+
+
+@require_login
+def retry_webhook_log_api(request, id, log_id):
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user')
+    from core.models import Pipeline, WebhookDeliveryLog, AuditLog
+    from core.notifications import dispatch_signed_webhook
+    from django.conf import settings
+
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found"}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    log_entry = WebhookDeliveryLog.objects.filter(id=log_id, pipeline=p_obj).first()
+    if not log_entry:
+        return JsonResponse({"detail": "Webhook log not found"}, status=404)
+
+    alerts_cfg = p_obj.alerts or {}
+    secret = alerts_cfg.get("webhook_secret")
+    allow_internal = getattr(settings, 'IS_TESTING', False)
+
+    ok, reason, meta = dispatch_signed_webhook(
+        url=log_entry.url,
+        payload=log_entry.request_payload,
+        secret=secret,
+        event=log_entry.event,
+        pipeline=p_obj,
+        max_retries=1,
+        webhook_type=log_entry.webhook_type,
+        allow_internal=allow_internal
+    )
+
+    actor = user_info.get('username') or 'user'
+    AuditLog.objects.create(
+        action='webhook.delivery',
+        actor=actor,
+        target_type='pipeline',
+        target_id=str(p_obj.id),
+        organization=p_obj.organization,
+        details={
+            "action": "retry_webhook",
+            "previous_log_id": log_id,
+            "new_log_id": meta.get("log_id"),
+            "success": ok,
+            "status_code": meta.get("status_code"),
+            "url": log_entry.url
+        }
+    )
+
+    return JsonResponse({
+        "success": ok,
+        "message": reason,
+        "meta": meta
+    }, status=200 if ok else 502)
 
 @require_login
 def run_pipeline_check_api(request, id):

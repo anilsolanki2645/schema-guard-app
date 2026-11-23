@@ -96,6 +96,8 @@ urlpatterns = [
     path('api/ci/gate', csrf_exempt(views.ci_cd_gate_api), name='ci_cd_gate_api'),
     path('api/ci/workflows', views.ci_cd_workflow_template_api, name='ci_cd_workflow_template_api'),
     path('api/pipelines/<str:id>/gate-logs', views.get_gate_logs_api, name='get_gate_logs_api'),
+    path('api/pipelines/<str:id>/webhook-logs', views.get_webhook_logs_api, name='get_webhook_logs_api'),
+    path('api/pipelines/<str:id>/webhook-logs/<int:log_id>/retry', views.retry_webhook_log_api, name='retry_webhook_log_api'),
     path('api/auth/users', users_api_dispatch, name='get_users_api'),
     path('api/auth/users/<str:username>', users_detail_api_dispatch, name='users_detail_api'),
     
