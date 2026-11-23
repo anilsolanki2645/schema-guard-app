@@ -1294,6 +1294,125 @@ def create_pipeline_api(request):
         
     return JsonResponse(new_pipe)
 
+
+@require_login
+def create_demo_pipeline_api(request):
+    """
+    1-click onboarding endpoint that creates a realistic sample PostgreSQL pipeline
+    with pre-loaded baseline contract, data quality checks, and drift mismatch.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    import secrets
+    from datetime import timedelta
+    user_info = request.session.get('user', {})
+    from core.models import User, Organization
+    user_obj = User.objects.filter(username=user_info.get('username')).first()
+    org = user_obj.organization if user_obj and user_obj.organization else None
+    if not org and user_info.get('organization_id'):
+        org = Organization.objects.filter(id=user_info.get('organization_id')).first()
+
+    pipe_id = f"demo_orders_{secrets.token_hex(3)}"
+    now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    contract_yaml_sample = """version: 1
+source:
+  name: demo_orders_contract
+  type: postgres
+  schema: public
+  table: orders
+columns:
+  - name: id
+    type: integer
+    nullable: false
+    primary_key: true
+  - name: customer_id
+    type: integer
+    nullable: false
+  - name: total_amount
+    type: numeric(12,2)
+    nullable: false
+  - name: status
+    type: varchar(50)
+    nullable: false
+  - name: created_at
+    type: timestamp
+    nullable: false
+"""
+
+    schema_map_sample = {
+        "left": [
+            {"name": "id", "type": "integer", "pk": True, "nullable": False, "status": "clean"},
+            {"name": "customer_id", "type": "integer", "pk": False, "nullable": False, "status": "clean"},
+            {"name": "total_amount", "type": "numeric(12,2)", "pk": False, "nullable": False, "status": "changed"},
+            {"name": "status", "type": "varchar(50)", "pk": False, "nullable": False, "status": "changed"},
+            {"name": "created_at", "type": "timestamp", "pk": False, "nullable": False, "status": "removed"}
+        ],
+        "right": [
+            {"name": "id", "type": "integer", "pk": True, "nullable": False, "status": "clean"},
+            {"name": "customer_id", "type": "integer", "pk": False, "nullable": False, "status": "clean"},
+            {"name": "total_amount", "type": "varchar(100)", "pk": False, "nullable": False, "status": "changed"},
+            {"name": "status", "type": "varchar(50)", "pk": False, "nullable": True, "status": "changed"},
+            {"name": "shipping_address", "type": "text", "pk": False, "nullable": True, "status": "added"}
+        ],
+        "dataQuality": {
+            "status": "FAIL",
+            "checks": [
+                {"name": "Primary Key Integrity", "description": "Ensures ID column contains unique non-null integers", "metric": "0 nulls, 100% unique", "status": "PASS"},
+                {"name": "Financial Precision Check", "description": "Ensures total_amount maintains numeric(12,2) scale", "metric": "Failed: non-numeric string values found in total_amount", "status": "FAIL"},
+                {"name": "Order Status Enum", "description": "Validates status against pending/completed/cancelled", "metric": "3 null records violate contract", "status": "FAIL"}
+            ]
+        }
+    }
+
+    logs_sample = [
+        "[INFO] Establishing connection to target database...",
+        "[INFO] Target: public.orders (PostgreSQL 16 Engine)",
+        "[INFO] Verifying contract signature lock integrity: PASSED.",
+        "[INFO] Extracting live schema catalog from target instance...",
+        "[INFO] Running data quality metric validations...",
+        "[ERROR] Data Quality - Financial Precision Check: Failed: non-numeric string values found in total_amount",
+        "[ERROR] Data Quality - Order Status Enum: 3 null records violate contract",
+        "[INFO] Running schema diff gate comparison checks against cryptographic baseline...",
+        "[WARNING] COMPLIANCE VIOLATION DETECTED:",
+        "[ERROR] Column 'created_at' was dropped from live database table 'orders'.",
+        "[ERROR] Column 'total_amount': type changed from numeric(12,2) to varchar(100).",
+        "[ERROR] Column 'status': nullable changed from NOT NULL to NULL.",
+        "[INFO] New unannounced column 'shipping_address' detected in live schema.",
+        "[ERROR] Verification FAILED: 3 structural drift violations detected."
+    ]
+
+    compliance_history_sample = [
+        {"time": now_str, "profile": "production", "status": "FAIL", "violations": 4, "alertEvent": "Email"},
+        {"time": (now_dt - timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S"), "profile": "production", "status": "PASS", "violations": 0, "alertEvent": "None"}
+    ]
+
+    p_dict = {
+        "id": pipe_id,
+        "name": "Demo E-Commerce Orders",
+        "dbType": "postgres",
+        "connStr": "postgresql://demo_user:demo_secret@postgres.demo.schemaguard.internal:5432/ecommerce",
+        "schema": "public",
+        "table": "orders",
+        "cron": "0 0 * * *",
+        "cronText": "Daily preset",
+        "alerts": {"email": user_info.get("email", "demo@schemaguard.com")},
+        "status": "Drifted",
+        "lastChecked": now_str,
+        "lockSignature": f"sha256_demo_{secrets.token_hex(8)}",
+        "schemaMap": schema_map_sample,
+        "contractYaml": contract_yaml_sample,
+        "logs": logs_sample,
+        "complianceHistory": compliance_history_sample,
+        "organization_id": org.id if org else None
+    }
+
+    new_pipe = db.create_pipeline(p_dict)
+    log_action(request, 'pipeline.create_demo', 'pipeline', pipe_id)
+    return JsonResponse(new_pipe)
+
 @require_login
 def edit_pipeline_api(request, id):
     if request.method != "PUT":
@@ -1662,6 +1781,16 @@ def run_ai_diagnostics_api(request, id):
     # Enforce organization boundary
     if user_info.get('role') != 'admin' and p.get('organization_id') != user_info.get('organization_id'):
         return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    # Rate Limiting: protect Gemini LLM quota (max 20 queries / min per user)
+    from django.core.cache import cache
+    rate_key = f"ai_diag_rate_{user_info.get('username', 'anon')}"
+    query_count = cache.get(rate_key, 0)
+    if query_count >= 20:
+        return JsonResponse({
+            "detail": "AI Copilot query rate limit reached (max 20 requests per minute). Please wait 60 seconds."
+        }, status=429)
+    cache.set(rate_key, query_count + 1, timeout=60)
         
     data = json.loads(request.body)
     
@@ -2421,17 +2550,40 @@ def export_dbt_schema_api(request, id):
             if not allowed:
                 return JsonResponse({"detail": err}, status=403)
         
-    # Load contract design
-    contract_path = os.path.join(CONTRACTS_DIR, f"{p_obj.table}.yaml")
-    if not os.path.exists(contract_path):
+    # Load contract design with multi-layer persistent fallback
+    contract_path, _ = ensure_contract_and_snapshot_files(p_obj)
+    columns = []
+    if contract_path and os.path.exists(contract_path):
+        try:
+            cfg = load_contract(contract_path)
+            columns = cfg.get("columns", [])
+        except Exception as e:
+            logger.warning(f"Failed to load contract from {contract_path}: {e}")
+
+    if not columns and getattr(p_obj, 'contract_yaml', None):
+        try:
+            import yaml
+            cfg = yaml.safe_load(p_obj.contract_yaml)
+            if isinstance(cfg, dict):
+                columns = cfg.get("columns", [])
+        except Exception:
+            pass
+
+    if not columns and getattr(p_obj, 'schema_map', None):
+        raw_map = p_obj.schema_map.get("right") or p_obj.schema_map.get("left") or []
+        columns = [
+            {"name": c.get("name", ""), "type": str(c.get("type", "text")), "nullable": c.get("nullable", True)}
+            for c in raw_map if isinstance(c, dict) and c.get("name")
+        ]
+
+    if not columns:
+        from core.models import SchemaSnapshot
+        snap = SchemaSnapshot.objects.filter(pipeline=p_obj).order_by('-version').first()
+        if snap and snap.schema_data:
+            columns = snap.schema_data.get("columns", [])
+
+    if not columns:
         return JsonResponse({"detail": "Active contract specifications not found on server."}, status=400)
-        
-    try:
-        cfg = load_contract(contract_path)
-    except Exception as e:
-        return JsonResponse({"detail": f"Failed to load contract specifications: {e}"}, status=400)
-        
-    columns = cfg.get("columns", [])
     
     # Construct dbt schema structure
     dbt_columns = []

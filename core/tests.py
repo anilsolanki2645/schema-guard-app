@@ -972,3 +972,51 @@ class WebhookAlertTests(TestCase):
         )
         
         self.assertFalse(res)
+
+
+class DemoPipelineAndRateLimitTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.org = Organization.objects.create(name="Demo Org", plan="pro")
+        self.user = User.objects.create(
+            username="demouser",
+            email="demo@test.com",
+            password_hash=hash_password("DemoPass123!"),
+            role="operator",
+            organization=self.org,
+            is_verified=True,
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'demouser',
+            'password': 'DemoPass123!',
+        })
+
+    def test_create_demo_pipeline_success(self):
+        url = reverse('create_demo_pipeline_api')
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertIn("demo_orders_", data["id"])
+        self.assertEqual(data["status"], "Drifted")
+        self.assertIn("contractYaml", data)
+        self.assertIn("total_amount", data["contractYaml"])
+
+    def test_ai_diagnostics_rate_limit(self):
+        # Create pipeline for testing
+        p = Pipeline.objects.create(
+            id="pipe_rate_test",
+            name="Rate Test Pipe",
+            db_type="postgres",
+            conn_str="postgresql://u:p@localhost/db",
+            schema="public",
+            table="orders",
+            organization=self.org
+        )
+        url = reverse('run_ai_diagnostics_api', args=[p.id])
+        from django.core.cache import cache
+        cache.set(f"ai_diag_rate_{self.user.username}", 20, timeout=60)
+        res = self.client.post(url, json.dumps({"query_type": "explain"}), content_type="application/json")
+        self.assertEqual(res.status_code, 429)
+        cache.delete(f"ai_diag_rate_{self.user.username}")
+

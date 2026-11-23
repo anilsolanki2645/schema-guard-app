@@ -74,6 +74,7 @@ urlpatterns = [
     path('api/pipelines/list-tables', views.list_tables_api, name='list_tables_api'),
     path('api/pipelines/list-schemas', views.list_schemas_api, name='list_schemas_api'),
     path('api/pipelines/test-connection', views.test_connection_api, name='test_connection_api'),
+    path('api/pipelines/demo', views.create_demo_pipeline_api, name='create_demo_pipeline_api'),
     path('api/pipelines/download-airflow', views.download_airflow_operator, name='download_airflow_operator'),
     path('api/pipelines/<str:id>', pipelines_detail_api_dispatch, name='pipelines_detail_api'),
     path('api/pipelines/<str:id>/run', views.run_pipeline_check_api, name='run_pipeline_check_api'),
