@@ -1816,6 +1816,28 @@ def list_tables_api(request):
 
 
 @require_login
+def run_scheduled_sweep_api(request):
+    """Triggers an on-demand evaluation sweep of all scheduled pipelines."""
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+        return JsonResponse({"detail": "Permission denied"}, status=403)
+
+    from core.management.commands.run_scheduled_checks import execute_pipeline_sweep
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    force = bool(data.get("force", False))
+    pipeline_filter = data.get("pipeline_id")
+    stats = execute_pipeline_sweep(pipeline_id_filter=pipeline_filter, force=force)
+    return JsonResponse({"success": True, "stats": stats})
+
+
+@require_login
 def list_schemas_api(request):
     if request.method != "POST":
         return JsonResponse({"detail": "Method not allowed"}, status=405)
@@ -1829,6 +1851,28 @@ def list_schemas_api(request):
         return JsonResponse({"schemas": schemas})
     except Exception as e:
         return JsonResponse({"detail": str(e)}, status=400)
+
+
+@require_login
+def run_scheduled_sweep_api(request):
+    """Triggers an on-demand evaluation sweep of all scheduled pipelines."""
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    if user_info.get('role') not in ['admin', 'subadmin', 'operator']:
+        return JsonResponse({"detail": "Permission denied"}, status=403)
+
+    from core.management.commands.run_scheduled_checks import execute_pipeline_sweep
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    force = bool(data.get("force", False))
+    pipeline_filter = data.get("pipeline_id")
+    stats = execute_pipeline_sweep(pipeline_id_filter=pipeline_filter, force=force)
+    return JsonResponse({"success": True, "stats": stats})
 
 @require_login
 def test_connection_api(request):

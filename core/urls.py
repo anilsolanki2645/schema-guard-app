@@ -79,6 +79,7 @@ urlpatterns = [
     path('api/pipelines/list-schemas', views.list_schemas_api, name='list_schemas_api'),
     path('api/pipelines/test-connection', views.test_connection_api, name='test_connection_api'),
     path('api/pipelines/test-alert', views.test_pipeline_alert_api, name='test_pipeline_alert_api'),
+    path('api/pipelines/run-scheduled-sweep', views.run_scheduled_sweep_api, name='run_scheduled_sweep_api'),
     path('api/pipelines/demo', views.create_demo_pipeline_api, name='create_demo_pipeline_api'),
     path('api/pipelines/download-airflow', views.download_airflow_operator, name='download_airflow_operator'),
     path('api/pipelines/<str:id>', pipelines_detail_api_dispatch, name='pipelines_detail_api'),

@@ -2139,6 +2139,82 @@ class CiCdGateTests(TestCase):
         self.assertIn("schema-guard.yml", res["Content-Disposition"])
 
 
+class ScheduledCronRunnerTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Cron Org", plan="pro")
+        self.admin = User.objects.create(
+            username="cron_admin",
+            email="admin@cron.com",
+            password_hash=hash_password("CronPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-cron-test-01",
+            organization=self.org,
+            name="Daily Orders",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="orders",
+            cron="0 0 * * *",
+            contract_yaml="columns:\n  - name: id\n    type: integer\n",
+            lock_signature="1111111111111111111111111111111111111111111111111111111111111111",
+            status="Clean"
+        )
+
+    def test_is_pipeline_due_with_none_last_checked(self):
+        from core.management.commands.run_scheduled_checks import is_pipeline_due
+        from datetime import datetime, timezone
+        self.pipeline.last_checked = None
+        self.assertTrue(is_pipeline_due(self.pipeline, datetime.now(timezone.utc)))
+
+    def test_is_pipeline_due_with_past_cron(self):
+        from core.management.commands.run_scheduled_checks import is_pipeline_due
+        from datetime import datetime, timezone, timedelta
+        # Last checked 2 days ago for a daily cron -> definitely due
+        self.pipeline.last_checked = datetime.now(timezone.utc) - timedelta(days=2)
+        self.assertTrue(is_pipeline_due(self.pipeline, datetime.now(timezone.utc)))
+
+    def test_is_pipeline_not_due_when_recently_checked(self):
+        from core.management.commands.run_scheduled_checks import is_pipeline_due
+        from datetime import datetime, timezone, timedelta
+        # Last checked 5 minutes ago for a daily cron -> NOT due
+        self.pipeline.last_checked = datetime.now(timezone.utc) - timedelta(minutes=5)
+        self.assertFalse(is_pipeline_due(self.pipeline, datetime.now(timezone.utc)))
+
+    @patch('core.management.commands.run_scheduled_checks.perform_pipeline_check')
+    def test_execute_pipeline_sweep_with_force(self, mock_check):
+        mock_check.return_value = {"status": "Clean", "logs": []}
+        from core.management.commands.run_scheduled_checks import execute_pipeline_sweep
+        stats = execute_pipeline_sweep(pipeline_id_filter=self.pipeline.id, force=True)
+        self.assertEqual(stats["total_monitored"], 1)
+        self.assertEqual(stats["executed_count"], 1)
+        self.assertEqual(stats["clean_count"], 1)
+        self.assertEqual(stats["drifted_count"], 0)
+        mock_check.assert_called_once_with(self.pipeline.id)
+
+    @patch('core.management.commands.run_scheduled_checks.perform_pipeline_check')
+    def test_run_scheduled_sweep_api(self, mock_check):
+        mock_check.return_value = {"status": "Clean", "logs": []}
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'cron_admin',
+            'password': 'CronPass123!',
+        })
+        url = reverse('run_scheduled_sweep_api')
+        res = self.client.post(url, data=json.dumps({"force": True}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertIn("stats", data)
+        self.assertGreaterEqual(data["stats"]["executed_count"], 1)
+
+
+
 
 
 
