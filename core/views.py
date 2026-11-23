@@ -668,9 +668,21 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
                     alert_sent = True
                     logs.append(f"[INFO] Email alert dispatched to {p['alerts']['email']}.")
             if p["alerts"].get("slack"):
-                if send_slack_alert(desc_warnings, webhook_url=p["alerts"]["slack"]):
+                from core.notifications import send_rich_slack_alert
+                ok, reason = send_rich_slack_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=p["alerts"]["slack"])
+                if ok:
                     alert_sent = True
-                    logs.append("[INFO] Slack alert dispatched.")
+                    logs.append("[INFO] Rich Slack Block Kit alert dispatched.")
+                else:
+                    logs.append(f"[WARN] Slack alert failed: {reason}")
+            if p["alerts"].get("teams"):
+                from core.notifications import send_rich_teams_alert
+                ok, reason = send_rich_teams_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=p["alerts"]["teams"])
+                if ok:
+                    alert_sent = True
+                    logs.append("[INFO] Microsoft Teams alert card dispatched.")
+                else:
+                    logs.append(f"[WARN] Teams alert failed: {reason}")
             if p["alerts"].get("wp"):
                 if send_whatsapp_alert(desc_warnings, phone=p["alerts"]["wp"]):
                     alert_sent = True
@@ -1565,6 +1577,83 @@ def delete_pipeline_api(request, id):
     db.delete_pipeline(id)
     log_action(request, 'pipeline.delete', 'pipeline', id)
     return JsonResponse({"status": "success"})
+
+
+@require_login
+def test_pipeline_alert_api(request):
+    """
+    Tests sending a formatted alert payload (Slack, Teams, Custom Webhook, or Email)
+    without running a full pipeline scan.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON body"}, status=400)
+
+    channel = (data.get("channel") or "slack").strip().lower()
+    target = (data.get("target") or "").strip()
+    pipeline_name = (data.get("pipeline_name") or "Sample Pipeline").strip()
+    table_name = (data.get("table_name") or "orders").strip()
+    db_type = (data.get("db_type") or "postgres").strip()
+
+    if not target:
+        return JsonResponse({"detail": f"Target URL or destination for {channel} cannot be empty."}, status=400)
+
+    from core.notifications import send_rich_slack_alert, send_rich_teams_alert, validate_webhook_url
+
+    test_violations = [
+        f"Column 'user_id' DROPPED from contract schema for table '{table_name}'",
+        "Column 'total_amount' TYPE MISMATCH (expected: bigint, found: numeric(14,2))",
+        "Column 'status' NULL MISMATCH (expected: NOT NULL, found: nullable)"
+    ]
+
+    app_url = request.build_absolute_uri('/')[:-1]
+
+    if channel == "slack":
+        success, message = send_rich_slack_alert(
+            test_violations,
+            pipeline_name=pipeline_name,
+            table_name=table_name,
+            db_type=db_type,
+            webhook_url=target,
+            app_url=app_url,
+            is_test=True
+        )
+    elif channel == "teams":
+        success, message = send_rich_teams_alert(
+            test_violations,
+            pipeline_name=pipeline_name,
+            table_name=table_name,
+            db_type=db_type,
+            webhook_url=target,
+            app_url=app_url,
+            is_test=True
+        )
+    elif channel == "webhook":
+        is_valid, reason = validate_webhook_url(target)
+        if not is_valid:
+            return JsonResponse({"detail": reason}, status=400)
+        success = send_custom_webhook_alert(
+            test_violations,
+            {"status": "FAIL", "checks": [{"name": "row_count", "description": "Row count check", "metric": "0", "status": "FAIL"}]},
+            target,
+            pipeline_name,
+            "TEST_DRIFTED"
+        )
+        message = "Custom webhook dispatched successfully." if success else "Webhook destination rejected or unreachable."
+    elif channel == "email":
+        success = send_email_alert(test_violations, email_to=target)
+        message = f"Test email dispatched to {target}" if success else "Failed to send test email."
+    else:
+        return JsonResponse({"detail": f"Unsupported channel '{channel}'."}, status=400)
+
+    if success:
+        return JsonResponse({"success": True, "message": message})
+    return JsonResponse({"success": False, "detail": message}, status=400)
+
 
 @require_login
 def list_tables_api(request):

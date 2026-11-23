@@ -7,7 +7,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot
 from core.views import hash_password, verify_password, generate_code
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, MagicMock
 
 
 class PasswordHashingTests(TestCase):
@@ -1160,5 +1160,104 @@ class TeamInvitationAndRBACTests(TestCase):
 
         self.operator.refresh_from_db()
         self.assertIsNone(self.operator.organization)
+
+
+class RichAlertingTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Alert Test Org", plan="pro")
+        self.user = User.objects.create(
+            username="alert_user",
+            email="alert@test.com",
+            password_hash=hash_password("Pass123!"),
+            role="operator",
+            organization=self.org,
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'alert_user',
+            'password': 'Pass123!',
+        })
+
+    def test_ssrf_validation_blocks_internal_and_private_hosts(self):
+        from core.notifications import validate_webhook_url
+        ok, reason = validate_webhook_url("http://169.254.169.254/latest/meta-data")
+        self.assertFalse(ok)
+        self.assertIn("SSRF", reason)
+
+        ok, reason = validate_webhook_url("https://localhost:8080/hook")
+        self.assertFalse(ok)
+        self.assertIn("SSRF", reason)
+
+        ok, reason = validate_webhook_url("https://hooks.slack.com/services/T00/B00/X00")
+        self.assertTrue(ok)
+
+    @patch("urllib.request.urlopen")
+    def test_test_pipeline_alert_slack_success(self, mock_urlopen):
+        mock_res = MagicMock()
+        mock_res.status = 200
+        mock_urlopen.return_value.__enter__.return_value = mock_res
+
+        url = reverse('test_pipeline_alert_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "channel": "slack",
+                "target": "https://hooks.slack.com/services/T00/B00/X00",
+                "pipeline_name": "Orders Test Pipe"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertIn("delivered", data["message"].lower())
+
+    @patch("urllib.request.urlopen")
+    def test_test_pipeline_alert_teams_success(self, mock_urlopen):
+        mock_res = MagicMock()
+        mock_res.status = 200
+        mock_urlopen.return_value.__enter__.return_value = mock_res
+
+        url = reverse('test_pipeline_alert_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "channel": "teams",
+                "target": "https://outlook.office.com/webhook/123-abc/IncomingWebhook/xyz",
+                "pipeline_name": "Orders Teams Pipe"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertIn("delivered", data["message"].lower())
+
+    def test_test_pipeline_alert_ssrf_blocked(self):
+        url = reverse('test_pipeline_alert_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "channel": "slack",
+                "target": "http://127.0.0.1:5000/webhook",
+                "pipeline_name": "Malicious Pipe"
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.content)
+        self.assertIn("ssrf", data["detail"].lower())
+
+    def test_test_pipeline_alert_empty_target_rejected(self):
+        url = reverse('test_pipeline_alert_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"channel": "slack", "target": ""}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 400)
+
 
 

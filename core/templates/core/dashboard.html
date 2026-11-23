@@ -713,13 +713,35 @@
                     <div class="alert-route-item"
                         style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
                         <div class="alert-route-header"
-                            style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            <input type="checkbox" id="wiz-alert-slack-enable" onchange="toggleWizAlertInput('slack')">
-                            <label for="wiz-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack
-                                Webhook Channel</label>
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="wiz-alert-slack-enable" onchange="toggleWizAlertInput('slack')">
+                                <label for="wiz-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack Webhook Channel</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="wiz-btn-test-slack" onclick="testChannelAlert('slack', 'wiz-alert-slack-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="wiz-alert-slack-val" disabled
                             placeholder="https://hooks.slack.com/services/...">
+                        <div id="wiz-test-feedback-slack" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
+                    </div>
+                    <!-- Microsoft Teams Alert -->
+                    <div class="alert-route-item"
+                        style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                        <div class="alert-route-header"
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="wiz-alert-teams-enable" onchange="toggleWizAlertInput('teams')">
+                                <label for="wiz-alert-teams-enable" style="font-weight: 600; cursor: pointer;">👥 Microsoft Teams Webhook</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="wiz-btn-test-teams" onclick="testChannelAlert('teams', 'wiz-alert-teams-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
+                        </div>
+                        <input class="form-input alert-route-input" type="text" id="wiz-alert-teams-val" disabled
+                            placeholder="https://outlook.office.com/webhook/... or Power Automate URL">
+                        <div id="wiz-test-feedback-teams" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
                     </div>
                     <!-- WhatsApp Alert -->
                     <div class="alert-route-item"
@@ -727,8 +749,7 @@
                         <div class="alert-route-header"
                             style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                             <input type="checkbox" id="wiz-alert-wp-enable" onchange="toggleWizAlertInput('wp')">
-                            <label for="wiz-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp
-                                Event Dispatch</label>
+                            <label for="wiz-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp Event Dispatch</label>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="wiz-alert-wp-val" disabled
                             placeholder="Phone number (Ex: +123456789)">
@@ -737,14 +758,18 @@
                     <div class="alert-route-item"
                         style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
                         <div class="alert-route-header"
-                            style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            <input type="checkbox" id="wiz-alert-webhook-enable"
-                                onchange="toggleWizAlertInput('webhook')">
-                            <label for="wiz-alert-webhook-enable" style="font-weight: 600; cursor: pointer;">🪝 Custom
-                                Webhook Dispatcher</label>
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="wiz-alert-webhook-enable" onchange="toggleWizAlertInput('webhook')">
+                                <label for="wiz-alert-webhook-enable" style="font-weight: 600; cursor: pointer;">🪝 Custom Webhook Dispatcher</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="wiz-btn-test-webhook" onclick="testChannelAlert('webhook', 'wiz-alert-webhook-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="wiz-alert-webhook-val" disabled
                             placeholder="https://api.myorg.com/webhooks/drift-receiver">
+                        <div id="wiz-test-feedback-webhook" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
                     </div>
                 </div>
 
@@ -868,14 +893,35 @@
                     <div class="alert-route-item"
                         style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
                         <div class="alert-route-header"
-                            style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            <input type="checkbox" id="edit-alert-slack-enable"
-                                onchange="toggleEditAlertInput('slack')">
-                            <label for="edit-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack
-                                Webhook Channel</label>
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="edit-alert-slack-enable" onchange="toggleEditAlertInput('slack')">
+                                <label for="edit-alert-slack-enable" style="font-weight: 600; cursor: pointer;">💬 Slack Webhook Channel</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="edit-btn-test-slack" onclick="testChannelAlert('slack', 'edit-alert-slack-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="edit-alert-slack-val"
                             placeholder="https://hooks.slack.com/services/...">
+                        <div id="edit-test-feedback-slack" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
+                    </div>
+                    <!-- Microsoft Teams Alert -->
+                    <div class="alert-route-item"
+                        style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
+                        <div class="alert-route-header"
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="edit-alert-teams-enable" onchange="toggleEditAlertInput('teams')">
+                                <label for="edit-alert-teams-enable" style="font-weight: 600; cursor: pointer;">👥 Microsoft Teams Webhook</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="edit-btn-test-teams" onclick="testChannelAlert('teams', 'edit-alert-teams-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
+                        </div>
+                        <input class="form-input alert-route-input" type="text" id="edit-alert-teams-val" disabled
+                            placeholder="https://outlook.office.com/webhook/... or Power Automate URL">
+                        <div id="edit-test-feedback-teams" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
                     </div>
                     <!-- WhatsApp Alert -->
                     <div class="alert-route-item"
@@ -883,8 +929,7 @@
                         <div class="alert-route-header"
                             style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                             <input type="checkbox" id="edit-alert-wp-enable" onchange="toggleEditAlertInput('wp')">
-                            <label for="edit-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp
-                                Event Dispatch</label>
+                            <label for="edit-alert-wp-enable" style="font-weight: 600; cursor: pointer;">🟢 WhatsApp Event Dispatch</label>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="edit-alert-wp-val"
                             placeholder="Phone number (Ex: +123456789)">
@@ -893,14 +938,18 @@
                     <div class="alert-route-item"
                         style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; background: rgba(15,23,42,0.2);">
                         <div class="alert-route-header"
-                            style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            <input type="checkbox" id="edit-alert-webhook-enable"
-                                onchange="toggleEditAlertInput('webhook')">
-                            <label for="edit-alert-webhook-enable" style="font-weight: 600; cursor: pointer;">🪝 Custom
-                                Webhook Dispatcher</label>
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="edit-alert-webhook-enable" onchange="toggleEditAlertInput('webhook')">
+                                <label for="edit-alert-webhook-enable" style="font-weight: 600; cursor: pointer;">🪝 Custom Webhook Dispatcher</label>
+                            </div>
+                            <button type="button" class="btn-secondary" id="edit-btn-test-webhook" onclick="testChannelAlert('webhook', 'edit-alert-webhook-val')" style="display: none; padding: 0.15rem 0.5rem; font-size: 0.7rem; border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                                🔔 Test Channel
+                            </button>
                         </div>
                         <input class="form-input alert-route-input" type="text" id="edit-alert-webhook-val"
                             placeholder="https://api.myorg.com/webhooks/drift-receiver">
+                        <div id="edit-test-feedback-webhook" style="display: none; font-size: 0.72rem; margin-top: 0.35rem;"></div>
                     </div>
                 </div>
 
@@ -1336,7 +1385,9 @@
             let alertsHtml = [];
             if (p.alerts.email) alertsHtml.push('📧 Email');
             if (p.alerts.slack) alertsHtml.push('💬 Slack');
+            if (p.alerts.teams) alertsHtml.push('👥 Teams');
             if (p.alerts.wp) alertsHtml.push('🟢 WP');
+            if (p.alerts.webhook) alertsHtml.push('🪝 Webhook');
             const alertsText = alertsHtml.length > 0 ? alertsHtml.map(a => `<span class="pipe-badge">${a}</span>`).join(' ') : '<span style="color: var(--text-muted);">None</span>';
 
             html += `
@@ -1431,6 +1482,7 @@
         let alerts = [];
         if (found.alerts.email) alerts.push(`Email (${found.alerts.email})`);
         if (found.alerts.slack) alerts.push('Slack Webhook');
+        if (found.alerts.teams) alerts.push('Microsoft Teams');
         if (found.alerts.wp) alerts.push(`WhatsApp (${found.alerts.wp})`);
         if (found.alerts.webhook) alerts.push('Custom Webhook');
         document.getElementById('detail-alerts').innerText = alerts.length > 0 ? alerts.join(', ') : 'None configured';
@@ -1932,6 +1984,19 @@ with DAG(
         document.getElementById('wiz-alert-slack-val').value = '';
         document.getElementById('wiz-alert-slack-val').disabled = true;
 
+        if (document.getElementById('wiz-alert-teams-enable')) {
+            document.getElementById('wiz-alert-teams-enable').checked = false;
+            document.getElementById('wiz-alert-teams-val').value = '';
+            document.getElementById('wiz-alert-teams-val').disabled = true;
+        }
+
+        ['slack', 'teams', 'webhook'].forEach(ch => {
+            const btn = document.getElementById(`wiz-btn-test-${ch}`);
+            if (btn) btn.style.display = 'none';
+            const fb = document.getElementById(`wiz-test-feedback-${ch}`);
+            if (fb) fb.style.display = 'none';
+        });
+
         document.getElementById('wiz-alert-wp-enable').checked = false;
         document.getElementById('wiz-alert-wp-val').value = '';
         document.getElementById('wiz-alert-wp-val').disabled = true;
@@ -2188,6 +2253,10 @@ with DAG(
     function toggleWizAlertInput(channel) {
         const isChecked = document.getElementById(`wiz-alert-${channel}-enable`).checked;
         document.getElementById(`wiz-alert-${channel}-val`).disabled = !isChecked;
+        const testBtn = document.getElementById(`wiz-btn-test-${channel}`);
+        if (testBtn) testBtn.style.display = isChecked ? 'inline-block' : 'none';
+        const fb = document.getElementById(`wiz-test-feedback-${channel}`);
+        if (fb) fb.style.display = 'none';
     }
 
     function wizardTestAndFetchTables() {
@@ -2311,12 +2380,15 @@ with DAG(
         if (cronPreset === 'daily') cronText = 'Daily preset';
         if (cronPreset === 'weekly') cronText = 'Weekly preset';
 
-        const alerts = { email: '', slack: '', wp: '', webhook: '' };
+        const alerts = { email: '', slack: '', teams: '', wp: '', webhook: '' };
         if (document.getElementById('wiz-alert-email-enable').checked) {
             alerts.email = document.getElementById('wiz-alert-email-val').value;
         }
         if (document.getElementById('wiz-alert-slack-enable').checked) {
             alerts.slack = document.getElementById('wiz-alert-slack-val').value;
+        }
+        if (document.getElementById('wiz-alert-teams-enable') && document.getElementById('wiz-alert-teams-enable').checked) {
+            alerts.teams = document.getElementById('wiz-alert-teams-val').value;
         }
         if (document.getElementById('wiz-alert-wp-enable').checked) {
             alerts.wp = document.getElementById('wiz-alert-wp-val').value;
@@ -2383,6 +2455,16 @@ with DAG(
         document.getElementById('edit-alert-slack-enable').checked = !!p.alerts.slack;
         document.getElementById('edit-alert-slack-val').value = p.alerts.slack || '';
         document.getElementById('edit-alert-slack-val').disabled = !p.alerts.slack;
+        const btnEditSlack = document.getElementById('edit-btn-test-slack');
+        if (btnEditSlack) btnEditSlack.style.display = p.alerts.slack ? 'inline-block' : 'none';
+
+        if (document.getElementById('edit-alert-teams-enable')) {
+            document.getElementById('edit-alert-teams-enable').checked = !!(p.alerts && p.alerts.teams);
+            document.getElementById('edit-alert-teams-val').value = (p.alerts && p.alerts.teams) || '';
+            document.getElementById('edit-alert-teams-val').disabled = !(p.alerts && p.alerts.teams);
+            const btnEditTeams = document.getElementById('edit-btn-test-teams');
+            if (btnEditTeams) btnEditTeams.style.display = (p.alerts && p.alerts.teams) ? 'inline-block' : 'none';
+        }
 
         document.getElementById('edit-alert-wp-enable').checked = !!p.alerts.wp;
         document.getElementById('edit-alert-wp-val').value = p.alerts.wp || '';
@@ -2391,6 +2473,8 @@ with DAG(
         document.getElementById('edit-alert-webhook-enable').checked = !!p.alerts.webhook;
         document.getElementById('edit-alert-webhook-val').value = p.alerts.webhook || '';
         document.getElementById('edit-alert-webhook-val').disabled = !p.alerts.webhook;
+        const btnEditWebhook = document.getElementById('edit-btn-test-webhook');
+        if (btnEditWebhook) btnEditWebhook.style.display = p.alerts.webhook ? 'inline-block' : 'none';
 
         // Set schedule preset
         let preset = 'custom';
@@ -2433,6 +2517,10 @@ with DAG(
     function toggleEditAlertInput(channel) {
         const isChecked = document.getElementById(`edit-alert-${channel}-enable`).checked;
         document.getElementById(`edit-alert-${channel}-val`).disabled = !isChecked;
+        const testBtn = document.getElementById(`edit-btn-test-${channel}`);
+        if (testBtn) testBtn.style.display = isChecked ? 'inline-block' : 'none';
+        const fb = document.getElementById(`edit-test-feedback-${channel}`);
+        if (fb) fb.style.display = 'none';
     }
 
     function submitEditForm(event) {
@@ -2447,12 +2535,15 @@ with DAG(
         if (preset === 'daily') cronText = 'Daily preset';
         if (preset === 'weekly') cronText = 'Weekly preset';
 
-        const alerts = { email: '', slack: '', wp: '', webhook: '' };
+        const alerts = { email: '', slack: '', teams: '', wp: '', webhook: '' };
         if (document.getElementById('edit-alert-email-enable').checked) {
             alerts.email = document.getElementById('edit-alert-email-val').value;
         }
         if (document.getElementById('edit-alert-slack-enable').checked) {
             alerts.slack = document.getElementById('edit-alert-slack-val').value;
+        }
+        if (document.getElementById('edit-alert-teams-enable') && document.getElementById('edit-alert-teams-enable').checked) {
+            alerts.teams = document.getElementById('edit-alert-teams-val').value;
         }
         if (document.getElementById('edit-alert-wp-enable').checked) {
             alerts.wp = document.getElementById('edit-alert-wp-val').value;
@@ -2704,6 +2795,63 @@ with DAG(
             .catch(err => {
                 appendChatMessage('assistant', 'Error communicating with AI reasoning model: ' + err.message);
             });
+    }
+    function testChannelAlert(channel, inputId) {
+        const input = document.getElementById(inputId);
+        const target = (input ? input.value : '').trim();
+        const prefix = inputId.startsWith('wiz-') ? 'wiz-' : 'edit-';
+        const feedbackEl = document.getElementById(`${prefix}test-feedback-${channel}`);
+        const testBtn = document.getElementById(`${prefix}btn-test-${channel}`);
+
+        if (!target) {
+            alert(`Please enter a destination URL or target for ${channel.toUpperCase()} before sending a test alert.`);
+            return;
+        }
+
+        if (feedbackEl) {
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.color = '#38bdf8';
+            feedbackEl.innerHTML = '<span class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Dispatching test alert card...';
+        }
+        if (testBtn) testBtn.disabled = true;
+
+        fetch('/api/pipelines/test-alert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                channel: channel,
+                target: target,
+                pipeline_name: 'Schema Guard Continuous Gate',
+                table_name: 'production_orders',
+                db_type: 'postgres'
+            })
+        })
+        .then(r => r.json().then(data => ({ status: r.status, data: data })))
+        .then(res => {
+            if (testBtn) testBtn.disabled = false;
+            if (feedbackEl) {
+                if (res.status >= 400 || !res.data.success) {
+                    feedbackEl.style.color = '#f87171';
+                    feedbackEl.innerText = `❌ Delivery failed: ${res.data.detail || res.data.message || 'Rejected destination'}`;
+                } else {
+                    feedbackEl.style.color = '#4ade80';
+                    feedbackEl.innerText = `✅ ${res.data.message || 'Test alert delivered successfully!'}`;
+                    setTimeout(() => {
+                        if (feedbackEl) feedbackEl.style.display = 'none';
+                    }, 6000);
+                }
+            }
+        })
+        .catch(err => {
+            if (testBtn) testBtn.disabled = false;
+            if (feedbackEl) {
+                feedbackEl.style.color = '#f87171';
+                feedbackEl.innerText = `❌ Network error: ${err.message || err}`;
+            }
+        });
     }
 </script>
 {% endblock %}
