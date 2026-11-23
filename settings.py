@@ -293,6 +293,12 @@ STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'whsec_placehold
 STRIPE_PRO_PRICE_ID = os.environ.get('STRIPE_PRO_PRICE_ID', 'price_pro_monthly')
 STRIPE_ENTERPRISE_PRICE_ID = os.environ.get('STRIPE_ENTERPRISE_PRICE_ID', 'price_enterprise_monthly')
 
+# Razorpay Billing Settings (Automated UPI & Cards)
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', 'rzp_test_placeholder')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
+
+
 PLAN_QUOTAS = {
     'free': {'max_pipelines': 5, 'name': 'Developer (Free)'},
     'pro': {'max_pipelines': 50, 'name': 'Team Pro'},

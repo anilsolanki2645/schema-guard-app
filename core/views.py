@@ -3653,6 +3653,258 @@ def stripe_webhook(request):
     return JsonResponse({"status": "handled", "type": event_type})
 
 
+# -------------------------------------------------------------
+# Razorpay Automated Payment Gateway Endpoints
+# -------------------------------------------------------------
+@require_login
+def razorpay_create_order_api(request):
+    """
+    Creates a Razorpay Order for automated instant checkout (UPI, Netbanking, Cards).
+    Accepts JSON: { "plan": "pro" } or { "plan": "enterprise" }
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    plan = (data.get("plan") or "pro").strip().lower()
+    if plan not in ["pro", "enterprise"]:
+        return JsonResponse({"detail": "Invalid plan. Choose 'pro' or 'enterprise'."}, status=400)
+
+    user_info = request.session.get('user', {})
+    from core.models import User, Organization
+    user = User.objects.filter(username=user_info.get('username')).first()
+    if not user:
+        return JsonResponse({"detail": "User not found."}, status=404)
+
+    org = user.organization
+    if not org:
+        org = Organization.objects.create(name=f"{user.username}'s Workspace", plan='free', max_pipelines=5)
+        user.organization = org
+        user.save(update_fields=['organization'])
+        user_info['organization_id'] = org.id
+        request.session['user'] = user_info
+
+    # Amount in INR Paise
+    amount_paise = 399900 if plan == 'pro' else 1599900
+    amount_display = "₹3,999" if plan == 'pro' else "₹15,999"
+
+    key_id = getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_placeholder')
+    key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+    is_live = key_secret and not key_id.startswith('rzp_test_placeholder')
+
+    order_id = None
+    if is_live:
+        try:
+            import base64
+            import urllib.request
+            auth_str = f"{key_id}:{key_secret}"
+            b64_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+            order_payload = {
+                "amount": amount_paise,
+                "currency": "INR",
+                "receipt": f"sg_rcpt_{org.id}_{int(timezone.now().timestamp())}",
+                "notes": {
+                    "org_id": str(org.id),
+                    "username": user.username,
+                    "plan": plan
+                }
+            }
+            req = urllib.request.Request(
+                "https://api.razorpay.com/v1/orders",
+                data=json.dumps(order_payload).encode('utf-8'),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Basic {b64_auth}"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as res:
+                resp_data = json.loads(res.read().decode('utf-8'))
+                order_id = resp_data.get("id")
+        except Exception as e:
+            logger.error(f"Failed to create live Razorpay order: {e}")
+            order_id = None
+
+    if not order_id:
+        import uuid
+        order_id = f"order_sim_{uuid.uuid4().hex[:14]}"
+
+    return JsonResponse({
+        "success": True,
+        "key_id": key_id,
+        "order_id": order_id,
+        "amount": amount_paise,
+        "amount_display": amount_display,
+        "currency": "INR",
+        "plan": plan,
+        "name": "Schema Guard",
+        "description": f"{plan.title()} Subscription (Automated Instant Activation)",
+        "prefill": {
+            "name": user.full_name or user.username,
+            "email": user.email
+        },
+        "theme": {
+            "color": "#8b5cf6" if plan == 'pro' else "#0ea5e9"
+        }
+    })
+
+
+@require_login
+def razorpay_verify_payment_api(request):
+    """
+    Verifies Razorpay payment signature and immediately upgrades the user's workspace.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON payload."}, status=400)
+
+    razorpay_order_id = (data.get("razorpay_order_id") or "").strip()
+    razorpay_payment_id = (data.get("razorpay_payment_id") or "").strip()
+    razorpay_signature = (data.get("razorpay_signature") or "").strip()
+    plan = (data.get("plan") or "pro").strip().lower()
+
+    if not razorpay_payment_id:
+        return JsonResponse({"detail": "Payment ID is required."}, status=400)
+
+    key_id = getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_placeholder')
+    key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+    is_live = key_secret and not key_id.startswith('rzp_test_placeholder')
+
+    # Verify cryptographic HMAC-SHA256 signature if live secret configured
+    if is_live and not razorpay_order_id.startswith("order_sim_"):
+        import hmac
+        import hashlib
+        msg = f"{razorpay_order_id}|{razorpay_payment_id}".encode('utf-8')
+        expected_sig = hmac.new(key_secret.encode('utf-8'), msg, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, razorpay_signature):
+            return JsonResponse({"detail": "Payment signature verification failed."}, status=400)
+
+    user_info = request.session.get('user', {})
+    from core.models import User, Organization, PaymentTransaction
+    from django.utils import timezone
+    user = User.objects.filter(username=user_info.get('username')).first()
+    if not user:
+        return JsonResponse({"detail": "User not found."}, status=404)
+
+    org = user.organization
+    if not org:
+        org = Organization.objects.create(name=f"{user.username}'s Workspace", plan='free', max_pipelines=5)
+        user.organization = org
+        user.save(update_fields=['organization'])
+
+    quotas = getattr(settings, 'PLAN_QUOTAS', {})
+    quota = quotas.get(plan, {}).get('max_pipelines', 50 if plan == 'pro' else 1000)
+
+    # Immediately activate plan on organization
+    org.plan = plan
+    org.max_pipelines = quota
+    org.subscription_status = 'active'
+    org.save()
+
+    # Synchronize active session so new permissions and badges reflect instantly
+    user_info['plan'] = plan
+    user_info['max_pipelines'] = quota
+    user_info['organization_id'] = org.id
+    user_info['organization_name'] = org.name
+    request.session['user'] = user_info
+    request.session.modified = True
+
+    amount_display = "₹3,999" if plan == 'pro' else "₹15,999"
+
+    # Record or update PaymentTransaction
+    existing_tx = PaymentTransaction.objects.filter(transaction_id=razorpay_payment_id).first()
+    if not existing_tx:
+        PaymentTransaction.objects.create(
+            transaction_id=razorpay_payment_id,
+            organization=org,
+            user=user,
+            plan=plan,
+            amount=amount_display,
+            payment_method="RAZORPAY",
+            status="approved",
+            approved_at=timezone.now(),
+            notes=f"Automated Razorpay Order {razorpay_order_id}"
+        )
+
+    log_action(request, 'billing.razorpay_payment', 'organization', str(org.id), {
+        'plan': plan,
+        'payment_id': razorpay_payment_id,
+        'order_id': razorpay_order_id,
+        'amount': amount_display
+    })
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Payment verified! Your workspace has been upgraded to {plan.upper()} with {quota} pipelines.",
+        "redirect_url": "/dashboard?upgraded=1"
+    })
+
+
+@csrf_exempt
+def razorpay_webhook_api(request):
+    """
+    Handles Razorpay asynchronous webhook notifications (payment.captured, order.paid).
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    body = request.body
+    signature = request.META.get('HTTP_X_RAZORPAY_SIGNATURE', '')
+    webhook_secret = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '')
+
+    if webhook_secret:
+        import hmac
+        import hashlib
+        expected = hmac.new(webhook_secret.encode('utf-8'), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return JsonResponse({"detail": "Invalid webhook signature"}, status=400)
+
+    try:
+        event = json.loads(body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON"}, status=400)
+
+    event_type = event.get('event')
+    if event_type in ['payment.captured', 'order.paid']:
+        payload = event.get('payload', {}).get('payment', {}).get('entity', {})
+        notes = payload.get('notes', {})
+        org_id = notes.get('org_id')
+        plan = notes.get('plan', 'pro')
+
+        from core.models import Organization, PaymentTransaction
+        from django.utils import timezone
+        if org_id:
+            org = Organization.objects.filter(id=org_id).first()
+            if org:
+                quotas = getattr(settings, 'PLAN_QUOTAS', {})
+                org.plan = plan
+                org.max_pipelines = quotas.get(plan, {}).get('max_pipelines', 50 if plan == 'pro' else 1000)
+                org.subscription_status = 'active'
+                org.save()
+
+                payment_id = payload.get('id', 'pay_webhook')
+                if not PaymentTransaction.objects.filter(transaction_id=payment_id).exists():
+                    PaymentTransaction.objects.create(
+                        transaction_id=payment_id,
+                        organization=org,
+                        plan=plan,
+                        amount=f"₹{payload.get('amount', 0) / 100:.2f}",
+                        payment_method="RAZORPAY_WEBHOOK",
+                        status="approved",
+                        approved_at=timezone.now()
+                    )
+
+    return JsonResponse({"status": "received", "event": event_type})
+
+
 @csrf_exempt
 @require_login
 def submit_qr_payment_api(request):

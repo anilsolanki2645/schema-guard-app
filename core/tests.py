@@ -1260,4 +1260,110 @@ class RichAlertingTests(TestCase):
         self.assertEqual(res.status_code, 400)
 
 
+class RazorpayBillingTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Razorpay Workspace", plan="free", max_pipelines=5)
+        self.user = User.objects.create(
+            username="rzp_user",
+            email="rzp@example.com",
+            password_hash=hash_password("SecurePass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+
+    def test_razorpay_create_order_authenticated(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rzp_user',
+            'password': 'SecurePass123!',
+        })
+        url = reverse('razorpay_create_order_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"plan": "pro"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["amount"], 399900)
+        self.assertEqual(data["currency"], "INR")
+        self.assertTrue(data["order_id"].startswith("order_"))
+
+    def test_razorpay_create_order_unauthenticated(self):
+        url = reverse('razorpay_create_order_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({"plan": "pro"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 302)
+
+    def test_razorpay_verify_payment_simulated_success(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rzp_user',
+            'password': 'SecurePass123!',
+        })
+        url = reverse('razorpay_verify_payment_api')
+        res = self.client.post(
+            url,
+            data=json.dumps({
+                "plan": "pro",
+                "razorpay_order_id": "order_sim_test123",
+                "razorpay_payment_id": "pay_test_abc999",
+                "razorpay_signature": ""
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.plan, "pro")
+        self.assertEqual(self.org.max_pipelines, 50)
+        self.assertEqual(self.org.subscription_status, "active")
+
+        # Verify PaymentTransaction created
+        from core.models import PaymentTransaction
+        tx = PaymentTransaction.objects.filter(transaction_id="pay_test_abc999").first()
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.plan, "pro")
+        self.assertEqual(tx.payment_method, "RAZORPAY")
+        self.assertEqual(tx.status, "approved")
+
+    def test_razorpay_webhook_captured_success(self):
+        url = reverse('razorpay_webhook_api')
+        payload = {
+            "event": "payment.captured",
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": "pay_webhook_999",
+                        "amount": 1599900,
+                        "notes": {
+                            "org_id": str(self.org.id),
+                            "plan": "enterprise"
+                        }
+                    }
+                }
+            }
+        }
+        res = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["status"], "received")
+
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.plan, "enterprise")
+        self.assertEqual(self.org.max_pipelines, 1000)
+
+
+
 

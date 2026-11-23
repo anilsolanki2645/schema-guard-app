@@ -108,6 +108,7 @@ class AuditLog(models.Model):
         ('billing.subscription_updated', 'Stripe Subscription Updated'),
         ('billing.subscription_cancelled', 'Stripe Subscription Cancelled'),
         ('billing.qr_payment', 'UPI QR Payment Verified'),
+        ('billing.razorpay_payment', 'Razorpay Automated Payment Verified'),
         ('user.oauth_login', 'User OAuth Login'),
         ('org.member_invited', 'Team Member Invited'),
         ('org.invite_revoked', 'Invitation Revoked'),

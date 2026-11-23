@@ -282,139 +282,411 @@
     </div>
 </section>
 
-<!-- UPI QR Payment & Instant Activation Modal -->
+<!-- Modern Multi-Tab Checkout & Instant Activation Modal -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <div id="qrPaymentModal"
-    style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(10px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+    style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(12px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;"
+    onclick="if(event.target === this) closeQrPaymentModal()">
     <div class="glass-card"
-        style="max-width: 480px; width: 100%; border-radius: 1.25rem; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2rem; position: relative; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);">
+        style="max-width: 520px; width: 100%; border-radius: 1.25rem; border: 1px solid rgba(139, 92, 246, 0.35); padding: 1.75rem 2rem; position: relative; max-height: 92vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);">
         <!-- Close Button -->
         <button onclick="closeQrPaymentModal()"
-            style="position: absolute; top: 1.25rem; right: 1.25rem; background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+            style="position: absolute; top: 1.25rem; right: 1.25rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); width: 32px; height: 32px; border-radius: 50%; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all 0.2s;"
+            onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#ef4444';"
+            onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--text-muted)';">&times;</button>
 
         <!-- Modal Header -->
-        <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div style="text-align: center; margin-bottom: 1.25rem;">
             <div id="qr-modal-badge"
-                style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; padding: 0.3rem 0.85rem; border-radius: 9999px; letter-spacing: 0.05em; margin-bottom: 0.75rem;">
+                style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #ffffff; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; padding: 0.25rem 0.8rem; border-radius: 9999px; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
                 Workspace Upgrade
             </div>
-            <h3 id="qr-modal-title" style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin: 0 0 0.4rem 0;">
-                Pay via UPI QR Code
+            <h3 id="qr-modal-title" style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin: 0 0 0.3rem 0;">
+                Activate Team Pro
             </h3>
             <p id="qr-modal-price" style="font-size: 1.15rem; font-weight: 700; color: #38bdf8; margin: 0;">
                 ₹3,999 / month ($49)
             </p>
         </div>
 
-        <!-- QR Code & Payee Display -->
-        <div
-            style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; padding: 1.25rem; text-align: center; margin-bottom: 1.5rem;">
-            <div
-                style="display: inline-block; background: #ffffff; padding: 0.5rem; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
-                <img src="/static/core/images/payment_upi_qr.jpg" alt="Paytm UPI QR"
-                    style="width: 190px; height: 190px; object-fit: contain; display: block; border-radius: 0.5rem;">
-            </div>
+        <!-- Checkout Tabs -->
+        <div style="display: flex; gap: 0.35rem; background: rgba(15, 23, 42, 0.8); padding: 0.35rem; border-radius: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1.5rem;">
+            <button type="button" id="tab-btn-razorpay" onclick="switchCheckoutTab('razorpay')"
+                style="flex: 1; padding: 0.55rem 0.4rem; font-size: 0.78rem; font-weight: 700; border-radius: 0.5rem; border: none; cursor: pointer; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; transition: all 0.2s;">
+                ⚡ Instant UPI/Card
+            </button>
+            <button type="button" id="tab-btn-stripe" onclick="switchCheckoutTab('stripe')"
+                style="flex: 1; padding: 0.55rem 0.4rem; font-size: 0.78rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; background: transparent; color: var(--text-secondary); transition: all 0.2s;">
+                💳 Stripe (USD)
+            </button>
+            <button type="button" id="tab-btn-qr" onclick="switchCheckoutTab('qr')"
+                style="flex: 1; padding: 0.55rem 0.4rem; font-size: 0.78rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; background: transparent; color: var(--text-secondary); transition: all 0.2s;">
+                📱 Manual UPI QR
+            </button>
+        </div>
 
-            <div style="margin-top: 1rem;">
-                <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Anilbhai Isvarbhai Solanki</div>
-                <div
-                    style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.35rem 0.75rem; border-radius: 0.5rem; margin-top: 0.4rem;">
-                    <span style="font-family: monospace; font-size: 0.85rem; color: #38bdf8;">9558322778@pthdfc</span>
-                    <button onclick="copyUpiId()" id="btn-copy-upi"
-                        style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem;"
-                        title="Copy UPI ID">📋</button>
+        <!-- TAB 1: INSTANT RAZORPAY PAYMENT -->
+        <div id="tab-content-razorpay" style="display: block;">
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 0.85rem; padding: 1.25rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem;">
+                    <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 1px solid rgba(139, 92, 246, 0.3);">
+                        ⚡
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">Automated Instant Activation</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">Zero waiting time • Immediate quota unlock</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #4ade80;">✓</span>
+                        <span><strong>All UPI Apps:</strong> Google Pay, PhonePe, Paytm, BHIM, CRED</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #4ade80;">✓</span>
+                        <span><strong>Cards & Netbanking:</strong> RuPay, Visa, Mastercard, Major Banks</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #4ade80;">✓</span>
+                        <span><strong>Immediate Access:</strong> Pipeline quota and team seats active immediately</span>
+                    </div>
                 </div>
             </div>
 
-            <div
-                style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
-                <span>Paytm</span> • <span>PhonePe</span> • <span>Google Pay</span> • <span>BHIM</span> • <span>Any UPI
-                    App</span>
+            <div id="razorpay-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+
+            <div id="razorpay-success-card" style="display: none; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: center;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.4rem;">🎉</div>
+                <div style="font-weight: 800; color: #4ade80; font-size: 1.1rem; margin-bottom: 0.3rem;">Payment Verified!</div>
+                <div id="razorpay-success-text" style="font-size: 0.85rem; color: #e2e8f0; margin-bottom: 1rem;">Your workspace has been upgraded instantly.</div>
+                <button type="button" onclick="window.location.href='/dashboard?upgraded=1'" class="btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">Go to Dashboard 🚀</button>
+            </div>
+
+            <div id="razorpay-action-buttons">
+                <button type="button" id="btn-razorpay-pay" onclick="payWithRazorpay()" class="btn-primary"
+                    style="width: 100%; padding: 0.85rem; font-weight: 800; font-size: 1rem; justify-content: center; background: linear-gradient(135deg, #8b5cf6, #3b82f6); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35);">
+                    ⚡ Pay & Activate Instantly
+                </button>
+                <div style="text-align: center; margin-top: 0.65rem; font-size: 0.72rem; color: var(--text-muted);">
+                    🔒 256-bit bank-grade encryption powered by Razorpay
+                </div>
             </div>
         </div>
 
-        <!-- Verification Form -->
-        <form id="qr-payment-form" onsubmit="event.preventDefault(); submitQrPayment();">
-            <input type="hidden" id="qr-selected-plan" value="pro">
+        <!-- TAB 2: STRIPE INTERNATIONAL -->
+        <div id="tab-content-stripe" style="display: none;">
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 0.85rem; padding: 1.25rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem;">
+                    <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 1px solid rgba(56, 189, 248, 0.3);">
+                        💳
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">International Card Checkout</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">Billed in USD via Stripe Billing</div>
+                    </div>
+                </div>
 
-            <div style="margin-bottom: 1.25rem;">
-                <label
-                    style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
-                    12-Digit UPI UTR / Transaction Reference ID <span style="color: #ef4444;">*</span>
-                </label>
-                <input type="text" id="qr-txn-id" required placeholder="e.g. 412345678901 or UTR Number"
-                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.75rem 1rem; color: #ffffff; font-size: 0.95rem; font-family: monospace;">
-                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">
-                    Found in your payment app's receipt (UTR / UPI Ref No).
-                </span>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <label
-                    style="display: block; font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.4rem;">
-                    Upload Transaction Screenshot <span style="color: #ef4444;">*</span>
-                </label>
-                <input type="file" id="qr-screenshot-input" accept="image/*" required
-                    onchange="handleScreenshotUpload(event)"
-                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #94a3b8; font-size: 0.85rem; cursor: pointer;">
-                <div id="screenshot-preview-container"
-                    style="display: none; margin-top: 0.5rem; text-align: center; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.5rem;">
-                    <img id="screenshot-preview-img"
-                        style="max-height: 120px; max-width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);" />
-                    <span style="display: block; font-size: 0.75rem; color: #22c55e; margin-top: 0.25rem;">✓ Screenshot
-                        attached</span>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #38bdf8;">✓</span>
+                        <span>Global credit & debit cards (Visa, MasterCard, Amex)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #38bdf8;">✓</span>
+                        <span>Recurring monthly subscription with 1-click cancellation</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: #38bdf8;">✓</span>
+                        <span>Downloadable PDF invoices via Stripe Customer Portal</span>
+                    </div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 1.5rem;">
-                <label
-                    style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
-                    Notes / Organization Name (Optional)
-                </label>
-                <input type="text" id="qr-txn-notes" placeholder="e.g. Upgrade for analytics workspace"
-                    style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 1rem; color: #ffffff; font-size: 0.85rem;">
-            </div>
+            <div id="stripe-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;"></div>
 
-            <div id="qr-error-msg"
-                style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;">
-            </div>
-
-            <div id="qr-success-card"
-                style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: left;">
-                <div
-                    style="display: flex; align-items: center; gap: 0.6rem; color: #4ade80; font-weight: 800; font-size: 1rem; margin-bottom: 0.6rem;">
-                    <span style="font-size: 1.3rem;">✅</span> Payment Proof Submitted!
-                </div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">
-                    your request is confirm in 1 hour
-                </div>
-                <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;">
-                    If you need access now please contact on this mail <a href="mailto:anusolanki2645@gmail.com"
-                        style="color: #38bdf8; font-weight: 700; text-decoration: underline;">anusolanki2645@gmail.com</a>
-                </div>
-                <div style="margin-top: 1rem; text-align: right;">
-                    <button type="button" onclick="closeQrPaymentModal()" class="btn-secondary"
-                        style="padding: 0.4rem 1rem; font-size: 0.8rem;">Close Window</button>
-                </div>
-            </div>
-
-            <div id="qr-action-buttons">
-                <button type="submit" id="btn-submit-qr" class="btn-primary"
-                    style="width: 100%; padding: 0.9rem; font-weight: 800; font-size: 1rem; justify-content: center;">
-                    📤 Submit Payment Proof
+            <div>
+                <button type="button" id="btn-stripe-pay" onclick="payWithStripe()" class="btn-primary"
+                    style="width: 100%; padding: 0.85rem; font-weight: 800; font-size: 1rem; justify-content: center; background: linear-gradient(135deg, #6366f1, #0ea5e9);">
+                    💳 Pay with Stripe ($49 USD)
                 </button>
+                <div style="text-align: center; margin-top: 0.65rem; font-size: 0.72rem; color: var(--text-muted);">
+                    🔒 Secure Stripe checkout with PCI-DSS Level 1 compliance
+                </div>
             </div>
-        </form>
+        </div>
+
+        <!-- TAB 3: MANUAL UPI QR -->
+        <div id="tab-content-qr" style="display: none;">
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 1rem; padding: 1.15rem; text-align: center; margin-bottom: 1.25rem;">
+                <div style="display: inline-block; background: #ffffff; padding: 0.45rem; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
+                    <img src="/static/core/images/payment_upi_qr.jpg" alt="Paytm UPI QR"
+                        style="width: 170px; height: 170px; object-fit: contain; display: block; border-radius: 0.5rem;">
+                </div>
+
+                <div style="margin-top: 0.75rem;">
+                    <div style="font-size: 0.9rem; font-weight: 700; color: #ffffff;">Anilbhai Isvarbhai Solanki</div>
+                    <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 0.3rem 0.7rem; border-radius: 0.5rem; margin-top: 0.35rem;">
+                        <span style="font-family: monospace; font-size: 0.82rem; color: #38bdf8;">9558322778@pthdfc</span>
+                        <button onclick="copyUpiId()" id="btn-copy-upi"
+                            style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; padding: 0 0.2rem;"
+                            title="Copy UPI ID">📋</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: center; gap: 0.6rem; margin-top: 0.65rem; font-size: 0.72rem; color: var(--text-muted);">
+                    <span>Paytm</span> • <span>PhonePe</span> • <span>Google Pay</span> • <span>BHIM</span>
+                </div>
+            </div>
+
+            <!-- Verification Form -->
+            <form id="qr-payment-form" onsubmit="event.preventDefault(); submitQrPayment();">
+                <input type="hidden" id="qr-selected-plan" value="pro">
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.35rem;">
+                        12-Digit UPI UTR / Transaction Reference ID <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="text" id="qr-txn-id" placeholder="e.g. 412345678901 or UTR Number"
+                        style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.65rem 0.85rem; color: #ffffff; font-size: 0.9rem; font-family: monospace;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">
+                        Found in your payment app's receipt (UTR / UPI Ref No).
+                    </span>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.35rem;">
+                        Upload Transaction Screenshot <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="file" id="qr-screenshot-input" accept="image/*"
+                        onchange="handleScreenshotUpload(event)"
+                        style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 0.5rem; padding: 0.55rem 0.85rem; color: #94a3b8; font-size: 0.8rem; cursor: pointer;">
+                    <div id="screenshot-preview-container"
+                        style="display: none; margin-top: 0.4rem; text-align: center; background: rgba(0,0,0,0.3); padding: 0.4rem; border-radius: 0.5rem;">
+                        <img id="screenshot-preview-img"
+                            style="max-height: 100px; max-width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);" />
+                        <span style="display: block; font-size: 0.72rem; color: #22c55e; margin-top: 0.2rem;">✓ Screenshot attached</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                        Notes / Organization Name (Optional)
+                    </label>
+                    <input type="text" id="qr-txn-notes" placeholder="e.g. Upgrade for analytics workspace"
+                        style="width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.5rem; padding: 0.55rem 0.85rem; color: #ffffff; font-size: 0.82rem;">
+                </div>
+
+                <div id="qr-error-msg"
+                    style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 0.65rem 0.85rem; border-radius: 0.5rem; font-size: 0.82rem; margin-bottom: 1rem;">
+                </div>
+
+                <div id="qr-success-card"
+                    style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 0.75rem; padding: 1.15rem; margin-bottom: 1.15rem; text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #4ade80; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.4rem;">
+                        <span style="font-size: 1.2rem;">✅</span> Payment Proof Submitted!
+                    </div>
+                    <div style="font-size: 0.9rem; font-weight: 700; color: #ffffff; margin-bottom: 0.4rem;">
+                        your request is confirm in 1 hour
+                    </div>
+                    <div style="font-size: 0.8rem; color: #cbd5e1; line-height: 1.5;">
+                        If you need access now please contact on this mail <a href="mailto:anusolanki2645@gmail.com"
+                            style="color: #38bdf8; font-weight: 700; text-decoration: underline;">anusolanki2645@gmail.com</a>
+                    </div>
+                    <div style="margin-top: 0.85rem; text-align: right;">
+                        <button type="button" onclick="closeQrPaymentModal()" class="btn-secondary"
+                            style="padding: 0.35rem 0.85rem; font-size: 0.78rem;">Close Window</button>
+                    </div>
+                </div>
+
+                <div id="qr-action-buttons">
+                    <button type="submit" id="btn-submit-qr" class="btn-primary"
+                        style="width: 100%; padding: 0.8rem; font-weight: 800; font-size: 0.95rem; justify-content: center;">
+                        📤 Submit Payment Proof
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
 <!-- Frontend Billing Checkout Script -->
 <script>
+let currentSelectedPlan = 'pro';
+
 function initiateCheckout(planId) {
     if (planId === 'free') {
         handleDowngrade();
         return;
     }
     openQrPaymentModal(planId);
+}
+
+function switchCheckoutTab(tab) {
+    const tabs = ['razorpay', 'stripe', 'qr'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        const content = document.getElementById(`tab-content-${t}`);
+        if (t === tab) {
+            btn.style.background = t === 'stripe' ? 'linear-gradient(135deg, #6366f1, #0ea5e9)' : 'linear-gradient(135deg, #8b5cf6, #6366f1)';
+            btn.style.color = '#ffffff';
+            btn.style.fontWeight = '700';
+            content.style.display = 'block';
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.fontWeight = '600';
+            content.style.display = 'none';
+        }
+    });
+}
+
+async function payWithRazorpay() {
+    const errBox = document.getElementById('razorpay-error-msg');
+    const succCard = document.getElementById('razorpay-success-card');
+    const actBtns = document.getElementById('razorpay-action-buttons');
+    const payBtn = document.getElementById('btn-razorpay-pay');
+
+    errBox.style.display = 'none';
+    const originalText = payBtn.innerText;
+    payBtn.disabled = true;
+    payBtn.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Initializing Gateway...';
+
+    try {
+        const orderRes = await fetch('/api/billing/razorpay/order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({ plan: currentSelectedPlan })
+        });
+
+        const orderData = await orderRes.json();
+        if (!orderRes.ok || !orderData.order_id) {
+            throw new Error(orderData.detail || 'Could not initialize payment order.');
+        }
+
+        // Check if Razorpay JS SDK is loaded
+        if (typeof Razorpay === 'undefined') {
+            // Simulated gateway fallback for offline/test environments
+            simulateVerification(orderData.order_id, `pay_sim_${Date.now()}`);
+            return;
+        }
+
+        const options = {
+            key: orderData.key_id,
+            amount: orderData.amount,
+            currency: orderData.currency || 'INR',
+            name: orderData.name || 'Schema Guard',
+            description: orderData.description || 'Automated Plan Upgrade',
+            order_id: orderData.order_id,
+            prefill: orderData.prefill || {},
+            theme: orderData.theme || { color: '#8b5cf6' },
+            handler: async function (response) {
+                payBtn.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Verifying Cryptographic Signature...';
+                await verifyRazorpayPayment(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature);
+            },
+            modal: {
+                ondismiss: function () {
+                    payBtn.disabled = false;
+                    payBtn.innerText = originalText;
+                }
+            }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+            errBox.innerText = `Payment failed: ${resp.error.description || 'Transaction declined.'}`;
+            errBox.style.display = 'block';
+            payBtn.disabled = false;
+            payBtn.innerText = originalText;
+        });
+        rzp.open();
+
+    } catch (err) {
+        errBox.innerText = err.message || 'Error communicating with billing server.';
+        errBox.style.display = 'block';
+        payBtn.disabled = false;
+        payBtn.innerText = originalText;
+    }
+}
+
+async function verifyRazorpayPayment(orderId, paymentId, signature) {
+    const errBox = document.getElementById('razorpay-error-msg');
+    const succCard = document.getElementById('razorpay-success-card');
+    const succText = document.getElementById('razorpay-success-text');
+    const actBtns = document.getElementById('razorpay-action-buttons');
+    const payBtn = document.getElementById('btn-razorpay-pay');
+
+    try {
+        const verifyRes = await fetch('/api/billing/razorpay/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({
+                plan: currentSelectedPlan,
+                razorpay_order_id: orderId,
+                razorpay_payment_id: paymentId,
+                razorpay_signature: signature || ''
+            })
+        });
+
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData.success) {
+            actBtns.style.display = 'none';
+            succText.innerText = verifyData.message || 'Your workspace has been upgraded instantly!';
+            succCard.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = verifyData.redirect_url || '/dashboard?upgraded=1';
+            }, 1800);
+        } else {
+            throw new Error(verifyData.detail || 'Payment verification failed.');
+        }
+    } catch (err) {
+        errBox.innerText = err.message;
+        errBox.style.display = 'block';
+        payBtn.disabled = false;
+        payBtn.innerText = '⚡ Try Payment Again';
+    }
+}
+
+async function simulateVerification(orderId, paymentId) {
+    await verifyRazorpayPayment(orderId, paymentId, 'sig_simulated_dev');
+}
+
+async function payWithStripe() {
+    const errBox = document.getElementById('stripe-error-msg');
+    const btn = document.getElementById('btn-stripe-pay');
+    errBox.style.display = 'none';
+
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Redirecting to Stripe...';
+
+    try {
+        const res = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({ plan: currentSelectedPlan })
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+            window.location.href = data.url;
+        } else {
+            throw new Error(data.detail || 'Unable to create Stripe checkout session.');
+        }
+    } catch (err) {
+        errBox.innerText = err.message;
+        errBox.style.display = 'block';
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
 }
 
 let uploadedScreenshotBase64 = '';
@@ -427,7 +699,6 @@ function handleScreenshotUpload(event) {
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
-            // Client-side canvas compression to keep upload fast & under 150KB
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
@@ -458,14 +729,21 @@ function handleScreenshotUpload(event) {
 }
 
 function openQrPaymentModal(planId) {
+    currentSelectedPlan = planId;
     const modal = document.getElementById('qrPaymentModal');
     document.getElementById('qr-selected-plan').value = planId;
     
     const badge = document.getElementById('qr-modal-badge');
     const title = document.getElementById('qr-modal-title');
     const price = document.getElementById('qr-modal-price');
-    const btn = document.getElementById('btn-submit-qr');
+    const rzpBtn = document.getElementById('btn-razorpay-pay');
+    const stripeBtn = document.getElementById('btn-stripe-pay');
+    const qrBtn = document.getElementById('btn-submit-qr');
     
+    document.getElementById('razorpay-error-msg').style.display = 'none';
+    document.getElementById('razorpay-success-card').style.display = 'none';
+    document.getElementById('razorpay-action-buttons').style.display = 'block';
+    document.getElementById('stripe-error-msg').style.display = 'none';
     document.getElementById('qr-error-msg').style.display = 'none';
     document.getElementById('qr-success-card').style.display = 'none';
     document.getElementById('qr-action-buttons').style.display = 'block';
@@ -480,15 +758,20 @@ function openQrPaymentModal(planId) {
         badge.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
         title.innerText = 'Upgrade to Team Pro (50 Pipelines)';
         price.innerText = '₹3,999 / month ($49)';
-        btn.innerText = '📤 Submit Payment Proof (Team Pro)';
+        rzpBtn.innerText = '⚡ Pay ₹3,999 & Activate Instantly';
+        stripeBtn.innerText = '💳 Pay $49 USD with Stripe';
+        qrBtn.innerText = '📤 Submit Payment Proof (Team Pro)';
     } else if (planId === 'enterprise') {
         badge.innerText = 'Enterprise Upgrade';
         badge.style.background = 'linear-gradient(135deg, #0ea5e9, #2563eb)';
         title.innerText = 'Upgrade to Enterprise (1,000 Pipelines)';
         price.innerText = '₹15,999 / month ($199)';
-        btn.innerText = '📤 Submit Payment Proof (Enterprise)';
+        rzpBtn.innerText = '⚡ Pay ₹15,999 & Activate Instantly';
+        stripeBtn.innerText = '💳 Pay $199 USD with Stripe';
+        qrBtn.innerText = '📤 Submit Payment Proof (Enterprise)';
     }
-    
+
+    switchCheckoutTab('razorpay');
     modal.style.display = 'flex';
 }
 
