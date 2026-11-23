@@ -2999,6 +2999,120 @@ class ColumnDataQualityRulesTests(TestCase):
                 os.remove(db_path)
 
 
+class MultiChannelAlertRoutingTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Routing Ops Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="routing_lead",
+            email="lead@routing.com",
+            password_hash=hash_password("RoutePass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-route-01",
+            organization=self.org,
+            name="Payments Ingestion PROD",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="transactions",
+            contract_yaml="columns:\n  - name: txn_id\n    type: varchar\n",
+            lock_signature="f" * 64,
+            schema_map={"txn_id": "varchar"},
+            alerts={
+                "email": "legacy@org.com",
+                "slack": "https://hooks.slack.com/services/T00/B00/X00",
+                "routing": {
+                    "enabled": True,
+                    "rules": [
+                        {
+                            "channel": "slack",
+                            "target": "https://hooks.slack.com/services/T00/PROD/CRITICAL",
+                            "min_severity": "CRITICAL",
+                            "environments": ["prod"]
+                        },
+                        {
+                            "channel": "email",
+                            "target": "oncall-team@org.com",
+                            "min_severity": "HIGH",
+                            "environments": ["prod", "staging"]
+                        }
+                    ]
+                }
+            },
+            status="Clean"
+        )
+
+    def test_calculate_drift_severity(self):
+        from core.notifications import calculate_drift_severity
+        self.assertEqual(calculate_drift_severity([]), "LOW")
+        self.assertEqual(calculate_drift_severity(["COLUMN DROPPED: user_id"]), "CRITICAL")
+        self.assertEqual(calculate_drift_severity([], dq_status="FAIL"), "HIGH")
+        self.assertEqual(calculate_drift_severity(["COLUMN ADDED: new_feature"]), "MEDIUM")
+
+    def test_evaluate_alert_routing_policy(self):
+        from core.notifications import evaluate_alert_routing
+        alerts_cfg = self.pipeline.alerts
+
+        # 1. Critical in Prod -> matches Slack & Email
+        dispatches = evaluate_alert_routing(alerts_cfg, severity="CRITICAL", environment="prod")
+        channels = [d["channel"] for d in dispatches]
+        self.assertIn("slack", channels)
+        self.assertIn("email", channels)
+
+        # 2. Medium in Prod -> below min_severity for both rules -> no dispatch
+        dispatches_med = evaluate_alert_routing(alerts_cfg, severity="MEDIUM", environment="prod")
+        self.assertEqual(len(dispatches_med), 0)
+
+        # 3. High in Staging -> matches Email only
+        dispatches_stg = evaluate_alert_routing(alerts_cfg, severity="HIGH", environment="staging")
+        self.assertEqual(len(dispatches_stg), 1)
+        self.assertEqual(dispatches_stg[0]["channel"], "email")
+
+    def test_get_and_post_pipeline_alert_routing_api(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'routing_lead',
+            'password': 'RoutePass123!',
+        })
+        url = reverse('pipeline_alert_routing_api', args=[self.pipeline.id])
+        get_res = self.client.get(url)
+        self.assertEqual(get_res.status_code, 200)
+        data = json.loads(get_res.content)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["routing"]["enabled"])
+        self.assertEqual(len(data["routing"]["rules"]), 2)
+
+        # Update rules via POST
+        post_res = self.client.post(
+            url,
+            data=json.dumps({
+                "enabled": True,
+                "rules": [
+                    {
+                        "channel": "webhook",
+                        "target": "https://api.internal.com/data-alerts",
+                        "min_severity": "MEDIUM",
+                        "environments": ["*"]
+                    }
+                ]
+            }),
+            content_type="application/json"
+        )
+        self.assertEqual(post_res.status_code, 200)
+        self.pipeline.refresh_from_db()
+        self.assertEqual(len(self.pipeline.alerts["routing"]["rules"]), 1)
+        self.assertEqual(self.pipeline.alerts["routing"]["rules"][0]["channel"], "webhook")
+
+
+
 
 
 

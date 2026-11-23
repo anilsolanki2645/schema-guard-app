@@ -94,6 +94,7 @@ urlpatterns = [
     path('api/pipelines/<str:id>/timeline', views.get_pipeline_timeline_api, name='get_pipeline_timeline_api'),
     path('api/pipelines/<str:id>/timeline/diff', views.diff_pipeline_timeline_api, name='diff_pipeline_timeline_api'),
     path('api/pipelines/<str:id>/dq-rules', views.pipeline_dq_rules_api, name='pipeline_dq_rules_api'),
+    path('api/pipelines/<str:id>/alert-routing', views.pipeline_alert_routing_api, name='pipeline_alert_routing_api'),
     path('api/pipelines/<str:id>/ai-diagnostics', views.run_ai_diagnostics_api, name='run_ai_diagnostics_api'),
     path('api/pipelines/<str:id>/badge', views.pipeline_badge_api, name='pipeline_badge_api'),
     path('api/pipelines/<str:id>/validate-gate', csrf_exempt(views.validate_pipeline_gate_api), name='validate_pipeline_gate_api'),

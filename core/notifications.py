@@ -39,6 +39,78 @@ def validate_webhook_url(url: str, allow_internal: bool = False) -> tuple[bool, 
     return True, "Valid"
 
 
+SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+
+
+def calculate_drift_severity(violations: list, dq_status: str = "PASS") -> str:
+    """Calculates overall severity level for a drift or DQ violation set."""
+    if not violations and dq_status == "PASS":
+        return "LOW"
+    v_str = " ".join(str(v).upper() for v in violations)
+    if any(kw in v_str for kw in ["DROPPED", "MISSING", "NOT FOUND", "BREAKING", "TYPE MISMATCH"]):
+        return "CRITICAL"
+    if dq_status == "FAIL" or any(kw in v_str for kw in ["NULL", "PRIMARY", "UNIQUE", "NOT NULL"]):
+        return "HIGH"
+    if any(kw in v_str for kw in ["ADDED", "WIDENED", "ENUM", "RANGE"]):
+        return "MEDIUM"
+    return "LOW"
+
+
+def evaluate_alert_routing(alerts_config: dict, severity: str, environment: str = "prod") -> list[dict]:
+    """
+    Evaluates pipeline alert routing policy.
+    Returns list of active target channels [{ "channel": "slack", "target": "...", "severity": ... }].
+    If no smart routing policy is configured, falls back to legacy alerts dict mapping.
+    """
+    if not alerts_config or not isinstance(alerts_config, dict):
+        return []
+
+    routing = alerts_config.get("routing")
+    if routing and isinstance(routing, dict) and routing.get("enabled"):
+        rules = routing.get("rules", [])
+        active_dispatches = []
+        cur_sev_rank = SEVERITY_ORDER.get(severity.upper(), 1)
+        cur_env = (environment or "prod").lower().strip()
+
+        for r in rules:
+            if not isinstance(r, dict):
+                continue
+            channel = r.get("channel")
+            target = r.get("target")
+            if not channel or not target:
+                continue
+
+            rule_sev = r.get("min_severity", "LOW").upper()
+            rule_sev_rank = SEVERITY_ORDER.get(rule_sev, 1)
+            envs = [str(e).lower().strip() for e in r.get("environments", ["*"])]
+
+            env_matches = "*" in envs or cur_env in envs
+            sev_matches = cur_sev_rank >= rule_sev_rank
+
+            if env_matches and sev_matches:
+                active_dispatches.append({
+                    "channel": channel.lower(),
+                    "target": target,
+                    "min_severity": rule_sev,
+                    "matched_severity": severity,
+                    "matched_env": cur_env
+                })
+        return active_dispatches
+
+    fallback = []
+    for ch in ("email", "slack", "teams", "wp", "webhook"):
+        val = alerts_config.get(ch)
+        if val:
+            fallback.append({
+                "channel": ch,
+                "target": val,
+                "min_severity": "LOW",
+                "matched_severity": severity,
+                "matched_env": environment
+            })
+    return fallback
+
+
 def send_rich_slack_alert(
     violations: list,
     pipeline_name: str = "Database Pipeline",

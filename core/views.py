@@ -702,48 +702,60 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
                     if check["status"] == "FAIL":
                         desc_warnings.append(f"Data Quality - {check['name']}: {check['metric']}")
 
-            if p["alerts"].get("email"):
-                if send_email_alert(desc_warnings, email_to=p["alerts"]["email"]):
-                    alert_sent = True
-                    logs.append(f"[INFO] Email alert dispatched to {p['alerts']['email']}.")
-            if p["alerts"].get("slack"):
-                from core.notifications import send_rich_slack_alert
-                ok, reason = send_rich_slack_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=p["alerts"]["slack"])
-                if ok:
-                    alert_sent = True
-                    logs.append("[INFO] Rich Slack Block Kit alert dispatched.")
-                else:
-                    logs.append(f"[WARN] Slack alert failed: {reason}")
-            if p["alerts"].get("teams"):
-                from core.notifications import send_rich_teams_alert
-                ok, reason = send_rich_teams_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=p["alerts"]["teams"])
-                if ok:
-                    alert_sent = True
-                    logs.append("[INFO] Microsoft Teams alert card dispatched.")
-                else:
-                    logs.append(f"[WARN] Teams alert failed: {reason}")
-            if p["alerts"].get("wp"):
-                if send_whatsapp_alert(desc_warnings, phone=p["alerts"]["wp"]):
-                    alert_sent = True
-                    logs.append(f"[INFO] WhatsApp alert dispatched to {p['alerts']['wp']}.")
-            
-            # Custom Webhook Event Dispatcher
-            if p["alerts"].get("webhook"):
-                if send_custom_webhook_alert(
-                    violations,
-                    dq_report,
-                    p["alerts"]["webhook"],
-                    p["name"],
-                    status_str,
-                    pipeline_id=p.get("id"),
-                    secret=p["alerts"].get("webhook_secret")
-                ):
-                    alert_sent = True
-                    logs.append(f"[INFO] Custom Webhook payload successfully dispatched to {p['alerts']['webhook']}.")
-                else:
-                    logs.append("[ERROR] Custom Webhook dispatch failed.")
+            from core.notifications import calculate_drift_severity, evaluate_alert_routing
+            drift_severity = calculate_drift_severity(violations, dq_report.get("status", "PASS"))
+            env_val = p.get("environment", "prod")
+            routed = evaluate_alert_routing(p.get("alerts", {}), drift_severity, environment=env_val)
 
-            if not alert_sent:
+            dispatched_channels = set()
+            for r in routed:
+                ch = r["channel"]
+                target = r["target"]
+                if ch == "email":
+                    if send_email_alert(desc_warnings, email_to=target):
+                        alert_sent = True
+                        dispatched_channels.add("email")
+                        logs.append(f"[INFO] Routed email alert dispatched to {target} (Severity: {drift_severity}).")
+                elif ch == "slack":
+                    from core.notifications import send_rich_slack_alert
+                    ok, reason = send_rich_slack_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=target)
+                    if ok:
+                        alert_sent = True
+                        dispatched_channels.add("slack")
+                        logs.append(f"[INFO] Routed Slack Block Kit alert dispatched (Severity: {drift_severity}).")
+                    else:
+                        logs.append(f"[WARN] Slack alert failed: {reason}")
+                elif ch == "teams":
+                    from core.notifications import send_rich_teams_alert
+                    ok, reason = send_rich_teams_alert(desc_warnings, pipeline_name=p["name"], table_name=p.get("table"), db_type=p.get("dbType", "database"), webhook_url=target)
+                    if ok:
+                        alert_sent = True
+                        dispatched_channels.add("teams")
+                        logs.append(f"[INFO] Routed Microsoft Teams alert card dispatched (Severity: {drift_severity}).")
+                    else:
+                        logs.append(f"[WARN] Teams alert failed: {reason}")
+                elif ch == "wp":
+                    if send_whatsapp_alert(desc_warnings, phone=target):
+                        alert_sent = True
+                        dispatched_channels.add("whatsapp")
+                        logs.append(f"[INFO] Routed WhatsApp alert dispatched to {target}.")
+                elif ch == "webhook":
+                    if send_custom_webhook_alert(
+                        violations,
+                        dq_report,
+                        target,
+                        p["name"],
+                        status_str,
+                        pipeline_id=p.get("id"),
+                        secret=p["alerts"].get("webhook_secret")
+                    ):
+                        alert_sent = True
+                        dispatched_channels.add("webhook")
+                        logs.append(f"[INFO] Routed Custom Webhook payload dispatched to {target}.")
+                    else:
+                        logs.append("[ERROR] Custom Webhook dispatch failed.")
+
+            if not alert_sent and not p["alerts"].get("routing", {}).get("enabled"):
                 if send_alert(desc_warnings):
                     logs.append("[INFO] Default alert dispatched.")
         else:
@@ -3457,6 +3469,98 @@ def pipeline_dq_rules_api(request, id):
             "message": f"Successfully updated data quality rules on {len(rules_by_col)} column(s). Contract baseline re-locked.",
             "pipeline_id": pipeline.id,
             "lock_signature": new_sig
+        })
+
+    return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+
+@require_login
+def pipeline_alert_routing_api(request, id):
+    """
+    Multi-Channel Alert Routing Policy API:
+    GET: returns current smart routing policy and rules matrix.
+    POST: configures per-environment and per-severity alert routing for Slack, Teams, Email, Webhook.
+    """
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, AuditLog
+    pipeline = Pipeline.objects.filter(id=id).first()
+    if not pipeline:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and pipeline.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    alerts_cfg = pipeline.alerts or {}
+
+    if request.method == "GET":
+        routing = alerts_cfg.get("routing") or {
+            "enabled": False,
+            "rules": []
+        }
+        return JsonResponse({
+            "success": True,
+            "pipeline_id": pipeline.id,
+            "pipeline_name": pipeline.name,
+            "environment": getattr(pipeline, "environment", "prod") or "prod",
+            "routing": routing,
+            "legacy_alerts": {k: v for k, v in alerts_cfg.items() if k != "routing"}
+        })
+
+    elif request.method == "POST":
+        user_perms = user_info.get('permissions', {})
+        if user_info.get('role') not in ('admin', 'subadmin') and not user_perms.get('edit', True):
+            return JsonResponse({"detail": "Forbidden: Requires edit permission to configure alert policies."}, status=403)
+
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except Exception:
+            return JsonResponse({"detail": "Invalid JSON body"}, status=400)
+
+        enabled = bool(data.get("enabled", True))
+        rules = data.get("rules", [])
+        if not isinstance(rules, list):
+            return JsonResponse({"detail": "'rules' must be a list of routing rule objects"}, status=400)
+
+        cleaned_rules = []
+        for r in rules:
+            if isinstance(r, dict) and r.get("channel") and r.get("target"):
+                cleaned_rules.append({
+                    "channel": str(r["channel"]).lower().strip(),
+                    "target": str(r["target"]).strip(),
+                    "min_severity": str(r.get("min_severity", "LOW")).upper().strip(),
+                    "environments": [str(e).lower().strip() for e in r.get("environments", ["*"])]
+                })
+
+        new_alerts = dict(alerts_cfg)
+        new_alerts["routing"] = {
+            "enabled": enabled,
+            "rules": cleaned_rules
+        }
+        pipeline.alerts = new_alerts
+        pipeline.save()
+
+        from schema_guard import db
+        db.update_pipeline(pipeline.id, {"alerts": new_alerts})
+
+        actor = user_info.get('username') or 'user'
+        AuditLog.objects.create(
+            action='contract.lock',
+            actor=actor,
+            target_type='pipeline',
+            target_id=str(pipeline.id),
+            organization=pipeline.organization,
+            details={
+                "action": "update_alert_routing",
+                "enabled": enabled,
+                "rules_count": len(cleaned_rules)
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Successfully updated alert routing policy with {len(cleaned_rules)} rule(s).",
+            "pipeline_id": pipeline.id,
+            "routing": new_alerts["routing"]
         })
 
     return JsonResponse({"detail": "Method not allowed"}, status=405)
