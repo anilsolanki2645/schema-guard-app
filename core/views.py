@@ -7084,6 +7084,676 @@ def user_avatar_api(request, username):
     return response
 
 
+def pipeline_rollback_script_api(request, id):
+    """
+    Automated Rollback Generator (Down Migration / Inverse DDL Builder).
+    Generates reverse executable DDL to roll back live database state or contract
+    to a designated prior SchemaSnapshot, prior ContractVersion, or the locked baseline.
+    Optionally executes safe reverse DDL with DDL safety gating.
+    """
+    if request.method not in ("GET", "POST"):
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, SchemaSnapshot, ContractVersion, AuditLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    target_snapshot_id = request.GET.get('target_snapshot_id')
+    version_num = request.GET.get('version_number')
+    target_engine = request.GET.get('target_engine') or p_obj.db_type
+
+    if request.method == "POST" and request.body:
+        try:
+            b_json = json.loads(request.body)
+            target_snapshot_id = target_snapshot_id or b_json.get('target_snapshot_id')
+            version_num = version_num or b_json.get('version_number')
+            target_engine = b_json.get('target_engine') or target_engine
+        except Exception:
+            pass
+
+    # Determine baseline target columns to revert to
+    target_cols = None
+    target_desc = "locked contract baseline"
+
+    if target_snapshot_id:
+        snap = SchemaSnapshot.objects.filter(pipeline=p_obj, id=target_snapshot_id).first()
+        if not snap:
+            return JsonResponse({"detail": f"SchemaSnapshot {target_snapshot_id} not found for this pipeline."}, status=404)
+        target_cols = snap.schema_data
+        target_desc = f"SchemaSnapshot {snap.id[:8]} ({snap.captured_at.strftime('%Y-%m-%d %H:%M:%S')})"
+    elif version_num:
+        cv = ContractVersion.objects.filter(pipeline=p_obj, version_number=int(version_num)).first()
+        if not cv:
+            return JsonResponse({"detail": f"ContractVersion v{version_num} not found."}, status=404)
+        from core.migration_generator import parse_contract_columns
+        target_cols = parse_contract_columns(cv.contract_yaml)
+        target_desc = f"ContractVersion v{cv.version_number}"
+    else:
+        # Default: Revert from live/latest schema back to locked contract
+        from core.migration_generator import parse_contract_columns
+        target_cols = parse_contract_columns(p_obj.contract_yaml)
+        target_desc = f"Locked contract baseline ({p_obj.table})"
+
+    # Current columns from pipeline schema_map or latest snapshot
+    current_cols = []
+    if p_obj.schema_map:
+        current_cols = [{"name": k, "type": str(v), "nullable": True} for k, v in p_obj.schema_map.items()]
+    else:
+        latest_snap = SchemaSnapshot.objects.filter(pipeline=p_obj).order_by('-captured_at').first()
+        if latest_snap and latest_snap.schema_data:
+            current_cols = latest_snap.schema_data
+
+    cur_map = {c.get("name"): c for c in current_cols if isinstance(c, dict) and c.get("name")}
+    tgt_map = {c.get("name"): c for c in target_cols if isinstance(c, dict) and c.get("name")}
+
+    diffs = []
+    for col_name, c_data in cur_map.items():
+        if col_name not in tgt_map:
+            diffs.append({
+                "action": "drop_column",
+                "column": col_name,
+                "current_type": c_data.get("type", "varchar"),
+                "target_type": None,
+                "risk": "BREAKING",
+                "explanation": f"Column '{col_name}' was added to live schema and will be DROPPED to match target baseline."
+            })
+        else:
+            t_data = tgt_map[col_name]
+            from core.migration_generator import normalize_sql_type
+            if normalize_sql_type(c_data.get("type")) != normalize_sql_type(t_data.get("type")):
+                diffs.append({
+                    "action": "alter_type",
+                    "column": col_name,
+                    "current_type": c_data.get("type"),
+                    "target_type": t_data.get("type"),
+                    "risk": "WARNING",
+                    "explanation": f"Column '{col_name}' type ({c_data.get('type')}) will be altered back to {t_data.get('type')}."
+                })
+
+    for col_name, t_data in tgt_map.items():
+        if col_name not in cur_map:
+            diffs.append({
+                "action": "add_column",
+                "column": col_name,
+                "current_type": None,
+                "target_type": t_data.get("type", "varchar(255)"),
+                "risk": "SAFE",
+                "explanation": f"Column '{col_name}' missing from live schema and will be ADDED back."
+            })
+
+    db_clean = (target_engine or p_obj.db_type or "postgres").lower()
+    tbl = p_obj.table
+    schema = p_obj.schema
+    safe_table = f'"{schema}"."{tbl}"' if (schema and db_clean not in ("sqlite", "mysql")) else f'"{tbl}"'
+    if db_clean == "mysql":
+        safe_table = f"`{tbl}`"
+
+    statements = []
+    for d in diffs:
+        col = d["column"]
+        safe_col = f'`{col}`' if db_clean == "mysql" else f'"{col}"'
+        act = d["action"]
+        if act == "drop_column":
+            statements.append(f"ALTER TABLE {safe_table} DROP COLUMN {safe_col};")
+        elif act == "add_column":
+            t_type = d.get("target_type") or "VARCHAR(255)"
+            statements.append(f"ALTER TABLE {safe_table} ADD COLUMN {safe_col} {t_type};")
+        elif act == "alter_type":
+            t_type = d.get("target_type") or "VARCHAR(255)"
+            if db_clean in ("postgres", "postgresql", "snowflake"):
+                statements.append(f"ALTER TABLE {safe_table} ALTER COLUMN {safe_col} TYPE {t_type};")
+            elif db_clean in ("mysql", "mariadb"):
+                statements.append(f"ALTER TABLE {safe_table} MODIFY COLUMN {safe_col} {t_type};")
+            else:
+                statements.append(f"-- Warning: Dialect {db_clean} does not support in-place column type alteration for {col}")
+
+    safe_count = sum(1 for d in diffs if d.get("risk") == "SAFE")
+    warning_count = sum(1 for d in diffs if d.get("risk") == "WARNING")
+    breaking_count = sum(1 for d in diffs if d.get("risk") == "BREAKING")
+    risk_summary = {
+        "safe": safe_count,
+        "warning": warning_count,
+        "breaking": breaking_count,
+        "total": len(diffs)
+    }
+
+    full_sql = "\n".join(statements) if statements else f"-- Live schema is already aligned with {target_desc}."
+
+    if request.GET.get("download") == "true" or request.GET.get("format") == "sql":
+        resp = HttpResponse(full_sql, content_type="application/sql")
+        resp["Content-Disposition"] = f'attachment; filename="rollback_{tbl}.sql"'
+        return resp
+
+    if request.method == "POST":
+        try:
+            body_data = json.loads(request.body) if request.body else {}
+        except Exception:
+            body_data = {}
+
+        if body_data.get("execute"):
+            user_perms = user_info.get('permissions', {})
+            if user_info.get('role') not in ('admin', 'subadmin') and not user_perms.get('edit', True):
+                return JsonResponse({"detail": "Forbidden: Requires edit permission to apply rollback DDL."}, status=403)
+
+            allow_destructive = bool(body_data.get("allow_destructive", False))
+            if breaking_count > 0 and not allow_destructive:
+                return JsonResponse({
+                    "detail": f"Safety Guard: {breaking_count} destructive/breaking rollback operation(s) detected (e.g. DROP COLUMN). Pass allow_destructive=true to execute.",
+                    "risk_summary": risk_summary,
+                    "breaking_diffs": [d for d in diffs if d.get("risk") == "BREAKING"]
+                }, status=400)
+
+            if not statements:
+                return JsonResponse({
+                    "success": True,
+                    "executed": False,
+                    "message": "No actionable rollback DDL statements to execute.",
+                    "executed_statements": []
+                })
+
+            resolved_conn = resolve_connection_string(p_obj.conn_str, p_obj.db_type)
+            executed = []
+            try:
+                import sqlalchemy
+                engine, _ = create_db_engine(p_obj.db_type, resolved_conn, timeout=15)
+                with engine.begin() as conn:
+                    for stmt in statements:
+                        if not stmt.strip().startswith("--"):
+                            conn.execute(sqlalchemy.text(stmt))
+                            executed.append(stmt)
+                engine.dispose()
+            except Exception as e:
+                logger.error(f"Rollback execution failed for pipeline {p_obj.id}: {e}")
+                return JsonResponse({
+                    "detail": f"Database rollback execution failed: {str(e)}",
+                    "partially_executed": executed
+                }, status=500)
+
+            perform_pipeline_check(p_obj.id)
+
+            actor = user_info.get('username') or 'user'
+            AuditLog.objects.create(
+                action='pipeline.rollback_executed',
+                actor=actor,
+                target_type='pipeline',
+                target_id=str(p_obj.id),
+                details={
+                    "target_baseline": target_desc,
+                    "executed_statements": executed,
+                    "risk_summary": risk_summary
+                },
+                organization=p_obj.organization
+            )
+
+            return JsonResponse({
+                "success": True,
+                "executed": True,
+                "target_baseline": target_desc,
+                "executed_statements": executed,
+                "risk_summary": risk_summary,
+                "message": f"Successfully executed {len(executed)} rollback DDL statement(s)."
+            })
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": p_obj.id,
+        "table": tbl,
+        "target_baseline": target_desc,
+        "diff_count": len(diffs),
+        "diffs": diffs,
+        "risk_summary": risk_summary,
+        "rollback_statements": statements,
+        "rollback_sql": full_sql
+    })
+
+
+def bump_contract_version_api(request, id):
+    """
+    Contract Semantic Versioning & Automated SemVer Bumping Engine.
+    Analyzes contract changes against current baseline:
+    - MAJOR: Dropped columns, non-nullable tightening, incompatible type narrowing
+    - MINOR: Added columns, relaxed nullability
+    - PATCH: Metadata, description, tag, or comment adjustments
+    Supports explicit override (bump_type: 'major' | 'minor' | 'patch' | 'auto').
+    Locks new contract and creates immutable ContractVersion audit record.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, ContractVersion, AuditLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    user_perms = user_info.get('permissions', {})
+    if user_info.get('role') not in ('admin', 'subadmin') and not user_perms.get('edit', True):
+        return JsonResponse({"detail": "Forbidden: Requires edit permission to update contract versions."}, status=403)
+
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except Exception:
+        body = {}
+
+    import yaml
+    from core.migration_generator import parse_contract_columns, normalize_sql_type
+
+    proposed_yaml = body.get("proposed_contract_yaml") or body.get("contract_yaml")
+    if not proposed_yaml:
+        if p_obj.schema_map:
+            cols = [{"name": k, "type": str(v), "nullable": True} for k, v in p_obj.schema_map.items()]
+            proposed_yaml = yaml.dump({"table": p_obj.table, "schema": p_obj.schema or "public", "columns": cols}, sort_keys=False)
+        else:
+            return JsonResponse({"detail": "No proposed_contract_yaml supplied and pipeline has no active schema map."}, status=400)
+
+    cur_cols = parse_contract_columns(p_obj.contract_yaml)
+    new_cols = parse_contract_columns(proposed_yaml)
+
+    cur_map = {c["name"]: c for c in cur_cols}
+    new_map = {c["name"]: c for c in new_cols}
+
+    breaking_reasons = []
+    feature_reasons = []
+    patch_reasons = []
+
+    # Detect removals (MAJOR)
+    for col_name, c_data in cur_map.items():
+        if col_name not in new_map:
+            breaking_reasons.append(f"Dropped column '{col_name}'")
+        else:
+            n_data = new_map[col_name]
+            if c_data.get("nullable", True) and not n_data.get("nullable", True):
+                breaking_reasons.append(f"Tightened column '{col_name}' to NOT NULL")
+            c_type = normalize_sql_type(c_data.get("type"))
+            n_type = normalize_sql_type(n_data.get("type"))
+            if c_type != n_type:
+                breaking_reasons.append(f"Altered column '{col_name}' type from {c_data.get('type')} to {n_data.get('type')}")
+
+    # Detect additions (MINOR)
+    for col_name, n_data in new_map.items():
+        if col_name not in cur_map:
+            feature_reasons.append(f"Added column '{col_name}' ({n_data.get('type')})")
+        else:
+            c_data = cur_map[col_name]
+            if not c_data.get("nullable", True) and n_data.get("nullable", True):
+                feature_reasons.append(f"Relaxed column '{col_name}' nullability to nullable")
+
+    if not breaking_reasons and not feature_reasons:
+        patch_reasons.append("Contract metadata, descriptions, or constraints updated")
+
+    auto_bump = "patch"
+    if breaking_reasons:
+        auto_bump = "major"
+    elif feature_reasons:
+        auto_bump = "minor"
+
+    requested_bump = str(body.get("bump_type", "auto")).lower()
+    effective_bump = requested_bump if requested_bump in ("major", "minor", "patch") else auto_bump
+
+    latest_cv = ContractVersion.objects.filter(pipeline=p_obj).order_by('-version_number').first()
+    prev_semver = "1.0.0"
+    if latest_cv and latest_cv.change_summary:
+        m = re.search(r'\[v?(\d+)\.(\d+)\.(\d+)\]', latest_cv.change_summary)
+        if m:
+            prev_semver = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
+        else:
+            prev_semver = f"1.{max(0, latest_cv.version_number - 1)}.0"
+
+    parts = [int(p) for p in prev_semver.split(".")]
+    maj, min_, pat = parts[0], parts[1], parts[2]
+
+    if effective_bump == "major":
+        new_semver = f"{maj + 1}.0.0"
+    elif effective_bump == "minor":
+        new_semver = f"{maj}.{min_ + 1}.0"
+    else:
+        new_semver = f"{maj}.{min_}.{pat + 1}"
+
+    import hashlib
+    new_signature = hashlib.sha256(proposed_yaml.encode("utf-8")).hexdigest()
+    contract_path, _ = ensure_contract_and_snapshot_files(p_obj)
+    if contract_path:
+        with open(contract_path, "w", encoding="utf-8") as f:
+            f.write(proposed_yaml)
+        try:
+            ls = lock_contract(contract_path)
+            if ls:
+                new_signature = ls
+        except Exception:
+            pass
+    p_obj.contract_yaml = proposed_yaml
+    p_obj.lock_signature = new_signature
+    p_obj.schema_map = {c["name"]: c.get("type", "varchar") for c in new_cols}
+    p_obj.status = "Clean"
+    p_obj.save(update_fields=['contract_yaml', 'lock_signature', 'schema_map', 'status'])
+
+    user_note = body.get("change_summary", "").strip()
+    change_msg = f"[v{new_semver}] {user_note if user_note else f'SemVer {effective_bump.upper()} bump'}"
+    actor = user_info.get('username') or 'user'
+
+    new_cv = record_contract_version(
+        pipeline=p_obj,
+        actor_username=actor,
+        change_summary=change_msg
+    )
+
+    AuditLog.objects.create(
+        action='contract.semver_bump',
+        actor=actor,
+        target_type='pipeline',
+        target_id=str(p_obj.id),
+        details={
+            "previous_semver": prev_semver,
+            "new_semver": new_semver,
+            "bump_type": effective_bump,
+            "version_number": new_cv.version_number,
+            "breaking_reasons": breaking_reasons,
+            "feature_reasons": feature_reasons,
+            "patch_reasons": patch_reasons
+        },
+        organization=p_obj.organization
+    )
+
+    return JsonResponse({
+        "success": True,
+        "semver": new_semver,
+        "previous_semver": prev_semver,
+        "bump_type": effective_bump,
+        "version_number": new_cv.version_number,
+        "lock_signature": new_signature,
+        "change_summary": change_msg,
+        "reasons": {
+            "breaking": breaking_reasons,
+            "features": feature_reasons,
+            "patches": patch_reasons
+        }
+    })
+
+
+def pipeline_health_metrics_api(request, id):
+    """
+    Database Health & Latency Telemetry Dashboard API.
+    Measures live connection pool acquisition latency, round-trip ping query time,
+    SSL encryption active status, database server version banner, and estimated table volume.
+    """
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    import time
+    from sqlalchemy import text
+
+    resolved_conn = resolve_connection_string(p_obj.conn_str, p_obj.db_type)
+    t0 = time.perf_counter()
+    connect_latency_ms = 0.0
+    query_latency_ms = 0.0
+    server_version = "Unknown"
+    ssl_active = False
+    row_count = 0
+    pool_info = {}
+    health_status = "HEALTHY"
+    error_msg = None
+
+    try:
+        engine, _ = create_db_engine(p_obj.db_type, resolved_conn, timeout=8)
+        with engine.connect() as conn:
+            t1 = time.perf_counter()
+            connect_latency_ms = round((t1 - t0) * 1000, 2)
+
+            t2 = time.perf_counter()
+            conn.execute(text("SELECT 1"))
+            t3 = time.perf_counter()
+            query_latency_ms = round((t3 - t2) * 1000, 2)
+
+            db_type_lower = (p_obj.db_type or "").lower()
+            try:
+                if db_type_lower in ("postgres", "postgresql"):
+                    v_res = conn.execute(text("SELECT version()")).scalar()
+                    server_version = str(v_res).split(",")[0] if v_res else "PostgreSQL"
+                elif db_type_lower in ("mysql", "mariadb"):
+                    v_res = conn.execute(text("SELECT VERSION()")).scalar()
+                    server_version = f"MySQL {v_res}"
+                elif db_type_lower == "sqlite":
+                    v_res = conn.execute(text("SELECT sqlite_version()")).scalar()
+                    server_version = f"SQLite {v_res}"
+                else:
+                    server_version = f"{engine.dialect.name} (Dialect {engine.dialect.driver})"
+            except Exception:
+                server_version = f"{engine.dialect.name}"
+
+            if "ssl" in resolved_conn.lower() or "sslmode=require" in resolved_conn.lower() or "sslmode=verify" in resolved_conn.lower():
+                ssl_active = True
+            elif hasattr(conn, "connection") and hasattr(conn.connection, "ssl_info"):
+                ssl_active = bool(conn.connection.ssl_info)
+
+            try:
+                safe_table = sanitize_sql_identifier(p_obj.table, p_obj.db_type)
+                if db_type_lower in ("postgres", "postgresql") and p_obj.schema:
+                    safe_schema = sanitize_sql_identifier(p_obj.schema, p_obj.db_type)
+                    target_table = f"{safe_schema}.{safe_table}"
+                else:
+                    target_table = safe_table
+                cnt_scalar = conn.execute(text(f"SELECT COUNT(*) FROM {target_table}")).scalar()
+                row_count = int(cnt_scalar) if cnt_scalar is not None else 0
+            except Exception:
+                row_count = 0
+
+            if hasattr(engine, "pool"):
+                pool = engine.pool
+                pool_info = {
+                    "size": pool.size() if callable(getattr(pool, "size", None)) else getattr(pool, "size", 5),
+                    "checked_in": pool.checkedin() if callable(getattr(pool, "checkedin", None)) else getattr(pool, "checkedin", 0),
+                    "checked_out": pool.checkedout() if callable(getattr(pool, "checkedout", None)) else getattr(pool, "checkedout", 0),
+                    "overflow": pool.overflow() if callable(getattr(pool, "overflow", None)) else getattr(pool, "overflow", 0)
+                }
+
+        engine.dispose()
+    except Exception as e:
+        health_status = "UNHEALTHY"
+        error_msg = str(e)
+
+    total_latency_ms = round(connect_latency_ms + query_latency_ms, 2)
+    if health_status != "UNHEALTHY":
+        if total_latency_ms > 1500:
+            health_status = "DEGRADED"
+        elif total_latency_ms < 250:
+            health_status = "EXCELLENT"
+        else:
+            health_status = "HEALTHY"
+
+    return JsonResponse({
+        "success": True,
+        "pipeline_id": p_obj.id,
+        "pipeline_name": p_obj.name,
+        "db_type": p_obj.db_type,
+        "environment": p_obj.environment,
+        "status": health_status,
+        "metrics": {
+            "connect_latency_ms": connect_latency_ms,
+            "query_latency_ms": query_latency_ms,
+            "total_latency_ms": total_latency_ms,
+            "server_version": server_version,
+            "ssl_active": ssl_active,
+            "table_rows": row_count,
+            "connection_pool": pool_info
+        },
+        "error": error_msg,
+        "measured_at": datetime.now(timezone.utc).isoformat()
+    })
+
+
+def pipeline_export_spec_api(request, id):
+    """
+    OpenAPI 3.1 & dbt Catalog Specification Generator API.
+    Exports the pipeline schema contract as:
+    - format=openapi: OpenAPI 3.1 JSON Schema specification
+    - format=dbt: dbt schema.yml model with automated tests (unique, not_null, accepted_values)
+    Supports direct file download (download=true).
+    """
+    if request.method != "GET":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    export_format = request.GET.get("format", "openapi").lower().strip()
+    download = request.GET.get("download", "").lower() == "true"
+
+    import yaml
+    from core.migration_generator import normalize_sql_type
+    raw_doc = yaml.safe_load(p_obj.contract_yaml) if p_obj.contract_yaml else {}
+    cols = raw_doc.get("columns", []) if isinstance(raw_doc, dict) else []
+    if not cols and p_obj.schema_map:
+        cols = [{"name": k, "type": str(v), "nullable": True} for k, v in p_obj.schema_map.items()]
+
+    table_name = p_obj.table or "table_model"
+
+    if export_format in ("dbt", "yaml", "yml"):
+        import yaml
+        dbt_columns = []
+        for c in cols:
+            col_name = c["name"]
+            c_type = c.get("type", "varchar")
+            tests = []
+            if c.get("primary_key") or c.get("pk"):
+                tests.append("unique")
+            if not c.get("nullable", True):
+                tests.append("not_null")
+            if c.get("allowed_values") or c.get("enum"):
+                vals = c.get("allowed_values") or c.get("enum")
+                tests.append({"accepted_values": {"values": vals}})
+
+            col_def = {
+                "name": col_name,
+                "description": c.get("description") or f"Column {col_name} ({c_type})",
+                "data_type": c_type
+            }
+            if tests:
+                col_def["tests"] = tests
+            dbt_columns.append(col_def)
+
+        dbt_doc = {
+            "version": 2,
+            "models": [{
+                "name": table_name,
+                "description": f"Data contract specification for {p_obj.name} managed by Schema Guard",
+                "columns": dbt_columns
+            }]
+        }
+        yaml_content = yaml.dump(dbt_doc, sort_keys=False)
+
+        if download:
+            resp = HttpResponse(yaml_content, content_type="text/yaml")
+            resp["Content-Disposition"] = f'attachment; filename="{table_name}_dbt_schema.yml"'
+            return resp
+
+        return JsonResponse({
+            "success": True,
+            "format": "dbt",
+            "pipeline_id": p_obj.id,
+            "table": table_name,
+            "specification": dbt_doc,
+            "raw_yaml": yaml_content
+        })
+
+    # Default: OpenAPI 3.1 JSON Schema
+    properties = {}
+    required = []
+
+    for c in cols:
+        col_name = c["name"]
+        norm = normalize_sql_type(c.get("type", "varchar"))
+        prop = {}
+
+        if norm in ("integer", "smallint", "bigint"):
+            prop["type"] = "integer"
+        elif norm in ("numeric", "real", "double precision", "float"):
+            prop["type"] = "number"
+        elif norm == "boolean":
+            prop["type"] = "boolean"
+        elif "timestamp" in norm or "datetime" in norm:
+            prop["type"] = "string"
+            prop["format"] = "date-time"
+        elif norm == "date":
+            prop["type"] = "string"
+            prop["format"] = "date"
+        elif norm == "uuid":
+            prop["type"] = "string"
+            prop["format"] = "uuid"
+        elif "json" in norm:
+            prop["type"] = "object"
+        else:
+            prop["type"] = "string"
+
+        if c.get("description"):
+            prop["description"] = c["description"]
+        if c.get("allowed_values") or c.get("enum"):
+            prop["enum"] = c.get("allowed_values") or c.get("enum")
+        if c.get("min_value") is not None:
+            prop["minimum"] = c["min_value"]
+        if c.get("max_value") is not None:
+            prop["maximum"] = c["max_value"]
+
+        properties[col_name] = prop
+        if not c.get("nullable", True):
+            required.append(col_name)
+
+    openapi_doc = {
+        "openapi": "3.1.0",
+        "info": {
+            "title": f"{table_name} Data Contract",
+            "version": "1.0.0",
+            "description": f"Automated OpenAPI 3.1 Schema Specification for {p_obj.name} ({p_obj.environment})"
+        },
+        "components": {
+            "schemas": {
+                table_name: {
+                    "type": "object",
+                    "title": table_name,
+                    "description": f"Database entity mapping for table {table_name}",
+                    "properties": properties,
+                    "required": required
+                }
+            }
+        }
+    }
+
+    if download:
+        resp = HttpResponse(json.dumps(openapi_doc, indent=2), content_type="application/json")
+        resp["Content-Disposition"] = f'attachment; filename="{table_name}_openapi.json"'
+        return resp
+
+    return JsonResponse({
+        "success": True,
+        "format": "openapi",
+        "pipeline_id": p_obj.id,
+        "table": table_name,
+        "specification": openapi_doc
+    })
+
+
 
 
 

@@ -3112,6 +3112,387 @@ class MultiChannelAlertRoutingTests(TestCase):
         self.assertEqual(self.pipeline.alerts["routing"]["rules"][0]["channel"], "webhook")
 
 
+class AutomatedRollbackGeneratorTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline, SchemaSnapshot
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Rollback Test Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="rollback_admin",
+            email="rb@test.com",
+            password_hash=hash_password("RbPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-rollback-01",
+            organization=self.org,
+            name="Rollback Transactions",
+            environment="prod",
+            db_type="postgres",
+            conn_str="postgresql://user:pass@localhost:5432/testdb",
+            schema="public",
+            table="transactions",
+            contract_yaml="""table: transactions
+schema: public
+columns:
+  - name: tx_id
+    type: varchar
+    primary_key: true
+  - name: amount
+    type: numeric
+""",
+            lock_signature="f" * 64,
+            schema_map={"tx_id": "varchar", "amount": "numeric", "unexpected_field": "varchar"},
+            status="Drifted"
+        )
+        self.snap_old = SchemaSnapshot.objects.create(
+            pipeline=self.pipeline,
+            version=1,
+            schema_data=[
+                {"name": "tx_id", "type": "varchar", "nullable": False},
+                {"name": "amount", "type": "numeric", "nullable": True}
+            ]
+        )
+
+    def test_preview_rollback_script(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rollback_admin',
+            'password': 'RbPass123!',
+        })
+        url = reverse('pipeline_rollback_script_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["diff_count"], 1)
+        self.assertEqual(data["diffs"][0]["action"], "drop_column")
+        self.assertEqual(data["diffs"][0]["column"], "unexpected_field")
+        self.assertEqual(data["diffs"][0]["risk"], "BREAKING")
+        self.assertIn('DROP COLUMN "unexpected_field"', data["rollback_sql"])
+
+    def test_download_rollback_sql_file(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rollback_admin',
+            'password': 'RbPass123!',
+        })
+        url = reverse('pipeline_rollback_script_api', args=[self.pipeline.id]) + "?download=true"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/sql")
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn('DROP COLUMN "unexpected_field"', res.content.decode())
+
+    def test_rollback_blocks_destructive_without_flag(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rollback_admin',
+            'password': 'RbPass123!',
+        })
+        url = reverse('pipeline_rollback_script_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({"execute": True, "allow_destructive": False}), content_type="application/json")
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.content)
+        self.assertIn("Safety Guard", data["detail"])
+
+    @patch('core.views.perform_pipeline_check')
+    @patch('core.views.create_db_engine')
+    def test_rollback_safe_execution_and_audit(self, mock_create_engine, mock_check):
+        from unittest.mock import MagicMock
+        from core.models import AuditLog
+
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
+        mock_create_engine.return_value = (mock_engine, {})
+        mock_check.return_value = {"status": "Clean", "logs": []}
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'rollback_admin',
+            'password': 'RbPass123!',
+        })
+        url = reverse('pipeline_rollback_script_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({"execute": True, "allow_destructive": True}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["executed"])
+        self.assertEqual(len(data["executed_statements"]), 1)
+
+        # AuditLog check
+        log = AuditLog.objects.filter(action="pipeline.rollback_executed", actor="rollback_admin").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.target_id, self.pipeline.id)
+
+
+class ContractSemVerBumpingTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline, ContractVersion
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="SemVer Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="semver_lead",
+            email="semver@org.com",
+            password_hash=hash_password("SemVer123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-semver-01",
+            organization=self.org,
+            name="Customer Account Ledger",
+            environment="prod",
+            db_type="postgres",
+            table="customers",
+            contract_yaml="""table: customers
+columns:
+  - name: id
+    type: integer
+    nullable: false
+  - name: email
+    type: varchar
+    nullable: false
+""",
+            lock_signature="a" * 64,
+            schema_map={"id": "integer", "email": "varchar"},
+            status="Clean"
+        )
+        ContractVersion.objects.create(
+            pipeline=self.pipeline,
+            version_number=1,
+            contract_yaml=self.pipeline.contract_yaml,
+            lock_signature=self.pipeline.lock_signature,
+            schema_map=self.pipeline.schema_map,
+            change_summary="[v1.0.0] Initial contract baseline",
+            created_by="system"
+        )
+
+    def test_auto_detect_minor_bump(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'semver_lead',
+            'password': 'SemVer123!',
+        })
+        url = reverse('bump_contract_version_api', args=[self.pipeline.id])
+        new_yaml = """table: customers
+columns:
+  - name: id
+    type: integer
+    nullable: false
+  - name: email
+    type: varchar
+    nullable: false
+  - name: phone
+    type: varchar
+    nullable: true
+"""
+        res = self.client.post(url, data=json.dumps({"proposed_contract_yaml": new_yaml}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["bump_type"], "minor")
+        self.assertEqual(data["semver"], "1.1.0")
+        self.assertEqual(data["previous_semver"], "1.0.0")
+        self.assertEqual(data["version_number"], 2)
+
+    def test_auto_detect_major_bump(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'semver_lead',
+            'password': 'SemVer123!',
+        })
+        url = reverse('bump_contract_version_api', args=[self.pipeline.id])
+        new_yaml = """table: customers
+columns:
+  - name: id
+    type: integer
+    nullable: false
+"""
+        res = self.client.post(url, data=json.dumps({"proposed_contract_yaml": new_yaml}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["bump_type"], "major")
+        self.assertEqual(data["semver"], "2.0.0")
+
+    def test_explicit_bump_type_override(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'semver_lead',
+            'password': 'SemVer123!',
+        })
+        url = reverse('bump_contract_version_api', args=[self.pipeline.id])
+        new_yaml = """table: customers
+columns:
+  - name: id
+    type: integer
+    nullable: false
+  - name: email
+    type: varchar
+    nullable: false
+    description: Primary email address
+"""
+        res = self.client.post(
+            url,
+            data=json.dumps({"proposed_contract_yaml": new_yaml, "bump_type": "patch", "change_summary": "Added docs"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["bump_type"], "patch")
+        self.assertEqual(data["semver"], "1.0.1")
+
+
+class DatabaseHealthTelemetryTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Health Telemetry Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="telemetry_admin",
+            email="telemetry@org.com",
+            password_hash=hash_password("TelePass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-telemetry-01",
+            organization=self.org,
+            name="Telemetry Service",
+            environment="prod",
+            db_type="sqlite",
+            conn_str="sqlite:///:memory:",
+            table="stats",
+            contract_yaml="table: stats\ncolumns: []",
+            status="Clean"
+        )
+
+    def test_pipeline_health_metrics_success(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'telemetry_admin',
+            'password': 'TelePass123!',
+        })
+        url = reverse('pipeline_health_metrics_api', args=[self.pipeline.id])
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertIn(data["status"], ["EXCELLENT", "HEALTHY"])
+        metrics = data["metrics"]
+        self.assertGreaterEqual(metrics["connect_latency_ms"], 0.0)
+        self.assertGreaterEqual(metrics["query_latency_ms"], 0.0)
+        self.assertIn("SQLite", metrics["server_version"])
+
+
+class OpenApiAndDbtExportSpecTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Export Spec Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="catalog_admin",
+            email="catalog@org.com",
+            password_hash=hash_password("CatPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-spec-01",
+            organization=self.org,
+            name="Billing Catalog",
+            environment="prod",
+            db_type="postgres",
+            table="invoices",
+            contract_yaml="""table: invoices
+columns:
+  - name: inv_id
+    type: integer
+    primary_key: true
+    nullable: false
+  - name: status
+    type: varchar
+    nullable: false
+    allowed_values: ["DRAFT", "PAID", "VOID"]
+  - name: amount
+    type: numeric
+    min_value: 0
+    max_value: 50000
+  - name: created_at
+    type: timestamp
+""",
+            status="Clean"
+        )
+
+    def test_export_openapi_json(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'catalog_admin',
+            'password': 'CatPass123!',
+        })
+        url = reverse('pipeline_export_spec_api', args=[self.pipeline.id]) + "?format=openapi"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["format"], "openapi")
+        spec = data["specification"]
+        self.assertEqual(spec["openapi"], "3.1.0")
+        schema = spec["components"]["schemas"]["invoices"]
+        props = schema["properties"]
+        self.assertEqual(props["inv_id"]["type"], "integer")
+        self.assertEqual(props["status"]["enum"], ["DRAFT", "PAID", "VOID"])
+        self.assertEqual(props["amount"]["minimum"], 0)
+        self.assertEqual(props["created_at"]["format"], "date-time")
+        self.assertIn("inv_id", schema["required"])
+        self.assertIn("status", schema["required"])
+
+    def test_export_dbt_yaml(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'catalog_admin',
+            'password': 'CatPass123!',
+        })
+        url = reverse('pipeline_export_spec_api', args=[self.pipeline.id]) + "?format=dbt"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["format"], "dbt")
+        raw_yaml = data["raw_yaml"]
+        self.assertIn("name: invoices", raw_yaml)
+        self.assertIn("accepted_values", raw_yaml)
+        self.assertIn("not_null", raw_yaml)
+        self.assertIn("unique", raw_yaml)
+
+    def test_download_dbt_file(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'catalog_admin',
+            'password': 'CatPass123!',
+        })
+        url = reverse('pipeline_export_spec_api', args=[self.pipeline.id]) + "?format=dbt&download=true"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "text/yaml")
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+
+
 
 
 

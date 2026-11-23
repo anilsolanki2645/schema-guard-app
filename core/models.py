@@ -122,6 +122,8 @@ class AuditLog(models.Model):
         ('pipeline.promoted', 'Pipeline Contract Promoted'),
         ('webhook.delivery', 'Webhook Delivered'),
         ('pipeline.auto_repaired', 'Pipeline Safe Auto-Repaired'),
+        ('pipeline.rollback_executed', 'Pipeline Database Rollback Executed'),
+        ('contract.semver_bump', 'Contract SemVer Bumped'),
         ('incident.create', 'Drift Incident Created'),
         ('incident.acknowledge', 'Drift Incident Acknowledged'),
         ('incident.resolve', 'Drift Incident Resolved'),
