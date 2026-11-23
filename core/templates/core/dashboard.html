@@ -248,6 +248,9 @@
                 <button class="btn-secondary" id="btn-migration-generator" onclick="openMigrationModal()"
                     style="border-color: #3b82f6; color: #60a5fa; display: none; align-items: center; gap: 0.35rem;"
                     title="Generate SQL, Flyway, Liquibase, or Alembic schema migration script">📦 Generate Migration</button>
+                <button class="btn-secondary" id="btn-auto-repair" onclick="quickAutoRepair()"
+                    style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; display: none; align-items: center; gap: 0.35rem;"
+                    title="1-Click safe automated database repair with DDL safety gating">⚡ Safe Auto-Repair</button>
                 <button class="btn-secondary" id="btn-ask-ai" onclick="openAiDrawer()"
                     style="border-color: var(--color-warning); display: none;">🤖 Ask AI Analyzer</button>
             </div>
@@ -1224,6 +1227,9 @@
                 <button type="button" class="btn-primary" onclick="downloadCurrentMigration()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-color: #3b82f6; font-weight: 700;">
                     💾 Download Script
                 </button>
+                <button type="button" id="btn-modal-auto-repair" class="btn-primary" onclick="executeAutoRepairDb()" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; font-weight: 700;" title="Execute verified safe DDL statements against target database">
+                    ⚡ Auto-Repair DB
+                </button>
             </div>
         </div>
     </div>
@@ -2008,6 +2014,10 @@
                 migBtn.style.borderColor = '#3b82f6';
                 migBtn.style.color = '#60a5fa';
             }
+        }
+        const autoRepairBtn = document.getElementById('btn-auto-repair');
+        if (autoRepairBtn) {
+            autoRepairBtn.style.display = found.status !== 'Clean' ? 'inline-flex' : 'none';
         }
         const builderBtn = document.getElementById('btn-open-builder-contract');
         if (builderBtn) {
@@ -3734,6 +3744,71 @@ with DAG(
 
         const downloadUrl = `/api/pipelines/${activePipeline.id}/migration/download?format=${fmt}&target_engine=${encodeURIComponent(targetEngine)}`;
         window.location.href = downloadUrl;
+    }
+
+    function quickAutoRepair() {
+        if (!activePipeline) return;
+        if (!confirm(`Are you sure you want to execute 1-Click Safe Auto-Repair on "${activePipeline.name}"?\n\nThis will safely align the database schema with the locked contract baseline.`)) {
+            return;
+        }
+        executeAutoRepairDb(false);
+    }
+
+    function executeAutoRepairDb(allowDestructive = false) {
+        if (!activePipeline) return;
+        const btn = document.getElementById('btn-modal-auto-repair');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Repairing...';
+            btn.disabled = true;
+        }
+
+        const engineSelect = document.getElementById('mig-engine-select');
+        const targetEngine = engineSelect ? engineSelect.value : (activePipeline.dbType || 'postgres');
+
+        fetch(`/api/pipelines/${activePipeline.id}/auto-repair`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                allow_destructive: allowDestructive,
+                target_engine: targetEngine
+            })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) {
+                if (res.status === 400 && data.risk_summary && data.risk_summary.breaking > 0) {
+                    const proceed = confirm(`⚠️ ${data.detail}\n\nDo you want to FORCE auto-repair and apply these destructive changes?`);
+                    if (proceed) {
+                        return executeAutoRepairDb(true);
+                    }
+                }
+                throw new Error(data.detail || 'Auto-repair failed.');
+            }
+            return data;
+        })
+        .then(data => {
+            if (data && data.success) {
+                alert(`✅ ${data.message}`);
+                closeMigrationModal();
+                fetchPipelines();
+                if (typeof triggerCheck === 'function') {
+                    triggerCheck();
+                }
+            }
+        })
+        .catch(err => {
+            alert(`❌ Auto-Repair Error: ${err.message}`);
+        })
+        .finally(() => {
+            if (btn) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
     }
 
     // -------------------------------------------------------------

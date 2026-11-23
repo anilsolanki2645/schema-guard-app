@@ -2722,6 +2722,136 @@ def generate_pipeline_migration_api(request, id):
 
 
 @require_login
+def auto_repair_pipeline_api(request, id):
+    """
+    1-Click Safe Automated Database Repair API with DDL Safety Gating.
+    Generates alignment DDL, blocks destructive changes (unless explicitly authorized),
+    applies safe DDL directly against the live database connection, re-verifies schema status,
+    and records an immutable AuditLog entry.
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    user_info = request.session.get('user', {})
+    from core.models import Pipeline, AuditLog
+    p_obj = Pipeline.objects.filter(id=id).first()
+    if not p_obj:
+        return JsonResponse({"detail": "Pipeline not found."}, status=404)
+
+    # Enforce organization and edit permission boundary
+    if user_info.get('role') != 'admin' and p_obj.organization_id != user_info.get('organization_id'):
+        return JsonResponse({"detail": "Unauthorized"}, status=403)
+
+    user_perms = user_info.get('permissions', {})
+    if user_info.get('role') not in ('admin', 'subadmin') and not user_perms.get('edit', True):
+        return JsonResponse({"detail": "Forbidden: Requires edit permission to apply database migrations."}, status=403)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    dry_run = bool(data.get("dry_run", False))
+    allow_destructive = bool(data.get("allow_destructive", False))
+    target_engine = data.get("target_engine") or p_obj.db_type
+
+    from core.migration_generator import generate_migration_bundle
+    bundle = generate_migration_bundle(p_obj, target_engine=target_engine)
+
+    if bundle.get("diff_count", 0) == 0:
+        return JsonResponse({
+            "success": True,
+            "repaired": False,
+            "message": "Schema is already in full alignment with the locked contract. No repair needed.",
+            "executed_statements": [],
+            "risk_summary": bundle.get("risk_summary", {})
+        })
+
+    risk_summary = bundle.get("risk_summary", {})
+    breaking_count = risk_summary.get("breaking", 0)
+
+    # Safety Gating: Reject destructive operations unless explicitly requested
+    if breaking_count > 0 and not allow_destructive:
+        return JsonResponse({
+            "detail": f"Safety Guard: {breaking_count} destructive/breaking change(s) detected. Auto-repair blocked to protect against data loss. Pass allow_destructive=true to authorize this execution.",
+            "risk_summary": risk_summary,
+            "breaking_diffs": [d for d in bundle.get("diffs", []) if d.get("risk") == "BREAKING"]
+        }, status=400)
+
+    raw_sql = bundle.get("sql", {}).get("up", "")
+    statements = []
+    for line in raw_sql.split(";"):
+        stmt = line.strip()
+        cleaned = "\n".join([l for l in stmt.splitlines() if not l.strip().startswith("--")]).strip()
+        if cleaned:
+            statements.append(cleaned)
+
+    if not statements:
+        return JsonResponse({
+            "success": True,
+            "repaired": False,
+            "message": "No actionable DDL statements to execute.",
+            "executed_statements": []
+        })
+
+    if dry_run:
+        return JsonResponse({
+            "success": True,
+            "dry_run": True,
+            "statements_to_execute": statements,
+            "risk_summary": risk_summary,
+            "message": f"Dry-run preview: {len(statements)} DDL statement(s) analyzed and validated for execution."
+        })
+
+    # Execute against live database
+    import sqlalchemy
+    resolved_conn = resolve_connection_string(p_obj.conn_str, p_obj.db_type)
+    executed_stmts = []
+
+    try:
+        engine = sqlalchemy.create_engine(resolved_conn, echo=False)
+        with engine.begin() as conn:
+            for s in statements:
+                conn.execute(sqlalchemy.text(s))
+                executed_stmts.append(s)
+        engine.dispose()
+    except Exception as e:
+        logger.error(f"Auto-repair execution failed for pipeline {p_obj.id}: {e}")
+        return JsonResponse({
+            "detail": f"Database DDL execution failed: {str(e)}",
+            "partially_executed": executed_stmts
+        }, status=500)
+
+    # Re-evaluate pipeline status
+    recheck_result = perform_pipeline_check(p_obj.id)
+
+    # Audit Logging
+    actor = user_info.get('username') or 'user'
+    AuditLog.objects.create(
+        action='pipeline.auto_repaired',
+        actor=actor,
+        target_type='pipeline',
+        target_id=str(p_obj.id),
+        organization=p_obj.organization,
+        details={
+            "executed_statements": executed_stmts,
+            "risk_summary": risk_summary,
+            "allow_destructive": allow_destructive,
+            "recheck_status": recheck_result.get("status") if isinstance(recheck_result, dict) else str(recheck_result)
+        }
+    )
+
+    return JsonResponse({
+        "success": True,
+        "repaired": True,
+        "executed_statements": executed_stmts,
+        "risk_summary": risk_summary,
+        "recheck_result": recheck_result,
+        "message": f"Successfully executed {len(executed_stmts)} DDL statement(s). Target database synchronized!"
+    })
+
+
+@require_login
 def download_pipeline_migration_api(request, id):
     """
     Direct file download endpoint for generated schema migration scripts.

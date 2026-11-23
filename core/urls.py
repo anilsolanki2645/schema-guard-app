@@ -87,6 +87,7 @@ urlpatterns = [
     path('api/pipelines/<str:id>/promote', views.promote_pipeline_api, name='promote_pipeline_api'),
     path('api/pipelines/<str:id>/migration', views.generate_pipeline_migration_api, name='generate_pipeline_migration_api'),
     path('api/pipelines/<str:id>/migration/download', views.download_pipeline_migration_api, name='download_pipeline_migration_api'),
+    path('api/pipelines/<str:id>/auto-repair', views.auto_repair_pipeline_api, name='auto_repair_pipeline_api'),
     path('api/pipelines/<str:id>/versions', views.list_contract_versions_api, name='list_contract_versions_api'),
     path('api/pipelines/<str:id>/versions/<int:version_number>', views.get_contract_version_detail_api, name='get_contract_version_detail_api'),
     path('api/pipelines/<str:id>/versions/<int:version_number>/rollback', views.rollback_contract_version_api, name='rollback_contract_version_api'),

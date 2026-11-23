@@ -2475,6 +2475,139 @@ class ComplianceReportTests(TestCase):
         self.assertIn("Inventory Stream", csv_text)
 
 
+class PipelineAutoRepairTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Repair Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="repair_admin",
+            email="repair@org.com",
+            password_hash=hash_password("RepairPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-repair-01",
+            organization=self.org,
+            name="Payments Repair",
+            environment="prod",
+            db_type="sqlite",
+            conn_str="sqlite:///:memory:",
+            schema="",
+            table="payments",
+            contract_yaml="columns:\n  - name: id\n    type: integer\n  - name: currency\n    type: varchar\n",
+            lock_signature="a" * 64,
+            schema_map={"id": "integer", "currency": "varchar"},
+            status="Drifted"
+        )
+
+    @patch('core.migration_generator.generate_migration_bundle')
+    def test_auto_repair_no_drift_needed(self, mock_bundle):
+        mock_bundle.return_value = {
+            "diff_count": 0,
+            "risk_summary": {"safe": 0, "warning": 0, "breaking": 0, "total": 0},
+            "diffs": [],
+            "sql": {"up": "", "down": ""}
+        }
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'repair_admin',
+            'password': 'RepairPass123!',
+        })
+        url = reverse('auto_repair_pipeline_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertFalse(data["repaired"])
+        self.assertIn("No repair needed", data["message"])
+
+    @patch('core.migration_generator.generate_migration_bundle')
+    def test_auto_repair_blocks_destructive_without_flag(self, mock_bundle):
+        mock_bundle.return_value = {
+            "diff_count": 1,
+            "risk_summary": {"safe": 0, "warning": 0, "breaking": 1, "total": 1},
+            "diffs": [{"action": "drop_column", "column": "secret_key", "risk": "BREAKING"}],
+            "sql": {"up": "ALTER TABLE payments DROP COLUMN secret_key;", "down": ""}
+        }
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'repair_admin',
+            'password': 'RepairPass123!',
+        })
+        url = reverse('auto_repair_pipeline_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({"allow_destructive": False}), content_type="application/json")
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.content)
+        self.assertIn("Safety Guard", data["detail"])
+        self.assertIn("allow_destructive=true", data["detail"])
+
+    @patch('core.migration_generator.generate_migration_bundle')
+    def test_auto_repair_dry_run(self, mock_bundle):
+        mock_bundle.return_value = {
+            "diff_count": 1,
+            "risk_summary": {"safe": 1, "warning": 0, "breaking": 0, "total": 1},
+            "diffs": [{"action": "add_column", "column": "currency", "risk": "SAFE"}],
+            "sql": {"up": "ALTER TABLE payments ADD COLUMN currency VARCHAR(10);", "down": ""}
+        }
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'repair_admin',
+            'password': 'RepairPass123!',
+        })
+        url = reverse('auto_repair_pipeline_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({"dry_run": True}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["dry_run"])
+        self.assertEqual(len(data["statements_to_execute"]), 1)
+        self.assertIn("ADD COLUMN currency", data["statements_to_execute"][0])
+
+    @patch('core.views.perform_pipeline_check')
+    @patch('sqlalchemy.create_engine')
+    @patch('core.migration_generator.generate_migration_bundle')
+    def test_auto_repair_safe_execution_and_audit(self, mock_bundle, mock_engine_factory, mock_check):
+        from unittest.mock import MagicMock
+        from core.models import AuditLog
+
+        mock_bundle.return_value = {
+            "diff_count": 1,
+            "risk_summary": {"safe": 1, "warning": 0, "breaking": 0, "total": 1},
+            "diffs": [{"action": "add_column", "column": "currency", "risk": "SAFE"}],
+            "sql": {"up": "ALTER TABLE payments ADD COLUMN currency VARCHAR(10);", "down": ""}
+        }
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
+        mock_engine_factory.return_value = mock_engine
+        mock_check.return_value = {"status": "Clean", "logs": []}
+
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'repair_admin',
+            'password': 'RepairPass123!',
+        })
+        url = reverse('auto_repair_pipeline_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({"dry_run": False}), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["repaired"])
+        self.assertEqual(len(data["executed_statements"]), 1)
+
+        # Check AuditLog
+        log = AuditLog.objects.filter(action="pipeline.auto_repaired", actor="repair_admin").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.target_id, self.pipeline.id)
+        self.assertEqual(len(log.details.get("executed_statements")), 1)
+
+
+
 
 
 
