@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Global Glassmorphic CSS Styling -->
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.2">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}?v=4.3">
 </head>
 <body>
     <!-- ========================================================= -->
@@ -204,18 +204,23 @@
             {% else %}
             <!-- Unauthenticated Topbar Actions -->
             <div class="sg-nav-actions">
-                <a href="{% url 'docs_page' %}" class="sg-nav-item">📚 Docs</a>
-                <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-nav-item" style="color: #38bdf8;">⚡ API</a>
-                <a href="{% url 'pricing_page' %}" class="sg-nav-item" style="color: #c084fc;">💎 Pricing</a>
+                <a href="{% url 'docs_page' %}" class="sg-nav-item sg-desktop-nav-item">📚 Docs</a>
+                <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-nav-item sg-desktop-nav-item" style="color: #38bdf8;">⚡ API</a>
+                <a href="{% url 'pricing_page' %}" class="sg-nav-item sg-desktop-nav-item" style="color: #c084fc;">💎 Pricing</a>
                 <button class="btn-primary-sm" onclick="openAuthModal(false)">Log In</button>
+                <button class="sg-hamburger-btn" id="sg-hamburger-btn-guest" onclick="toggleMobileNav()" aria-label="Toggle navigation menu">
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                </button>
             </div>
             {% endif %}
         </div>
 
         <!-- MOBILE OFFCANVAS DRAWER -->
-        {% if request.session.user %}
         <div class="sg-mobile-drawer" id="sg-mobile-drawer">
             <div class="sg-mobile-drawer-inner">
+                {% if request.session.user %}
                 <div class="sg-mobile-section-label">Core Operations</div>
                 <a href="{% url 'dashboard' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                     <span>⚡ Pipelines Dashboard</span>
@@ -268,10 +273,32 @@
                     </div>
                     <a href="{% url 'logout' %}" class="btn-danger-sm" style="text-decoration: none; padding: 0.45rem 0.85rem; border-radius: 0.45rem; font-size: 0.82rem; font-weight: 600;">Log Out</a>
                 </div>
+                {% else %}
+                <div class="sg-mobile-section-label">Resources & Documentation</div>
+                <a href="{% url 'docs_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}">
+                    <span>📖 Developer Documentation</span>
+                </a>
+                <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-mobile-link">
+                    <span>⚡ OpenAPI Swagger UI (3.1)</span>
+                </a>
+                <a href="{% url 'pricing_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
+                    <span>💎 Pricing & Enterprise Plans</span>
+                </a>
+                <a href="{% url 'terms_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'terms_page' %}active{% endif %}">
+                    <span>📜 Terms of Service</span>
+                </a>
+                <a href="{% url 'privacy_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'privacy_page' %}active{% endif %}">
+                    <span>🔒 Privacy Policy</span>
+                </a>
+                <div style="margin-top: 1rem; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                    <button class="btn-primary" onclick="toggleMobileNav(); openAuthModal(false);" style="width: 100%; justify-content: center; font-size: 0.92rem; padding: 0.65rem 1rem;">
+                        ⚡ Sign In to Account
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
         <div class="sg-mobile-backdrop" id="sg-mobile-backdrop" onclick="toggleMobileNav()"></div>
-        {% endif %}
     </header>
 
     <!-- ========================================================= -->
@@ -308,10 +335,9 @@
     function toggleMobileNav() {
         const drawer = document.getElementById('sg-mobile-drawer');
         const backdrop = document.getElementById('sg-mobile-backdrop');
-        const hamburger = document.getElementById('sg-hamburger-btn');
+        document.querySelectorAll('.sg-hamburger-btn').forEach(btn => btn.classList.toggle('active'));
         if (drawer) drawer.classList.toggle('open');
         if (backdrop) backdrop.classList.toggle('open');
-        if (hamburger) hamburger.classList.toggle('active');
     }
 
     function toggleNavDropdown(id) {
@@ -338,10 +364,9 @@
             document.querySelectorAll('.sg-dropdown').forEach(d => d.classList.remove('open'));
             const drawer = document.getElementById('sg-mobile-drawer');
             const backdrop = document.getElementById('sg-mobile-backdrop');
-            const hamburger = document.getElementById('sg-hamburger-btn');
+            document.querySelectorAll('.sg-hamburger-btn').forEach(btn => btn.classList.remove('active'));
             if (drawer) drawer.classList.remove('open');
             if (backdrop) backdrop.classList.remove('open');
-            if (hamburger) hamburger.classList.remove('active');
             if (typeof closeAuthModal === 'function') {
                 closeAuthModal();
             }
