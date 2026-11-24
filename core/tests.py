@@ -3,6 +3,7 @@ Schema Guard – Comprehensive Test Suite
 Tests for models, views, API endpoints, authentication, and permission boundaries.
 """
 import json
+from datetime import timedelta, datetime
 from django.test import TestCase, Client
 from django.urls import reverse
 from core.models import Organization, User, Pipeline, AuditLog, SchemaSnapshot, ContractVersion, ApiKey
@@ -3549,6 +3550,565 @@ class DashboardUIIntegrationTests(TestCase):
         self.assertIn('function openExportSpecModal', content)
         self.assertIn('function openTimeTravelModal', content)
         self.assertIn('function checkActiveDriftIncident', content)
+
+
+class ChangeImpactAnalysisTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Impact Test Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="impact_engineer",
+            email="impact@test.com",
+            password_hash=hash_password("ImpactPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-impact-01",
+            organization=self.org,
+            name="Payments Ingest",
+            environment="prod",
+            db_type="postgres",
+            table="transactions",
+            contract_yaml="""table: transactions
+columns:
+  - name: id
+    type: integer
+  - name: amount
+    type: numeric
+""",
+            status="Clean"
+        )
+
+    def test_analyze_lock_impact_drop_column(self):
+        from core.views import analyze_ddl_lock_impact
+        stmts = ["ALTER TABLE transactions DROP COLUMN amount;"]
+        impact = analyze_ddl_lock_impact(stmts, "postgres", row_count=50000)
+        self.assertEqual(impact["overall_risk"], "CRITICAL")
+        self.assertIn("Maintenance Window", impact["safe_deployment_window"])
+        stmt_analysis = impact["analyzed_statements"][0]
+        self.assertEqual(stmt_analysis["severity"], "CRITICAL")
+        self.assertIn("ACCESS EXCLUSIVE", stmt_analysis["lock_level"])
+        self.assertIn("deprecated in application models", stmt_analysis["recommended_recipe"])
+
+    def test_analyze_lock_impact_type_alteration(self):
+        from core.views import analyze_ddl_lock_impact
+        stmts = ["ALTER TABLE transactions ALTER COLUMN id TYPE bigint;"]
+        impact = analyze_ddl_lock_impact(stmts, "postgres", row_count=200000)
+        self.assertEqual(impact["overall_risk"], "CRITICAL")
+        self.assertTrue(impact["table_rewrite_required"])
+        self.assertEqual(impact["cloud_cost_forecast"]["wal_replication_surge"], "HIGH")
+
+    def test_analyze_lock_impact_index_concurrently_recommendation(self):
+        from core.views import analyze_ddl_lock_impact
+        stmts = ["CREATE INDEX idx_tx_amount ON transactions (amount);"]
+        impact = analyze_ddl_lock_impact(stmts, "postgres", row_count=10000)
+        self.assertEqual(impact["overall_risk"], "HIGH")
+        stmt_analysis = impact["analyzed_statements"][0]
+        self.assertIn("CONCURRENTLY", stmt_analysis["recommended_recipe"])
+
+    def test_pipeline_change_impact_api_post_ddl(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'impact_engineer',
+            'password': 'ImpactPass123!',
+        })
+        url = reverse('pipeline_change_impact_analysis_api', args=[self.pipeline.id])
+        res = self.client.post(
+            url,
+            data=json.dumps({"ddl": "ALTER TABLE transactions ADD COLUMN user_id integer NOT NULL;"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        impact = data["impact_analysis"]
+        self.assertEqual(impact["overall_risk"], "CRITICAL")
+        self.assertEqual(impact["analyzed_statements"][0]["severity"], "CRITICAL")
+
+    def test_pipeline_change_impact_api_markdown_download(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'impact_engineer',
+            'password': 'ImpactPass123!',
+        })
+        url = reverse('pipeline_change_impact_analysis_api', args=[self.pipeline.id]) + "?download=true"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "text/markdown")
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn("# Schema Change Impact & Table Lock Risk Analysis", res.content.decode())
+
+
+class CrossDatabaseComparatorTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="Cross DB Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="cross_admin",
+            email="cross@db.com",
+            password_hash=hash_password("CrossPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipe_pg = Pipeline.objects.create(
+            id="pipe-pg-prod",
+            organization=self.org,
+            name="Postgres Production Ledger",
+            environment="prod",
+            db_type="postgres",
+            table="orders",
+            contract_yaml="""table: orders
+columns:
+  - name: order_id
+    type: bigint
+  - name: payload
+    type: jsonb
+  - name: created_at
+    type: timestamptz
+  - name: status
+    type: varchar(50)
+""",
+            status="Clean"
+        )
+        self.pipe_sf = Pipeline.objects.create(
+            id="pipe-sf-warehouse",
+            organization=self.org,
+            name="Snowflake Analytics Ledger",
+            environment="prod",
+            db_type="snowflake",
+            table="orders",
+            contract_yaml="""table: orders
+columns:
+  - name: order_id
+    type: number(38,0)
+  - name: payload
+    type: variant
+  - name: created_at
+    type: timestamp_tz
+""",
+            status="Clean"
+        )
+
+    def test_canonicalize_heterogeneous_types(self):
+        from core.views import canonicalize_heterogeneous_type
+        self.assertEqual(canonicalize_heterogeneous_type("timestamptz"), "DATETIME")
+        self.assertEqual(canonicalize_heterogeneous_type("timestamp_tz"), "DATETIME")
+        self.assertEqual(canonicalize_heterogeneous_type("jsonb"), "JSON")
+        self.assertEqual(canonicalize_heterogeneous_type("variant"), "JSON")
+        self.assertEqual(canonicalize_heterogeneous_type("bigint"), "BIGINT")
+        self.assertEqual(canonicalize_heterogeneous_type("number(38,0)"), "BIGINT")
+
+    def test_cross_db_compare_missing_and_divergent_columns(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'cross_admin',
+            'password': 'CrossPass123!',
+        })
+        url = reverse('cross_db_compare_api') + f"?source_id={self.pipe_pg.id}&target_id={self.pipe_sf.id}"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertFalse(data["is_synchronized"])
+        self.assertEqual(data["comparison_summary"]["matching_count"], 3)
+        self.assertEqual(data["comparison_summary"]["missing_in_target_count"], 1)
+        self.assertEqual(data["missing_in_target"][0]["column"], "status")
+        self.assertEqual(data["missing_in_target"][0]["recommended_target_type"], "VARCHAR(16777216)")
+        self.assertIn("ADD COLUMN \"status\" VARCHAR(16777216)", data["sync_ddl"])
+
+    def test_cross_db_compare_download_sql(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'cross_admin',
+            'password': 'CrossPass123!',
+        })
+        url = reverse('cross_db_compare_api') + f"?source_id={self.pipe_pg.id}&target_id={self.pipe_sf.id}&download=true"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/sql")
+        self.assertIn("attachment; filename=", res["Content-Disposition"])
+        self.assertIn("ADD COLUMN \"status\"", res.content.decode())
+
+
+class FreshnessAndVelocityTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Freshness Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="fresh_admin",
+            email="fresh_admin@example.com",
+            password_hash=hash_password("FreshPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-freshness-01",
+            organization=self.org,
+            name="Stream Ingestion",
+            db_type="postgres",
+            table="events",
+            contract_yaml="""table: events
+columns:
+  - name: id
+    type: integer
+    primary_key: true
+  - name: updated_at
+    type: timestamp
+""",
+            status="Clean"
+        )
+
+    def test_freshness_sla_evaluation_fresh_and_breached(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'fresh_admin',
+            'password': 'FreshPass123!',
+        })
+
+        from django.utils import timezone as dj_tz
+        recent_time = (dj_tz.now() - timedelta(hours=2)).isoformat()
+        old_time = (dj_tz.now() - timedelta(hours=30)).isoformat()
+
+        # 1. Fresh case
+        url = reverse('pipeline_freshness_and_velocity_api', args=[self.pipeline.id])
+        res = self.client.get(f"{url}?sla_hours=24&mock_latest_time={recent_time}&current_rows=1000&prev_rows=1000")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["freshness"]["status"], "FRESH")
+        self.assertFalse(data["freshness"]["sla_breached"])
+        self.assertEqual(data["volume_velocity"]["status"], "NORMAL")
+
+        # 2. Breached SLA case
+        res_breach = self.client.get(f"{url}?sla_hours=24&mock_latest_time={old_time}&current_rows=1000&prev_rows=1000")
+        self.assertEqual(res_breach.status_code, 200)
+        data_breach = json.loads(res_breach.content)
+        self.assertTrue(data_breach["freshness"]["sla_breached"])
+        self.assertIn(data_breach["freshness"]["status"], ["WARN", "BREACHED"])
+
+    def test_volume_velocity_anomaly_detection_drop_and_spike(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'fresh_admin',
+            'password': 'FreshPass123!',
+        })
+        url = reverse('pipeline_freshness_and_velocity_api', args=[self.pipeline.id])
+
+        # Drop anomaly (> 80% decrease)
+        res_drop = self.client.get(f"{url}?current_rows=100&prev_rows=1000")
+        self.assertEqual(res_drop.status_code, 200)
+        data_drop = json.loads(res_drop.content)
+        self.assertEqual(data_drop["volume_velocity"]["status"], "ANOMALY_DROP")
+        self.assertTrue(data_drop["volume_velocity"]["anomaly_detected"])
+        self.assertEqual(data_drop["volume_velocity"]["change_percentage"], -90.0)
+
+        # Spike anomaly (> 500% increase)
+        res_spike = self.client.get(f"{url}?current_rows=7000&prev_rows=1000")
+        self.assertEqual(res_spike.status_code, 200)
+        data_spike = json.loads(res_spike.content)
+        self.assertEqual(data_spike["volume_velocity"]["status"], "ANOMALY_SPIKE")
+        self.assertTrue(data_spike["volume_velocity"]["anomaly_detected"])
+        self.assertEqual(data_spike["volume_velocity"]["change_percentage"], 600.0)
+
+    def test_freshness_markdown_export(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'fresh_admin',
+            'password': 'FreshPass123!',
+        })
+        url = reverse('pipeline_freshness_and_velocity_api', args=[self.pipeline.id]) + "?format=md"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "text/markdown")
+        self.assertIn("# Freshness SLA & Volume Velocity Report", res.content.decode())
+
+
+class DistributionDriftTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Distribution Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="dist_admin",
+            email="dist_admin@example.com",
+            password_hash=hash_password("DistPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-dist-01",
+            organization=self.org,
+            name="User Signups",
+            db_type="postgres",
+            table="users",
+            contract_yaml="""table: users
+columns:
+  - name: user_id
+    type: integer
+    primary_key: true
+  - name: email
+    type: varchar(255)
+    nullable: false
+  - name: status
+    type: varchar(50)
+    nullable: true
+""",
+            status="Clean"
+        )
+
+    def test_distribution_null_surge_detection(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'dist_admin',
+            'password': 'DistPass123!',
+        })
+        url = reverse('pipeline_distribution_drift_api', args=[self.pipeline.id])
+        payload = {
+            "columns": ["status"],
+            "baselines": {"status": {"null_percentage": 2.0, "cardinality_ratio": 0.4}},
+            "mock_stats": {"status": {"null_percentage": 35.0, "cardinality_ratio": 0.4}}
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["drift_detected"])
+        self.assertEqual(data["overall_status"], "DRIFT_DETECTED")
+        shifts = data["shifts_detected"]
+        self.assertTrue(any(s["shift_type"] == "NULL_SURGE" for s in shifts))
+
+    def test_distribution_cardinality_collapse_detection(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'dist_admin',
+            'password': 'DistPass123!',
+        })
+        url = reverse('pipeline_distribution_drift_api', args=[self.pipeline.id])
+        payload = {
+            "columns": ["status"],
+            "baselines": {"status": {"null_percentage": 0.0, "cardinality_ratio": 0.95}},
+            "mock_stats": {"status": {"null_percentage": 0.0, "cardinality_ratio": 0.12}}
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["drift_detected"])
+        shifts = data["shifts_detected"]
+        self.assertTrue(any(s["shift_type"] == "CARDINALITY_COLLAPSE" for s in shifts))
+
+    def test_primary_key_integrity_violation(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'dist_admin',
+            'password': 'DistPass123!',
+        })
+        url = reverse('pipeline_distribution_drift_api', args=[self.pipeline.id])
+        payload = {
+            "columns": ["user_id"],
+            "mock_stats": {"user_id": {"null_percentage": 5.0, "cardinality_ratio": 0.85}}
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["drift_detected"])
+        shifts = data["shifts_detected"]
+        self.assertTrue(any(s["shift_type"] == "PRIMARY_KEY_INTEGRITY_COMPROMISED" for s in shifts))
+
+
+class DualAuthorizationApprovalTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Enterprise Sec Org", plan="enterprise")
+        self.author = User.objects.create(
+            username="author_dba",
+            email="author@example.com",
+            password_hash=hash_password("Pass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+        self.reviewer = User.objects.create(
+            username="reviewer_admin",
+            email="reviewer@example.com",
+            password_hash=hash_password("Pass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-prod-locked-01",
+            organization=self.org,
+            name="Production Ledger",
+            environment="prod",
+            db_type="postgres",
+            table="ledger",
+            status="Drifted"
+        )
+
+    def test_create_and_list_approval_requests(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'author_dba',
+            'password': 'Pass123!',
+        })
+        url = reverse('pipeline_approval_requests_api', args=[self.pipeline.id])
+        res = self.client.post(url, data=json.dumps({
+            "action_type": "auto_repair",
+            "statements": ["ALTER TABLE ledger ADD COLUMN balance numeric(14,2);"],
+            "reason": "Missing balance column in production"
+        }), content_type="application/json")
+
+        self.assertEqual(res.status_code, 201)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        req_id = data["approval_request"]["id"]
+        self.assertEqual(data["approval_request"]["requested_by"], "author_dba")
+        self.assertEqual(data["approval_request"]["status"], "PENDING")
+
+        # List requests
+        list_res = self.client.get(url)
+        self.assertEqual(list_res.status_code, 200)
+        list_data = json.loads(list_res.content)
+        self.assertEqual(list_data["count"], 1)
+        self.assertEqual(list_data["approval_requests"][0]["id"], req_id)
+
+    def test_four_eyes_principle_rejects_self_approval(self):
+        from core.models import ApprovalRequest
+        req = ApprovalRequest.objects.create(
+            pipeline=self.pipeline,
+            requested_by="author_dba",
+            action_type="auto_repair",
+            statements=["ALTER TABLE ledger ADD COLUMN x integer;"],
+            status="PENDING"
+        )
+        # Attempt self-approval by author_dba
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'author_dba',
+            'password': 'Pass123!',
+        })
+        res = self.client.post(
+            reverse('resolve_approval_request_api', args=[req.id]),
+            data=json.dumps({"action": "approve"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 403)
+        data = json.loads(res.content)
+        self.assertIn("Four-Eyes Principle violation", data["detail"])
+
+    def test_second_admin_approves_or_rejects(self):
+        from core.models import ApprovalRequest
+        req = ApprovalRequest.objects.create(
+            pipeline=self.pipeline,
+            requested_by="author_dba",
+            action_type="rollback",
+            statements=["-- Rollback DDL"],
+            status="PENDING"
+        )
+        # Reviewer approves
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'reviewer_admin',
+            'password': 'Pass123!',
+        })
+        res = self.client.post(
+            reverse('resolve_approval_request_api', args=[req.id]),
+            data=json.dumps({"action": "approve", "notes": "Verified safe by DBA"}),
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "APPROVED")
+        self.assertEqual(data["approved_by"], "reviewer_admin")
+
+
+class SwaggerDocsTests(TestCase):
+    def test_openapi_spec_json_endpoint(self):
+        res = self.client.get(reverse('openapi_spec_json_view'))
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.content)
+        self.assertEqual(data["openapi"], "3.1.0")
+        self.assertIn("/api/pipelines", data["paths"])
+        self.assertIn("/api/pipelines/{id}/change-impact-analysis", data["paths"])
+        self.assertIn("/api/pipelines/{id}/freshness-and-velocity", data["paths"])
+        self.assertIn("/api/pipelines/{id}/distribution-drift", data["paths"])
+        self.assertIn("/api/pipelines/{id}/approval-requests", data["paths"])
+
+    def test_swagger_docs_html_endpoint(self):
+        res = self.client.get(reverse('api_documentation_view'))
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("SwaggerUIBundle", res.content.decode())
+        self.assertIn("Schema Guard", res.content.decode())
+
+
+class SchemaGuardCLITests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="CLI Test Org", plan="pro")
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-cli-test-01",
+            organization=self.org,
+            name="CLI Verified Table",
+            db_type="postgres",
+            table="orders",
+            schema_map={"id": "integer", "status": "varchar(50)"},
+            status="Clean"
+        )
+
+    def test_cli_lock_and_diff(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("schemaguard", "lock", "--pipeline", self.pipeline.id, stdout=out)
+        self.assertIn("Successfully locked contract", out.getvalue())
+
+        out_diff = StringIO()
+        call_command("schemaguard", "diff", "--pipeline", self.pipeline.id, stdout=out_diff)
+        self.assertIn("Schema Structure for 'pipe-cli-test-01'", out_diff.getvalue())
+
+    def test_cli_impact_command(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command(
+            "schemaguard", "impact",
+            "--ddl", "ALTER TABLE orders ADD COLUMN note text;",
+            "--dialect", "postgres",
+            "--json",
+            stdout=out
+        )
+        data = json.loads(out.getvalue())
+        self.assertEqual(data["overall_risk"], "LOW")
+        self.assertEqual(len(data["analyzed_statements"]), 1)
+
+    @patch('core.views.perform_pipeline_check')
+    def test_cli_gate_command_passes_on_clean(self, mock_check):
+        mock_check.return_value = {"status": "Clean", "violations": []}
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("schemaguard", "gate", "--pipeline", self.pipeline.id, stdout=out)
+        self.assertIn("CI/CD GATE PASSED", out.getvalue())
+
+    @patch('core.views.perform_pipeline_check')
+    def test_cli_check_command(self, mock_check):
+        mock_check.return_value = {
+            "status": "Drifted",
+            "violations": [{"type": "TYPE_CHANGED", "column": "status", "message": "type mismatch"}]
+        }
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("schemaguard", "check", "--pipeline", self.pipeline.id, stdout=out)
+        self.assertIn("Pipeline pipe-cli-test-01 Check Result: Drifted", out.getvalue())
+
+
 
 
 

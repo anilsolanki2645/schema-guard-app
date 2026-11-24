@@ -133,6 +133,8 @@ class AuditLog(models.Model):
         ('org.invite_revoked', 'Invitation Revoked'),
         ('org.member_joined', 'Team Member Joined'),
         ('org.member_removed', 'Team Member Removed'),
+        ('approval.request_created', 'Approval Request Created'),
+        ('approval.resolved', 'Approval Request Resolved'),
     ]
     
     action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
@@ -379,6 +381,49 @@ class ContractVersion(models.Model):
 
     def __str__(self):
         return f"{self.pipeline.name} (v{self.version_number})"
+
+
+class ApprovalRequest(models.Model):
+    """
+    Dual-Authorization ('Four-Eyes Principle') Production DDL Approval Gate.
+    Enforces peer-review before executing dangerous DDL (auto-repair, rollback, migration)
+    in sensitive environments. The requester cannot approve their own request.
+    """
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending Approval'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('EXECUTED', 'Executed'),
+    ]
+    ACTION_CHOICES = [
+        ('auto_repair', 'Auto-Repair DDL'),
+        ('rollback', 'Rollback DDL'),
+        ('migration', 'Contract Migration'),
+        ('manual_ddl', 'Manual DDL Execution'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='approval_requests')
+    requested_by = models.CharField(max_length=150, db_index=True)
+    approved_by = models.CharField(max_length=150, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', db_index=True)
+    action_type = models.CharField(max_length=50, choices=ACTION_CHOICES, default='auto_repair')
+    statements = models.JSONField(default=list)
+    risk_summary = models.JSONField(default=dict)
+    reason = models.TextField(blank=True, default='')
+    resolution_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['pipeline', 'status']),
+            models.Index(fields=['requested_by', 'status']),
+        ]
+
+    def __str__(self):
+        return f"ApprovalRequest({self.id}) {self.action_type} for {self.pipeline_id} [{self.status}]"
 
 
 
