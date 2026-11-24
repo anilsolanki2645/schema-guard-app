@@ -426,4 +426,26 @@ class ApprovalRequest(models.Model):
         return f"ApprovalRequest({self.id}) {self.action_type} for {self.pipeline_id} [{self.status}]"
 
 
+class DemoOrder(models.Model):
+    """
+    Live sample demonstration table for onboarded demo pipelines.
+    Enables realistic schema extraction, drift detection, and data quality validations
+    directly against the platform's active database engine without external host errors.
+    """
+    id = models.AutoField(primary_key=True)
+    customer_id = models.IntegerField(default=101)
+    total_amount = models.CharField(max_length=100, default='149.99')
+    status = models.CharField(max_length=50, null=True, blank=True, default='completed')
+    shipping_address = models.TextField(null=True, blank=True, default='123 Market St, San Francisco, CA')
+
+    class Meta:
+        db_table = 'demo_orders'
+        verbose_name = 'Demo Order'
+        verbose_name_plural = 'Demo Orders'
+
+    def __str__(self):
+        return f"DemoOrder #{self.id} (${self.total_amount})"
+
+
+
 

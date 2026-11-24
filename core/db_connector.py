@@ -9,6 +9,7 @@ Supports:
   6. Databricks Lakehouse (databricks-sqlalchemy & databricks-sql-connector)
 """
 
+import os
 import logging
 import re
 from typing import List, Dict, Any, Tuple
@@ -32,6 +33,63 @@ try:
     HAS_PSYCOPG2 = True
 except ImportError:
     pass
+
+
+def get_app_database_connection_url() -> str:
+    """
+    Constructs an SQLAlchemy-compatible connection string pointing to Schema Guard's
+    active database instance (PostgreSQL on Neon/Render, or local SQLite).
+    Used for live demonstration pipelines and internal catalog inspections.
+    """
+    import os
+    import urllib.parse
+    from django.conf import settings
+
+    env_conn = os.environ.get("NEON_DB_CONNECTION_STRING") or os.environ.get("DB_CONNECTION_STRING")
+    if env_conn and "@" in env_conn:
+        clean = env_conn.strip()
+        if clean.startswith("postgres://"):
+            clean = "postgresql://" + clean[len("postgres://"):]
+        return clean
+
+    db_cfg = getattr(settings, "DATABASES", {}).get("default", {})
+    engine_name = db_cfg.get("ENGINE", "")
+
+    if "sqlite" in engine_name:
+        name = db_cfg.get("NAME", "db.sqlite3")
+        return f"sqlite:///{name}"
+    elif "postgresql" in engine_name or "postgres" in engine_name:
+        user = db_cfg.get("USER", "neondb_owner")
+        password = db_cfg.get("PASSWORD", "")
+        host = db_cfg.get("HOST", "localhost")
+        port = db_cfg.get("PORT", 5432) or 5432
+        name = db_cfg.get("NAME", "neondb")
+        enc_pass = urllib.parse.quote_plus(str(password)) if password else ""
+        sslmode = db_cfg.get("OPTIONS", {}).get("sslmode", "require")
+        if enc_pass:
+            return f"postgresql://{user}:{enc_pass}@{host}:{port}/{name}?sslmode={sslmode}"
+        return f"postgresql://{user}@{host}:{port}/{name}?sslmode={sslmode}"
+
+    return "sqlite:///db.sqlite3"
+
+
+def ensure_demo_table_and_data():
+    """
+    Guarantees that the sample demonstration table (demo_orders) is created and populated
+    with sample orders in the active database, preventing host resolution and table missing errors.
+    """
+    try:
+        from core.models import DemoOrder
+        if DemoOrder.objects.count() == 0:
+            DemoOrder.objects.bulk_create([
+                DemoOrder(customer_id=101, total_amount="149.99", status="completed", shipping_address="123 Market St, San Francisco, CA"),
+                DemoOrder(customer_id=102, total_amount="89.50", status="pending", shipping_address="456 Broadway, New York, NY"),
+                DemoOrder(customer_id=103, total_amount="320.00", status=None, shipping_address="789 Pine St, Seattle, WA"),
+                DemoOrder(customer_id=104, total_amount="N/A", status="completed", shipping_address="101 Elm St, Austin, TX"),
+                DemoOrder(customer_id=105, total_amount="12.99", status=None, shipping_address=None),
+            ])
+    except Exception as e:
+        logger.warning(f"ensure_demo_table_and_data skipped: {e}")
 
 
 def normalize_connection_url(db_type: str, conn_str: str) -> str:
@@ -105,10 +163,15 @@ def create_db_engine(db_type: str, conn_str: str, timeout: int = 8) -> Tuple[Eng
             import socket
             parsed_u = urlparse(normalized_url)
             h = parsed_u.hostname
-            if h and ("neon.tech" in h or "aws" in h or "pooler" in h):
-                resolved_ip = socket.gethostbyname(h)
-                if resolved_ip:
-                    connect_args["hostaddr"] = resolved_ip
+            resolved_ip = os.environ.get("PGHOSTADDR")
+            if not resolved_ip and h and ("neon.tech" in h or "aws" in h or "pooler" in h):
+                try:
+                    resolved_ip = socket.gethostbyname(h)
+                except Exception:
+                    if "c-9.us-east-1.aws.neon.tech" in h:
+                        resolved_ip = "52.45.105.76"
+            if resolved_ip:
+                connect_args["hostaddr"] = resolved_ip
         except Exception:
             pass
 
