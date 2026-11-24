@@ -3493,6 +3493,64 @@ columns:
         self.assertIn("attachment; filename=", res["Content-Disposition"])
 
 
+class DashboardUIIntegrationTests(TestCase):
+    def setUp(self):
+        from core.models import Organization, User, Pipeline
+        from core.views import hash_password
+
+        self.org = Organization.objects.create(name="UI Test Org", plan="enterprise")
+        self.user = User.objects.create(
+            username="ui_tester",
+            email="ui@tester.com",
+            password_hash=hash_password("UiPass123!"),
+            organization=self.org,
+            role="admin",
+            is_verified=True,
+            permissions={"see": True, "create": True, "edit": True, "delete": True}
+        )
+        self.pipeline = Pipeline.objects.create(
+            id="pipe-ui-01",
+            organization=self.org,
+            name="UI Ingest Pipeline",
+            environment="prod",
+            db_type="postgres",
+            table="orders",
+            contract_yaml="table: orders\ncolumns: []",
+            status="Drifted"
+        )
+
+    def test_dashboard_renders_all_new_governance_and_telemetry_ui_components(self):
+        self.client.post(reverse('login_or_register'), {
+            'action': 'login',
+            'username': 'ui_tester',
+            'password': 'UiPass123!',
+        })
+        res = self.client.get(reverse('dashboard'))
+        self.assertEqual(res.status_code, 200)
+        content = res.content.decode('utf-8')
+
+        # 1. Modals
+        self.assertIn('id="health-telemetry-modal"', content)
+        self.assertIn('id="rollback-modal"', content)
+        self.assertIn('id="export-spec-modal"', content)
+        self.assertIn('id="time-travel-modal"', content)
+
+        # 2. Controls & Buttons
+        self.assertIn('id="incident-ribbon"', content)
+        self.assertIn('id="live-telemetry-badge"', content)
+        self.assertIn('id="btn-health-telemetry"', content)
+        self.assertIn('id="btn-rollback-script"', content)
+        self.assertIn('id="btn-export-spec"', content)
+        self.assertIn('id="btn-time-travel"', content)
+
+        # 3. JavaScript Handlers
+        self.assertIn('function fetchLiveTelemetry', content)
+        self.assertIn('function openRollbackModal', content)
+        self.assertIn('function openExportSpecModal', content)
+        self.assertIn('function openTimeTravelModal', content)
+        self.assertIn('function checkActiveDriftIncident', content)
+
+
 
 
 

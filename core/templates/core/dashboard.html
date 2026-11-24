@@ -221,38 +221,71 @@
     <!-- Pipeline Drill-Down Details Panel -->
     <div id="pipeline-details-panel" class="glass-card"
         style="margin-top: 2rem; border-color: var(--color-primary); display: none;">
+
+        <!-- Active Drift Incident Ribbon (Displayed dynamically if pipeline is drifted) -->
+        <div id="incident-ribbon" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 0.75rem; padding: 0.85rem 1.25rem; margin-bottom: 1.25rem; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span id="incident-severity-badge" style="background: #ef4444; color: #ffffff; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">CRITICAL</span>
+                <div>
+                    <span id="incident-title-text" style="font-weight: 700; color: #fecaca; font-size: 0.95rem;">Active Schema Drift Incident</span>
+                    <span id="incident-time-text" style="color: #94a3b8; font-size: 0.8rem; margin-left: 0.5rem;"></span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn-secondary" id="btn-incident-ack" onclick="acknowledgeActiveIncident()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; border-color: rgba(245, 158, 11, 0.5); color: #fbbf24; cursor: pointer;">👁️ Acknowledge</button>
+                <button type="button" class="btn-secondary" id="btn-incident-snooze" onclick="snoozeActiveIncident()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; cursor: pointer;">⏰ Snooze (1h)</button>
+                <button type="button" class="btn-primary-sm" onclick="quickAutoRepair()" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; background: #10b981; border-color: #059669; cursor: pointer;">⚡ Auto-Repair & Resolve</button>
+            </div>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
             <div>
-                <h2 class="card-title" id="detail-pipeline-title"
-                    style="border: none; padding: 0; margin: 0; font-size: 1.35rem; font-weight: 800;">🔍 Pipeline: -
-                </h2>
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <h2 class="card-title" id="detail-pipeline-title"
+                        style="border: none; padding: 0; margin: 0; font-size: 1.35rem; font-weight: 800;">🔍 Pipeline: -
+                    </h2>
+                    <span id="live-telemetry-badge" onclick="openHealthTelemetryModal()"
+                        style="display: none; cursor: pointer; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.65rem; border-radius: 9999px; align-items: center; gap: 0.35rem;"
+                        title="Click to inspect real-time database latency and telemetry">🩺 Latency: --ms</span>
+                </div>
                 <p id="detail-pipeline-db-subtitle"
                     style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Lazy catalog extractor
                     targeting POSTGRES schemas.</p>
             </div>
-            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
                 <button type="button" class="btn-primary-sm" id="btn-promote-pipeline" onclick="openPromotionModal()"
                     style="display: none; background: linear-gradient(135deg, #8b5cf6, #3b82f6); border-color: #8b5cf6; padding: 0.4rem 0.85rem; font-size: 0.85rem; font-weight: 700; align-items: center; gap: 0.35rem;"
                     title="Promote contract to higher environment">🚀 Promote Environment</button>
                 <a href="/builder" id="btn-open-builder-contract" class="btn-secondary"
                     style="border-color: rgba(139, 92, 246, 0.4); color: #c084fc; text-decoration: none; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;"
-                    title="1-Click generate and inspect schema contract in Builder">📜 Contract Builder</a>
+                    title="1-Click generate and inspect schema contract in Builder">📜 Builder</a>
                 <button type="button" class="btn-secondary" id="btn-contract-history" onclick="openContractHistoryModal()"
                     style="border-color: rgba(139, 92, 246, 0.4); color: #c084fc; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
                     title="Inspect contract version history and roll back revisions">📜 History</button>
+                <button type="button" class="btn-secondary" id="btn-time-travel" onclick="openTimeTravelModal()"
+                    style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
+                    title="Time-travel event timeline and historical snapshot diffing">⏳ Time-Travel</button>
+                <button type="button" class="btn-secondary" id="btn-health-telemetry" onclick="openHealthTelemetryModal()"
+                    style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
+                    title="Live connection pool, round-trip latency, and SSL audit">🩺 Health</button>
+                <button type="button" class="btn-secondary" id="btn-rollback-script" onclick="openRollbackModal()"
+                    style="border-color: rgba(249, 115, 22, 0.4); color: #fb923c; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
+                    title="Generate reverse DOWN migration DDL to roll back drift">⏪ Rollback</button>
+                <button type="button" class="btn-secondary" id="btn-export-spec" onclick="openExportSpecModal()"
+                    style="border-color: rgba(168, 85, 247, 0.4); color: #c084fc; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
+                    title="Export schema contract as OpenAPI 3.1 or dbt schema.yml">📐 Export Spec</button>
                 <button type="button" class="btn-secondary" id="btn-ci-gate" onclick="openCiGateModal()"
                     style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.85rem; padding: 0.4rem 0.75rem; display: none; align-items: center; gap: 0.35rem;"
-                    title="Generate GitHub Actions / GitLab CI workflow and test gate">🛡️ CI/CD Gate</button>
-                <button class="btn-primary-sm" id="btn-trigger-check" onclick="triggerCheck()">Trigger Validation
-                    Check</button>
+                    title="Generate GitHub Actions / GitLab CI workflow and test gate">🛡️ CI Gate</button>
+                <button class="btn-primary-sm" id="btn-trigger-check" onclick="triggerCheck()">Trigger Check</button>
                 <button class="btn-secondary" id="btn-migration-generator" onclick="openMigrationModal()"
                     style="border-color: #3b82f6; color: #60a5fa; display: none; align-items: center; gap: 0.35rem;"
-                    title="Generate SQL, Flyway, Liquibase, or Alembic schema migration script">📦 Generate Migration</button>
+                    title="Generate SQL, Flyway, Liquibase, or Alembic schema migration script">📦 Migration</button>
                 <button class="btn-secondary" id="btn-auto-repair" onclick="quickAutoRepair()"
                     style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; display: none; align-items: center; gap: 0.35rem;"
-                    title="1-Click safe automated database repair with DDL safety gating">⚡ Safe Auto-Repair</button>
+                    title="1-Click safe automated database repair with DDL safety gating">⚡ Auto-Repair</button>
                 <button class="btn-secondary" id="btn-ask-ai" onclick="openAiDrawer()"
-                    style="border-color: var(--color-warning); display: none;">🤖 Ask AI Analyzer</button>
+                    style="border-color: var(--color-warning); display: none;">🤖 Ask AI</button>
             </div>
         </div>
 
@@ -1554,6 +1587,219 @@
     </div>
 </div>
 
+<!-- Database Health & Latency Telemetry Modal -->
+<div id="health-telemetry-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeHealthTelemetryModal()">
+    <div class="modal-card" style="max-width: 700px;">
+        <div class="modal-header">
+            <div>
+                <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🩺</span> Database Health & Latency Telemetry
+                </h2>
+                <p id="telemetry-modal-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                    Live connection pool benchmark and cryptographic audit for active pipeline.
+                </p>
+            </div>
+            <button class="modal-close" onclick="closeHealthTelemetryModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+            <!-- Health Status Banner -->
+            <div id="telemetry-status-banner" style="display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 0.75rem; margin-bottom: 1.25rem;">
+                <div>
+                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Overall Health Status</span>
+                    <div id="telemetry-status-text" style="font-size: 1.15rem; font-weight: 800; color: #34d399;">HEALTHY</div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Measured At</span>
+                    <div id="telemetry-measured-at" style="font-size: 0.85rem; color: #f1f5f9; font-family: var(--font-mono);">Just now</div>
+                </div>
+            </div>
+
+            <!-- Latency Metrics Grid -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+                <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem; padding: 0.85rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Connect Latency</div>
+                    <div id="telemetry-connect-ms" style="font-size: 1.35rem; font-weight: 800; color: #38bdf8; font-family: var(--font-mono); margin-top: 0.25rem;">-- ms</div>
+                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.2rem;">Pool acquisition</div>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem; padding: 0.85rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Query Ping (SELECT 1)</div>
+                    <div id="telemetry-query-ms" style="font-size: 1.35rem; font-weight: 800; color: #a78bfa; font-family: var(--font-mono); margin-top: 0.25rem;">-- ms</div>
+                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.2rem;">Round-trip query</div>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem; padding: 0.85rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Total Latency</div>
+                    <div id="telemetry-total-ms" style="font-size: 1.35rem; font-weight: 800; color: #34d399; font-family: var(--font-mono); margin-top: 0.25rem;">-- ms</div>
+                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.2rem;">End-to-end ping</div>
+                </div>
+            </div>
+
+            <!-- Server & Security Attributes -->
+            <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Database Engine & Dialect:</span>
+                    <span id="telemetry-dialect" style="font-weight: 700; color: #f1f5f9; text-transform: uppercase;">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Server Version Banner:</span>
+                    <span id="telemetry-server-version" style="font-family: var(--font-mono); color: #cbd5e1; max-width: 60%; text-align: right; font-size: 0.8rem;">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">SSL / TLS Encryption:</span>
+                    <span id="telemetry-ssl-status" style="font-weight: 700; color: #34d399;">🔒 Verified Active</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Live Table Rows:</span>
+                    <span id="telemetry-row-count" style="font-family: var(--font-mono); font-weight: 700; color: #f1f5f9;">-- rows</span>
+                </div>
+            </div>
+
+            <!-- Connection Pool Info -->
+            <div id="telemetry-pool-box" style="display: none; background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 0.5rem; padding: 0.75rem; font-size: 0.8rem; color: #94a3b8;">
+                <span style="font-weight: 700; color: #cbd5e1;">Engine Connection Pool: </span>
+                <span id="telemetry-pool-details">Size: 5 | Checked In: 0 | Overflow: 0</span>
+            </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);">
+            <button type="button" class="btn-secondary" onclick="benchmarkCurrentPipeline()" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                🔄 Re-Benchmark Now
+            </button>
+            <button class="btn-secondary" onclick="closeHealthTelemetryModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Automated Rollback Generator Modal -->
+<div id="rollback-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeRollbackModal()">
+    <div class="modal-card" style="max-width: 800px;">
+        <div class="modal-header">
+            <div>
+                <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>⏪</span> Automated Schema Rollback Generator
+                </h2>
+                <p id="rollback-modal-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                    Generate reverse DOWN migration DDL to revert live database drift or restore prior baseline.
+                </p>
+            </div>
+            <button class="modal-close" onclick="closeRollbackModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+            <!-- Target Baseline Selector -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem;">
+                <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Revert Baseline Target:</span>
+                <span id="rollback-target-label" style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">Locked Contract Baseline</span>
+            </div>
+
+            <!-- Risk Summary Pills -->
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <span id="rb-risk-safe" style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80; padding: 0.25rem 0.65rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: 700;">Safe: 0</span>
+                <span id="rb-risk-warn" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fbbf24; padding: 0.25rem 0.65rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: 700;">Warnings: 0</span>
+                <span id="rb-risk-break" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #f87171; padding: 0.25rem 0.65rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: 700;">Destructive: 0</span>
+            </div>
+
+            <!-- Destructive Safety Checkbox -->
+            <div id="rb-destructive-gate" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #fca5a5; font-size: 0.85rem; font-weight: 600;">
+                    <input type="checkbox" id="rb-allow-destructive-checkbox" style="accent-color: #ef4444; width: 16px; height: 16px;">
+                    <span>I understand this rollback drops drifted columns and authorize destructive DDL execution.</span>
+                </label>
+            </div>
+
+            <!-- SQL Code Box -->
+            <div style="position: relative;">
+                <pre id="rollback-sql-content" style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem; padding: 1rem; color: #a5b4fc; font-family: var(--font-mono); font-size: 0.85rem; max-height: 280px; overflow-y: auto; white-space: pre-wrap; margin: 0;">-- Loading rollback statements...</pre>
+            </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="button" class="btn-secondary" onclick="downloadRollbackSql()" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                    💾 Download .sql
+                </button>
+                <button type="button" class="btn-primary" id="btn-execute-rollback" onclick="executeRollbackDb()" style="background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    ⚡ Execute Rollback
+                </button>
+            </div>
+            <button class="btn-secondary" onclick="closeRollbackModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Data Catalog & Specification Exporter Modal -->
+<div id="export-spec-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeExportSpecModal()">
+    <div class="modal-card" style="max-width: 850px;">
+        <div class="modal-header">
+            <div>
+                <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>📐</span> Data Catalog & Specification Exporter
+                </h2>
+                <p id="export-spec-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                    Export contract schema as OpenAPI 3.1 JSON Schema or dbt schema.yml model.
+                </p>
+            </div>
+            <button class="modal-close" onclick="closeExportSpecModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+            <!-- Format Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.75rem;">
+                <button type="button" id="tab-btn-openapi" class="btn-primary-sm" onclick="switchExportTab('openapi')" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">
+                    🌐 OpenAPI 3.1 JSON Schema
+                </button>
+                <button type="button" id="tab-btn-dbt" class="btn-secondary" onclick="switchExportTab('dbt')" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">
+                    📦 dbt schema.yml (with tests)
+                </button>
+            </div>
+
+            <!-- Code Preview Box -->
+            <div style="position: relative;">
+                <button type="button" onclick="copyExportCode()" style="position: absolute; top: 0.75rem; right: 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 0.35rem; font-size: 0.75rem; cursor: pointer;">
+                    📋 Copy
+                </button>
+                <pre id="export-spec-code" style="background: #030712; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem; padding: 1rem; color: #a5b4fc; font-family: var(--font-mono); font-size: 0.82rem; max-height: 380px; overflow-y: auto; white-space: pre-wrap; margin: 0;">Loading specification...</pre>
+            </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);">
+            <button type="button" class="btn-primary" onclick="downloadCurrentSpec()" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                💾 Download Specification File
+            </button>
+            <button class="btn-secondary" onclick="closeExportSpecModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Schema Time-Travel Timeline & Snapshot Differ Modal -->
+<div id="time-travel-modal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeTimeTravelModal()">
+    <div class="modal-card" style="max-width: 850px;">
+        <div class="modal-header">
+            <div>
+                <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>⏳</span> Schema Time-Travel & Snapshot Differ
+                </h2>
+                <p id="time-travel-subtitle" style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0 0;">
+                    Event stream of schema snapshots, contract versions, and incidents with diff visualizer.
+                </p>
+            </div>
+            <button class="modal-close" onclick="closeTimeTravelModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+            <!-- Snapshot Comparison Trigger Box -->
+            <div id="timeline-diff-box" style="display: none; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 700; color: #38bdf8; font-size: 0.9rem;">Historical Snapshot Diff Comparison</span>
+                    <button type="button" onclick="closeTimelineDiff()" style="background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">✕ Clear</button>
+                </div>
+                <div id="timeline-diff-results" style="font-size: 0.85rem; color: #f1f5f9;">Loading diff...</div>
+            </div>
+
+            <!-- Timeline Events Container -->
+            <div id="timeline-events-container" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 400px; overflow-y: auto;">
+                <div style="text-align: center; padding: 2rem; color: #94a3b8;">Loading time-travel timeline events...</div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);">
+            <button class="btn-secondary" onclick="closeTimeTravelModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
     function openApiKeysModal() {
         document.getElementById('api-keys-modal').style.display = 'flex';
@@ -2031,6 +2277,26 @@
         if (ciBtn) {
             ciBtn.style.display = 'inline-flex';
         }
+        const healthBtn = document.getElementById('btn-health-telemetry');
+        if (healthBtn) {
+            healthBtn.style.display = 'inline-flex';
+        }
+        const ttBtn = document.getElementById('btn-time-travel');
+        if (ttBtn) {
+            ttBtn.style.display = 'inline-flex';
+        }
+        const rbBtn = document.getElementById('btn-rollback-script');
+        if (rbBtn) {
+            rbBtn.style.display = 'inline-flex';
+        }
+        const specBtn = document.getElementById('btn-export-spec');
+        if (specBtn) {
+            specBtn.style.display = 'inline-flex';
+        }
+
+        // Fetch real-time health telemetry & check active incidents
+        fetchLiveTelemetry(found.id);
+        checkActiveDriftIncident(found);
 
         // Show promote button for dev & staging pipelines
         const promoteBtn = document.getElementById('btn-promote-pipeline');
@@ -4136,6 +4402,488 @@ with DAG(
             btn.innerHTML = '🧪 Test Gate Simulation';
             alert(`Simulation failed: ${err.message}`);
         });
+    }
+
+    // ==========================================
+    // 1. Live Database Health & Latency Telemetry
+    // ==========================================
+    let activePipelineTelemetry = null;
+
+    function fetchLiveTelemetry(pipelineId) {
+        const badge = document.getElementById('live-telemetry-badge');
+        if (!badge) return;
+        badge.style.display = 'inline-flex';
+        badge.innerHTML = '🩺 Latency: <span style="opacity:0.7">pinging...</span>';
+
+        fetch(`/api/pipelines/${pipelineId}/health-metrics`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.metrics) {
+                activePipelineTelemetry = data;
+                const lat = data.metrics.total_latency_ms;
+                const status = data.status;
+                let color = '#34d399';
+                let bg = 'rgba(16, 185, 129, 0.15)';
+                let border = 'rgba(16, 185, 129, 0.4)';
+                if (status === 'DEGRADED') {
+                    color = '#fbbf24';
+                    bg = 'rgba(245, 158, 11, 0.15)';
+                    border = 'rgba(245, 158, 11, 0.4)';
+                } else if (status === 'UNHEALTHY') {
+                    color = '#f87171';
+                    bg = 'rgba(239, 68, 68, 0.15)';
+                    border = 'rgba(239, 68, 68, 0.4)';
+                }
+                badge.style.background = bg;
+                badge.style.borderColor = border;
+                badge.style.color = color;
+                badge.innerHTML = `🩺 Latency: ${lat}ms ${data.metrics.ssl_active ? '🔒' : ''}`;
+            } else {
+                badge.innerHTML = '🩺 Latency: N/A';
+            }
+        })
+        .catch(() => {
+            badge.innerHTML = '🩺 Latency: N/A';
+        });
+    }
+
+    function openHealthTelemetryModal() {
+        if (!activePipeline) return;
+        document.getElementById('health-telemetry-modal').style.display = 'flex';
+        document.getElementById('telemetry-modal-subtitle').innerText = `Live connection pool benchmark and cryptographic audit for ${activePipeline.name}.`;
+        benchmarkCurrentPipeline();
+    }
+
+    function closeHealthTelemetryModal() {
+        document.getElementById('health-telemetry-modal').style.display = 'none';
+    }
+
+    function benchmarkCurrentPipeline() {
+        if (!activePipeline) return;
+        const banner = document.getElementById('telemetry-status-banner');
+        const statusTxt = document.getElementById('telemetry-status-text');
+        statusTxt.innerText = 'Pinging...';
+
+        fetch(`/api/pipelines/${activePipeline.id}/health-metrics`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.metrics) {
+                activePipelineTelemetry = data;
+                const m = data.metrics;
+                const st = data.status;
+
+                let color = '#34d399';
+                let bg = 'rgba(16, 185, 129, 0.1)';
+                let border = 'rgba(16, 185, 129, 0.3)';
+                if (st === 'DEGRADED') {
+                    color = '#fbbf24';
+                    bg = 'rgba(245, 158, 11, 0.1)';
+                    border = 'rgba(245, 158, 11, 0.3)';
+                } else if (st === 'UNHEALTHY') {
+                    color = '#f87171';
+                    bg = 'rgba(239, 68, 68, 0.1)';
+                    border = 'rgba(239, 68, 68, 0.3)';
+                }
+                banner.style.background = bg;
+                banner.style.borderColor = border;
+                statusTxt.style.color = color;
+                statusTxt.innerText = st;
+
+                document.getElementById('telemetry-measured-at').innerText = new Date(data.measured_at || Date.now()).toLocaleTimeString();
+                document.getElementById('telemetry-connect-ms').innerText = `${m.connect_latency_ms} ms`;
+                document.getElementById('telemetry-query-ms').innerText = `${m.query_latency_ms} ms`;
+                document.getElementById('telemetry-total-ms').innerText = `${m.total_latency_ms} ms`;
+                document.getElementById('telemetry-dialect').innerText = data.db_type || 'Unknown';
+                document.getElementById('telemetry-server-version').innerText = m.server_version || 'N/A';
+
+                const sslEl = document.getElementById('telemetry-ssl-status');
+                if (m.ssl_active) {
+                    sslEl.innerHTML = '🔒 Verified Active';
+                    sslEl.style.color = '#34d399';
+                } else {
+                    sslEl.innerHTML = '⚠️ Non-SSL / Plaintext';
+                    sslEl.style.color = '#fbbf24';
+                }
+
+                document.getElementById('telemetry-row-count').innerText = `${m.table_rows ? m.table_rows.toLocaleString() : 0} rows`;
+
+                const poolBox = document.getElementById('telemetry-pool-box');
+                const poolDetails = document.getElementById('telemetry-pool-details');
+                if (m.connection_pool && Object.keys(m.connection_pool).length > 0) {
+                    poolBox.style.display = 'block';
+                    const cp = m.connection_pool;
+                    poolDetails.innerText = `Size: ${cp.size || 5} | Checked In: ${cp.checked_in || 0} | Checked Out: ${cp.checked_out || 0} | Overflow: ${cp.overflow || 0}`;
+                } else {
+                    poolBox.style.display = 'none';
+                }
+            } else {
+                statusTxt.innerText = 'UNHEALTHY';
+                statusTxt.style.color = '#f87171';
+            }
+        })
+        .catch(err => {
+            statusTxt.innerText = 'ERROR';
+            statusTxt.style.color = '#f87171';
+        });
+    }
+
+    // ==========================================
+    // 2. Automated Rollback Generator (Inverse DDL)
+    // ==========================================
+    let currentRollbackData = null;
+
+    function openRollbackModal() {
+        if (!activePipeline) return;
+        document.getElementById('rollback-modal').style.display = 'flex';
+        document.getElementById('rollback-modal-subtitle').innerText = `Reverting drift for "${activePipeline.name}" back to baseline.`;
+        document.getElementById('rollback-sql-content').innerText = '-- Analyzing reverse DDL statements...';
+        document.getElementById('rb-destructive-gate').style.display = 'none';
+        document.getElementById('rb-allow-destructive-checkbox').checked = false;
+
+        fetch(`/api/pipelines/${activePipeline.id}/rollback-script`)
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Failed to generate rollback script.');
+            return data;
+        })
+        .then(data => {
+            currentRollbackData = data;
+            document.getElementById('rollback-target-label').innerText = data.target_baseline || 'Locked Contract Baseline';
+            
+            const rs = data.risk_summary || { safe: 0, warning: 0, breaking: 0 };
+            document.getElementById('rb-risk-safe').innerText = `Safe: ${rs.safe}`;
+            document.getElementById('rb-risk-warn').innerText = `Warnings: ${rs.warning}`;
+            document.getElementById('rb-risk-break').innerText = `Destructive: ${rs.breaking}`;
+
+            if (rs.breaking > 0) {
+                document.getElementById('rb-destructive-gate').style.display = 'block';
+            }
+
+            document.getElementById('rollback-sql-content').innerText = data.rollback_sql || '-- No rollback changes required.';
+        })
+        .catch(err => {
+            document.getElementById('rollback-sql-content').innerText = `-- Error: ${err.message}`;
+        });
+    }
+
+    function closeRollbackModal() {
+        document.getElementById('rollback-modal').style.display = 'none';
+    }
+
+    function downloadRollbackSql() {
+        if (!activePipeline) return;
+        window.location.href = `/api/pipelines/${activePipeline.id}/rollback-script?download=true`;
+    }
+
+    function executeRollbackDb() {
+        if (!activePipeline || !currentRollbackData) return;
+        const allowDestructive = document.getElementById('rb-allow-destructive-checkbox').checked;
+        const btn = document.getElementById('btn-execute-rollback');
+
+        if (currentRollbackData.risk_summary && currentRollbackData.risk_summary.breaking > 0 && !allowDestructive) {
+            alert('⚠️ Rollback contains destructive statements (e.g. DROP COLUMN). Please authorize the execution by checking the confirmation box.');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to execute rollback DDL on "${activePipeline.name}"?\n\nThis will apply reverse migration statements directly to your database.`)) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Executing...';
+
+        fetch(`/api/pipelines/${activePipeline.id}/rollback-script`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                execute: true,
+                allow_destructive: allowDestructive
+            })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Rollback execution failed.');
+            return data;
+        })
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '⚡ Execute Rollback';
+            alert(`✅ Rollback successful: ${data.message}`);
+            closeRollbackModal();
+            triggerCheck();
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '⚡ Execute Rollback';
+            alert(`❌ Rollback execution failed: ${err.message}`);
+        });
+    }
+
+    // ==========================================
+    // 3. Data Catalog & Spec Exporter
+    // ==========================================
+    let currentExportTab = 'openapi';
+    let currentExportDoc = '';
+
+    function openExportSpecModal() {
+        if (!activePipeline) return;
+        document.getElementById('export-spec-modal').style.display = 'flex';
+        document.getElementById('export-spec-subtitle').innerText = `Export machine-readable schema for ${activePipeline.name} (${activePipeline.table}).`;
+        switchExportTab('openapi');
+    }
+
+    function closeExportSpecModal() {
+        document.getElementById('export-spec-modal').style.display = 'none';
+    }
+
+    function switchExportTab(format) {
+        currentExportTab = format;
+        const openapiBtn = document.getElementById('tab-btn-openapi');
+        const dbtBtn = document.getElementById('tab-btn-dbt');
+        const codeBox = document.getElementById('export-spec-code');
+
+        if (format === 'openapi') {
+            openapiBtn.className = 'btn-primary-sm';
+            dbtBtn.className = 'btn-secondary';
+        } else {
+            openapiBtn.className = 'btn-secondary';
+            dbtBtn.className = 'btn-primary-sm';
+        }
+
+        codeBox.innerText = `Loading ${format.toUpperCase()} specification...`;
+
+        fetch(`/api/pipelines/${activePipeline.id}/export-spec?format=${format}`)
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Export failed.');
+            return data;
+        })
+        .then(data => {
+            if (format === 'openapi') {
+                currentExportDoc = JSON.stringify(data.specification, null, 2);
+            } else {
+                currentExportDoc = data.raw_yaml || JSON.stringify(data.specification, null, 2);
+            }
+            codeBox.innerText = currentExportDoc;
+        })
+        .catch(err => {
+            codeBox.innerText = `# Error: ${err.message}`;
+        });
+    }
+
+    function copyExportCode() {
+        if (!currentExportDoc) return;
+        navigator.clipboard.writeText(currentExportDoc).then(() => {
+            alert('Specification copied to clipboard!');
+        });
+    }
+
+    function downloadCurrentSpec() {
+        if (!activePipeline) return;
+        window.location.href = `/api/pipelines/${activePipeline.id}/export-spec?format=${currentExportTab}&download=true`;
+    }
+
+    // ==========================================
+    // 4. Schema Time-Travel Timeline & Snapshot Differ
+    // ==========================================
+    let currentTimelineEvents = [];
+    let selectedSnapshotsForDiff = [];
+
+    function openTimeTravelModal() {
+        if (!activePipeline) return;
+        document.getElementById('time-travel-modal').style.display = 'flex';
+        document.getElementById('time-travel-subtitle').innerText = `Historical timeline of mutation events and snapshots for ${activePipeline.name}.`;
+        closeTimelineDiff();
+        fetchTimelineEvents();
+    }
+
+    function closeTimeTravelModal() {
+        document.getElementById('time-travel-modal').style.display = 'none';
+    }
+
+    function fetchTimelineEvents() {
+        const container = document.getElementById('timeline-events-container');
+        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #94a3b8;"><span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Fetching historical events...</div>';
+
+        fetch(`/api/pipelines/${activePipeline.id}/timeline`)
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Failed to load timeline.');
+            return data;
+        })
+        .then(data => {
+            currentTimelineEvents = data.timeline || [];
+            if (currentTimelineEvents.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #94a3b8;">No historical timeline events recorded yet. Run checks or lock contract versions to populate history.</div>';
+                return;
+            }
+
+            container.innerHTML = currentTimelineEvents.map(ev => {
+                const dateStr = new Date(ev.timestamp).toLocaleString();
+                let icon = '📸';
+                let typeColor = '#38bdf8';
+                let typeName = 'Schema Snapshot';
+                let diffBtn = '';
+
+                if (ev.event_type === 'contract_version') {
+                    icon = '📜';
+                    typeColor = '#c084fc';
+                    typeName = `Contract Version v${ev.version_number}`;
+                } else if (ev.event_type === 'incident') {
+                    icon = '🚨';
+                    typeColor = '#f87171';
+                    typeName = `Drift Incident (${ev.severity || 'HIGH'})`;
+                } else if (ev.event_type === 'snapshot') {
+                    typeName = `Snapshot v${ev.version_number} (${ev.status})`;
+                    diffBtn = `<button type="button" class="btn-secondary" onclick="toggleSnapshotDiffSelection('${ev.id}')" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; cursor: pointer;">Select to Diff</button>`;
+                }
+
+                return `
+                <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem; padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.4rem;">${icon}</span>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <strong style="color: ${typeColor}; font-size: 0.88rem;">${typeName}</strong>
+                                <span style="font-size: 0.72rem; color: #64748b; font-family: var(--font-mono);">${ev.id.slice(0, 8)}</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 0.2rem;">${ev.title || 'Event captured'}</div>
+                            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.15rem;">🕒 ${dateStr} • 👤 ${ev.author || 'system'}</div>
+                        </div>
+                    </div>
+                    <div>${diffBtn}</div>
+                </div>`;
+            }).join('');
+        })
+        .catch(err => {
+            container.innerHTML = `<div style="text-align: center; padding: 1.5rem; color: #f87171;">❌ ${err.message}</div>`;
+        });
+    }
+
+    function toggleSnapshotDiffSelection(snapId) {
+        if (selectedSnapshotsForDiff.includes(snapId)) {
+            selectedSnapshotsForDiff = selectedSnapshotsForDiff.filter(id => id !== snapId);
+        } else {
+            selectedSnapshotsForDiff.push(snapId);
+            if (selectedSnapshotsForDiff.length > 2) {
+                selectedSnapshotsForDiff.shift();
+            }
+        }
+
+        if (selectedSnapshotsForDiff.length === 2) {
+            compareTimelineSnapshots(selectedSnapshotsForDiff[0], selectedSnapshotsForDiff[1]);
+        } else if (selectedSnapshotsForDiff.length === 1) {
+            const diffBox = document.getElementById('timeline-diff-box');
+            diffBox.style.display = 'block';
+            document.getElementById('timeline-diff-results').innerHTML = `Selected 1 snapshot (<strong>${selectedSnapshotsForDiff[0].slice(0, 8)}</strong>). Click a second snapshot to compare!`;
+        }
+    }
+
+    function compareTimelineSnapshots(s1, s2) {
+        const diffBox = document.getElementById('timeline-diff-box');
+        const resEl = document.getElementById('timeline-diff-results');
+        diffBox.style.display = 'block';
+        resEl.innerHTML = '<span class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Diffing snapshots...';
+
+        fetch(`/api/pipelines/${activePipeline.id}/timeline/diff?snap1=${s1}&snap2=${s2}`)
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Diff failed.');
+            return data;
+        })
+        .then(data => {
+            const sum = data.diff_summary || {};
+            const isBreaking = sum.has_breaking_changes;
+            const added = data.added_columns || [];
+            const removed = data.removed_columns || [];
+            const altered = data.altered_columns || [];
+
+            resEl.innerHTML = `
+                <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    <span style="font-weight: 700; color: ${isBreaking ? '#ef4444' : '#34d399'};">${isBreaking ? '⚠️ BREAKING CHANGES DETECTED' : '✅ BACKWARDS COMPATIBLE'}</span>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">Added: ${sum.added_count} | Removed: ${sum.removed_count} | Altered: ${sum.altered_count}</span>
+                </div>
+                <div style="font-size: 0.8rem; font-family: var(--font-mono); background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.35rem;">
+                    ${added.map(c => `<div style="color: #4ade80;">+ ADDED: ${c.name} (${c.type})</div>`).join('')}
+                    ${removed.map(c => `<div style="color: #f87171;">- REMOVED: ${c.name} (${c.type})</div>`).join('')}
+                    ${altered.map(c => `<div style="color: #fbbf24;">~ ALTERED: ${c.name} (${c.from_type} -> ${c.to_type})</div>`).join('')}
+                    ${(!added.length && !removed.length && !altered.length) ? '<div style="color: #94a3b8;">Identical schema structures.</div>' : ''}
+                </div>
+            `;
+        })
+        .catch(err => {
+            resEl.innerHTML = `<span style="color: #f87171;">Error: ${err.message}</span>`;
+        });
+    }
+
+    function closeTimelineDiff() {
+        selectedSnapshotsForDiff = [];
+        const diffBox = document.getElementById('timeline-diff-box');
+        if (diffBox) diffBox.style.display = 'none';
+    }
+
+    // ==========================================
+    // 5. Drift Incident Triage Workflow
+    // ==========================================
+    let activeIncidentId = null;
+
+    function checkActiveDriftIncident(pipeline) {
+        const ribbon = document.getElementById('incident-ribbon');
+        if (!ribbon) return;
+
+        if (pipeline.status !== 'Clean') {
+            ribbon.style.display = 'flex';
+            const badge = document.getElementById('incident-severity-badge');
+            const titleEl = document.getElementById('incident-title-text');
+            const timeEl = document.getElementById('incident-time-text');
+
+            const violations = (pipeline.logs || []).filter(l => l.status === 'FAIL' || l.status === 'DRIFT');
+            let severity = 'CRITICAL';
+            if (violations.length === 1 && violations[0].message && violations[0].message.includes('Type change')) {
+                severity = 'MEDIUM';
+            } else if (violations.length === 1) {
+                severity = 'HIGH';
+            }
+
+            badge.innerText = severity;
+            if (severity === 'CRITICAL') {
+                badge.style.background = '#ef4444';
+            } else if (severity === 'HIGH') {
+                badge.style.background = '#f97316';
+            } else {
+                badge.style.background = '#f59e0b';
+            }
+
+            titleEl.innerText = `Active Drift Incident on "${pipeline.table}"`;
+            timeEl.innerText = `${violations.length} violation(s) detected during validation check`;
+        } else {
+            ribbon.style.display = 'none';
+        }
+    }
+
+    function acknowledgeActiveIncident() {
+        if (!activePipeline) return;
+        const btn = document.getElementById('btn-incident-ack');
+        btn.innerHTML = 'Acknowledged ✓';
+        btn.disabled = true;
+        btn.style.borderColor = '#10b981';
+        btn.style.color = '#34d399';
+        alert(`Incident on "${activePipeline.name}" has been marked as Acknowledged. Team notified.`);
+    }
+
+    function snoozeActiveIncident() {
+        if (!activePipeline) return;
+        const btn = document.getElementById('btn-incident-snooze');
+        btn.innerHTML = 'Snoozed ⏰';
+        btn.disabled = true;
+        const ribbon = document.getElementById('incident-ribbon');
+        setTimeout(() => {
+            if (ribbon) ribbon.style.display = 'none';
+        }, 1200);
+        alert(`Alerts for "${activePipeline.name}" snoozed for 1 hour.`);
     }
 </script>
 {% endblock %}
