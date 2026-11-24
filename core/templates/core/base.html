@@ -137,6 +137,13 @@
                                 <small>API reference, guides & SDK</small>
                             </div>
                         </a>
+                        <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-dropdown-item tab-btn">
+                            <span class="dropdown-icon">⚡</span>
+                            <div class="dropdown-text">
+                                <strong>OpenAPI Swagger UI</strong>
+                                <small>Interactive API playground (3.1)</small>
+                            </div>
+                        </a>
                         <a href="{% url 'pricing_page' %}" class="sg-dropdown-item tab-btn {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
                             <span class="dropdown-icon">💎</span>
                             <div class="dropdown-text">
@@ -198,7 +205,8 @@
             <!-- Unauthenticated Topbar Actions -->
             <div class="sg-nav-actions">
                 <a href="{% url 'docs_page' %}" class="sg-nav-item">📚 Docs</a>
-                <a href="{% url 'pricing_page' %}" class="sg-nav-item" style="color: #38bdf8;">💎 Pricing</a>
+                <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-nav-item" style="color: #38bdf8;">⚡ API</a>
+                <a href="{% url 'pricing_page' %}" class="sg-nav-item" style="color: #c084fc;">💎 Pricing</a>
                 <button class="btn-primary-sm" onclick="openAuthModal(false)">Log In</button>
             </div>
             {% endif %}
@@ -235,6 +243,9 @@
                 <div class="sg-mobile-section-label">Resources & Trust</div>
                 <a href="{% url 'docs_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'docs_page' %}active{% endif %}">
                     <span>📖 Developer Documentation</span>
+                </a>
+                <a href="{% url 'api_documentation_view' %}" target="_blank" class="sg-mobile-link">
+                    <span>⚡ OpenAPI Swagger UI</span>
                 </a>
                 <a href="{% url 'pricing_page' %}" class="sg-mobile-link {% if request.resolver_match.url_name == 'pricing_page' %}active{% endif %}">
                     <span>💎 Pricing & Plans</span>

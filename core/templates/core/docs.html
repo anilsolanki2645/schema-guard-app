@@ -285,6 +285,27 @@ jobs:
           fi
           echo "✅ Schema verified compliant with locked contract."</pre>
             </div>
+
+            <!-- Schema Guard Standalone CLI Box -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1.25rem; margin-top: 1.5rem;">
+                <div style="font-weight: 700; color: #a78bfa; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>💻</span> Official Standalone Schema Guard CLI (<code>schemaguard</code>)
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.75rem 0;">
+                    Execute local pre-commit hooks, CI/CD gates, DDL lock risk assessments, and cryptographic contract locking directly from your terminal:
+                </p>
+                <pre style="margin: 0; background: #030712; padding: 1rem; border-radius: 0.5rem; color: #4ade80; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.5; overflow-x: auto;"># Run CI/CD Gate check (exits with code 1 on breaking drift)
+python manage.py schemaguard gate --pipeline &lt;pipeline_id&gt; --strict
+
+# Assess DDL lock level, table rewrite risk, and zero-downtime recipes
+python manage.py schemaguard impact --ddl "ALTER TABLE orders ADD COLUMN status varchar(50);" --dialect postgres
+
+# Verify contract baseline drift against live database
+python manage.py schemaguard check --pipeline &lt;pipeline_id&gt; --json
+
+# Cryptographically lock contract baseline
+python manage.py schemaguard lock --pipeline &lt;pipeline_id&gt;</pre>
+            </div>
         </section>
 
         <!-- SECTION 6: Apache Airflow Operator -->
@@ -419,6 +440,17 @@ with DAG(
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <span style="font-size: 2rem;">📡</span>
                 <h2 style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin: 0;">Complete REST API Specification</h2>
+            </div>
+
+            <!-- Interactive OpenAPI 3.1 Swagger Playground Banner -->
+            <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(129, 140, 248, 0.15)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 0.85rem; padding: 1.25rem 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h3 style="margin: 0 0 0.25rem 0; font-size: 1.1rem; color: #fff; font-weight: 800;">⚡ Interactive OpenAPI 3.1 Swagger Playground</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: #94a3b8;">Explore, test, and execute all 25+ Schema Guard API endpoints directly from your browser with live token authorization.</p>
+                </div>
+                <a href="/api/docs" target="_blank" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700;">
+                    Open Swagger UI 🚀
+                </a>
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">

@@ -1714,7 +1714,7 @@
                 <button type="button" class="btn-secondary" onclick="downloadRollbackSql()" style="display: inline-flex; align-items: center; gap: 0.35rem;">
                     💾 Download .sql
                 </button>
-                <button type="button" class="btn-primary" id="btn-execute-rollback" onclick="executeRollbackDb()" style="background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <button type="button" class="btn-primary" id="btn-execute-rollback-db" onclick="executeRollbackDb()" style="background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; display: inline-flex; align-items: center; gap: 0.35rem;">
                     ⚡ Execute Rollback
                 </button>
             </div>
@@ -4578,7 +4578,7 @@ with DAG(
     function executeRollbackDb() {
         if (!activePipeline || !currentRollbackData) return;
         const allowDestructive = document.getElementById('rb-allow-destructive-checkbox').checked;
-        const btn = document.getElementById('btn-execute-rollback');
+        const btn = document.getElementById('btn-execute-rollback-db');
 
         if (currentRollbackData.risk_summary && currentRollbackData.risk_summary.breaking > 0 && !allowDestructive) {
             alert('⚠️ Rollback contains destructive statements (e.g. DROP COLUMN). Please authorize the execution by checking the confirmation box.');

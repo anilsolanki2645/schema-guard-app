@@ -850,6 +850,26 @@ async function submitQrPayment() {
     }
 }
 
+async function openCustomerPortal() {
+    try {
+        const response = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            }
+        });
+        const data = await response.json();
+        if (response.ok && data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || data.message || 'Could not open billing portal. Please check subscription status.');
+        }
+    } catch (err) {
+        alert('Billing portal error: ' + err.message);
+    }
+}
+
 async function handleDowngrade() {
     if (!confirm('Are you sure you want to switch back to the Developer Free plan? Your pipeline limit will be adjusted to 5.')) {
         return;

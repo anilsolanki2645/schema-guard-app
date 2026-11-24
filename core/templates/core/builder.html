@@ -173,8 +173,8 @@ let contractColumns = [
 ];
 let contractIsLocked = false;
 let isLockingContract = false;
-let userRole = '{{ request.session.user.role }}';
-let userLockPrivilege = {% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or request.session.user.role == 'operator' or request.session.user.permissions.lock %}true{% else %}false{% endif %};
+let userRole = '{{ request.session.user.role|default:"" }}';
+let userLockPrivilege = ("{% if request.session.user.role == 'admin' or request.session.user.role == 'subadmin' or request.session.user.role == 'operator' or request.session.user.permissions.lock %}true{% else %}false{% endif %}" === "true");
 
 let csrfToken = '{{ csrf_token }}';
 let isFetchingLiveSchema = false;
