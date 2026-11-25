@@ -208,6 +208,15 @@ def perform_data_quality_validation(db_type, conn_str, schema_name, table_name, 
     engine, _ = create_db_engine(db_type, resolved_conn, timeout=10)
     checks = []
     status = "PASS"
+
+    # Map sample table names to active demo table if targeting internal/demo database
+    conn_str_str = str(resolved_conn or "")
+    if table_name in ("orders", "public.orders", "demo_orders") and any(d in conn_str_str.lower() for d in ("sqlite", "neondb", "schema_guard", "internal", "demo")):
+        from core.db_connector import ensure_demo_table_and_data
+        ensure_demo_table_and_data()
+        table_name = "demo_orders"
+        if db_type == "sqlite":
+            schema_name = ""
     
     try:
         # Sanitize identifiers safely to prevent SQL injection
@@ -1059,7 +1068,11 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
         except Exception as inc_err:
             logger.warning(f"Could not synchronize DriftIncident: {inc_err}")
 
-        return db.get_pipeline(pipeline_id)
+        res_pipeline = db.get_pipeline(pipeline_id)
+        if res_pipeline:
+            res_pipeline["violations"] = violations
+            res_pipeline["dataQuality"] = dq_report
+        return res_pipeline
 
     except Exception as e:
         logger.error(f"Pipeline check failed: {e}")

@@ -86,7 +86,13 @@ class Command(BaseCommand):
             self.stdout.write(color(f"Pipeline {pipe_id} Check Result: {status}"))
             self.stdout.write(f"Violations Detected: {len(violations)}")
             for v in violations:
-                self.stdout.write(f"  - [{v.get('type')}] {v.get('column')}: {v.get('message')}")
+                if isinstance(v, dict):
+                    msg = v.get('message') or v.get('description') or str(v)
+                    v_type = v.get('type', 'DRIFT')
+                    col = v.get('column', '-')
+                    self.stdout.write(f"  - [{v_type}] {col}: {msg}")
+                else:
+                    self.stdout.write(f"  - {v}")
 
     def handle_lock(self, options, is_json):
         pipe_id = options.get("pipeline")
@@ -116,18 +122,29 @@ class Command(BaseCommand):
             sys.exit(1)
 
         schema_map = p.schema_map or {}
+        left_cols = schema_map.get("left", [])
+        right_cols = schema_map.get("right", [])
+
         res = {
             "pipeline_id": pipe_id,
             "target_table": p.table,
-            "schema_map": schema_map,
-            "columns_count": len(schema_map)
+            "baseline_columns_count": len(left_cols),
+            "live_columns_count": len(right_cols),
+            "schema_map": schema_map
         }
         if is_json:
             self.stdout.write(json.dumps(res, indent=2))
         else:
             self.stdout.write(self.style.MIGRATE_HEADING(f"Schema Structure for '{pipe_id}' ({p.table}):"))
-            for col, data in schema_map.items():
-                self.stdout.write(f"  - {col}: {data}")
+            self.stdout.write(f"  Baseline Columns: {len(left_cols)} | Live Columns: {len(right_cols)}")
+            for col in right_cols:
+                name = col.get("name", "-")
+                c_type = col.get("type", "-")
+                status = col.get("status", "clean")
+                pk = " [PK]" if col.get("pk") else ""
+                null = "NULL" if col.get("nullable", True) else "NOT NULL"
+                tag = f"[{status.upper()}]" if status != "clean" else "[OK]"
+                self.stdout.write(f"  {tag:8} {name:20} {c_type:15} {null:10}{pk}")
 
     def handle_impact(self, options, is_json):
         ddl = options.get("ddl") or "ALTER TABLE users ADD COLUMN age integer;"
@@ -162,8 +179,23 @@ class Command(BaseCommand):
         result = perform_pipeline_check(p.id)
         status = result.get("status", "Unknown")
         violations = result.get("violations", [])
+        dq_report = result.get("dataQuality", {})
 
-        has_breaking = any(v.get("risk") == "BREAKING" or v.get("severity") == "CRITICAL" for v in violations)
+        has_breaking = False
+        breaking_count = 0
+        for v in violations:
+            v_str = json.dumps(v).upper() if isinstance(v, dict) else str(v).upper()
+            if any(kw in v_str for kw in ["DROPPED", "MISSING", "BREAKING", "INCOMPATIBLE", "TYPE CHANGED", "NOT NULL"]):
+                has_breaking = True
+                breaking_count += 1
+
+        if dq_report.get("status") == "FAIL":
+            has_breaking = True
+            breaking_count += 1
+
+        if status in ("Failed", "Error"):
+            has_breaking = True
+
         passed = (status == "Clean") if strict else (not has_breaking)
 
         output = {
@@ -171,7 +203,7 @@ class Command(BaseCommand):
             "gate_passed": passed,
             "strict_mode": strict,
             "status": status,
-            "breaking_drift_count": sum(1 for v in violations if v.get("risk") == "BREAKING" or v.get("severity") == "CRITICAL"),
+            "breaking_drift_count": breaking_count,
             "total_violations": len(violations)
         }
 
@@ -181,7 +213,7 @@ class Command(BaseCommand):
             if passed:
                 self.stdout.write(self.style.SUCCESS(f"CI/CD GATE PASSED: Pipeline '{pipe_id}' has no breaking drift."))
             else:
-                self.stdout.write(self.style.ERROR(f"CI/CD GATE BLOCKED: Breaking schema drift detected in '{pipe_id}'!"))
+                self.stdout.write(self.style.ERROR(f"CI/CD GATE BLOCKED: Breaking schema drift detected in '{pipe_id}'! ({breaking_count} breaking issues)"))
 
         if not passed:
             sys.exit(1)
