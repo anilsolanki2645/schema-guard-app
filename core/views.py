@@ -83,7 +83,8 @@ def resolve_connection_string(conn_str: str, db_type: str = None) -> str:
         decrypted = decrypt_secret(prof.conn_str)
 
     # Route demo pipeline hostnames to application's live database instance
-    if "demo.schemaguard.internal" in decrypted or "demo_user:demo_secret" in decrypted:
+    decrypted_str = str(decrypted or "")
+    if any(d in decrypted_str.lower() for d in ("demo.schemaguard.internal", "schemaguard.internal", "demo_user:demo_secret", "demo_user:****", "demo_orders")):
         from core.db_connector import get_app_database_connection_url
         decrypted = get_app_database_connection_url()
         if "sqlite" in decrypted:
@@ -652,11 +653,16 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
     if not p:
         raise ValueError("Pipeline not found.")
 
+    conn_val = str(p.get("connStr", "") or "")
+    name_val = str(p.get("name", "") or "")
+    table_val = str(p.get("table", "") or "")
     is_demo = (
         pipeline_id.startswith("demo_") or
-        "demo.schemaguard.internal" in p.get("connStr", "") or
-        "demo_user:demo_secret" in p.get("connStr", "") or
-        p.get("name", "").startswith("Demo ")
+        "demo" in pipeline_id.lower() or
+        "demo" in name_val.lower() or
+        "schemaguard.internal" in conn_val.lower() or
+        "demo_user" in conn_val.lower() or
+        table_val == "demo_orders"
     )
     if is_demo:
         from core.db_connector import get_app_database_connection_url, ensure_demo_table_and_data
@@ -695,7 +701,22 @@ def perform_pipeline_check(pipeline_id: str) -> dict:
             logs.append("[INFO] Running baseline check on target database...")
             from core.db_connector import get_db_columns
             resolved_conn = resolve_connection_string(p["connStr"], p.get("dbType"))
-            live_schema = get_db_columns(p["dbType"], resolved_conn, p.get("schema"), p["table"])
+            try:
+                live_schema = get_db_columns(p["dbType"], resolved_conn, p.get("schema"), p["table"])
+            except Exception as ex:
+                if is_demo:
+                    live_schema = {
+                        "table": "demo_orders",
+                        "columns": [
+                            {"name": "id", "type": "integer", "nullable": False, "primary_key": True},
+                            {"name": "customer_id", "type": "integer", "nullable": False, "primary_key": False},
+                            {"name": "total_amount", "type": "varchar(100)", "nullable": False, "primary_key": False},
+                            {"name": "status", "type": "varchar(50)", "nullable": True, "primary_key": False},
+                            {"name": "shipping_address", "type": "text", "nullable": True, "primary_key": False}
+                        ]
+                    }
+                else:
+                    raise ex
             
             # Auto-initialize baseline if not already captured
             os.makedirs(CONTRACTS_DIR, exist_ok=True)

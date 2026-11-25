@@ -1907,6 +1907,68 @@ img, svg, canvas, video {
 
 /* 2. MOBILE LANDSCAPE & TABLETS (max-width: 768px) */
 @media (max-width: 768px) {
+    /* Mobile Navbar Header Fix - strictly <= 768px */
+    .sg-navbar {
+        height: 60px !important;
+        padding: 0 !important;
+    }
+    .sg-nav-container {
+        padding: 0 0.75rem !important;
+        gap: 0.4rem !important;
+        height: 100% !important;
+    }
+    .sg-nav-brand {
+        flex-shrink: 1 !important;
+        min-width: 0 !important;
+    }
+    .sg-brand-link {
+        gap: 0.45rem !important;
+    }
+    .sg-brand-title {
+        font-size: 1.02rem !important;
+        white-space: nowrap !important;
+    }
+    .sg-brand-badge {
+        display: none !important;
+    }
+    .sg-org-pill {
+        display: none !important;
+    }
+    .sg-nav-actions {
+        gap: 0.4rem !important;
+        flex-shrink: 0 !important;
+    }
+    .sg-nav-actions .btn-primary-sm {
+        padding: 0.3rem 0.6rem !important;
+        font-size: 0.78rem !important;
+        min-height: 32px !important;
+        white-space: nowrap !important;
+    }
+    .sg-hamburger-btn {
+        width: 36px !important;
+        height: 36px !important;
+        flex-shrink: 0 !important;
+    }
+
+    /* Pipeline detail header bar wrap on mobile */
+    .pipeline-detail-header-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+    }
+    .pipeline-detail-header-bar > div:last-child {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 0.4rem !important;
+        width: 100% !important;
+    }
+    .pipeline-detail-header-bar > div:last-child > button,
+    .pipeline-detail-header-bar > div:last-child > a {
+        flex: 1 1 calc(50% - 0.4rem) !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
     /* Legal Pages (Privacy Policy, Terms of Service) */
     .legal-page-container {
         margin: 1rem auto !important;
@@ -2058,6 +2120,11 @@ img, svg, canvas, video {
 
     .builder-reverse-grid {
         grid-template-columns: 1fr !important;
+    }
+
+    .pipeline-detail-header-bar > div:last-child > button,
+    .pipeline-detail-header-bar > div:last-child > a {
+        flex: 1 1 100% !important;
     }
 
     /* Touch targets & iOS Zoom Protection */
